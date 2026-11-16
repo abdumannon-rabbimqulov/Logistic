@@ -12,7 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from config.base import Base
 

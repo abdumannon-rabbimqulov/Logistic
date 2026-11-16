@@ -7,10 +7,9 @@ from typing import List, NoReturn, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.config import ADMIN_IDS, async_session, get_db
+from config.config import async_session, get_db
 from driver.crud import get_driver, get_driver_by_user_id
 from users.crud import get_user_by_id
 from order import crud, schemas

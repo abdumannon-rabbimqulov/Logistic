@@ -1,4 +1,4 @@
-from sqlalchemy import select, func, update
+from sqlalchemy import select, update
 
 from config.config import async_session
 from users.models import User
@@ -35,29 +35,6 @@ async def create_user(
         await session.commit()
         await session.refresh(user)
         return user
-
-
-async def get_or_create_user(
-    user_id: int,
-    full_name: str,
-    username: str | None = None,
-    language: str = "uz",
-    phone_number: str | None = None,
-) -> tuple[User, bool]:
-
-    user = await get_user(user_id)
-    if user:
-        return user, False
-    user = await create_user(user_id, full_name, username, language, phone_number)
-    return user, True
-
-
-async def update_user_language(user_id: int, language: str) -> None:
-    async with async_session() as session:
-        await session.execute(
-            update(User).where(User.id == user_id).values(language=language)
-        )
-        await session.commit()
 
 
 async def update_user_profile_from_tg(

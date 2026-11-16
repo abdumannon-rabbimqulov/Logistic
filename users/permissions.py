@@ -1,7 +1,7 @@
 """Rolga asoslangan kirish nazorati (RBAC) uchun yagona joy.
 
 Nega kerak edi: ilgari har bir rol uchun alohida dependency yozilgan
-(`users/auth.py`: `get_current_admin`, `get_current_sender`), qolgan tekshiruvlar esa
+(`users/auth.py`: `get_current_sender`), qolgan tekshiruvlar esa
 endpointlar ichida `if current_user.role != UserRole.DRIVER: raise 403` ko'rinishida
 sochilib yotardi (`order/router.py:101, 457, 515, 531`). Yangi rol qo'shilganda kimning
 nimaga huquqi borligini bitta joydan ko'rib bo'lmasdi va bitta joyni unutish osongina
@@ -23,7 +23,7 @@ uchun ruxsat etilgan amallar alohida `/manager` router'ida (`manager/router.py`)
 
 from __future__ import annotations
 
-from typing import Callable, Iterable
+from typing import Callable
 
 from fastapi import Depends, HTTPException, status
 
@@ -123,6 +123,3 @@ async def get_current_staff(
     raise _forbidden("Bu bo'lim faqat admin va menejerlar uchun.")
 
 
-def role_names(roles: Iterable[UserRole]) -> list[str]:
-    """Xato matnlari va testlar uchun kichik yordamchi."""
-    return sorted(r.value for r in roles)

@@ -5,10 +5,6 @@ export function listTruckTypes(): Promise<TruckType[]> {
   return api.get<TruckType[]>('/drivers/truck-types', undefined, true);
 }
 
-export function getTruckType(id: number): Promise<TruckType> {
-  return api.get<TruckType>(`/drivers/truck-types/${id}`, undefined, true);
-}
-
 export function createTruckType(data: TruckTypeInput): Promise<TruckType> {
   return api.post<TruckType>('/drivers/truck-types', data);
 }

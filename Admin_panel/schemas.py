@@ -114,32 +114,6 @@ class AdminDashboardStats(BaseModel):
 
 
 # ════════════════════════════════════════════════════════════
-# AI COMMANDS
-# ════════════════════════════════════════════════════════════
-
-
-class AICommandRead(BaseModel):
-    id: int
-    user_id: Optional[int]
-    message_id: Optional[int]
-    command_type: str
-    raw_input: Optional[str]
-    parameters: Optional[Dict[str, Any]] = None
-    status: str
-    result: Optional[Dict[str, Any]] = None
-    error_msg: Optional[str] = None
-    created_at: datetime
-    executed_at: Optional[datetime] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class AICommandList(BaseModel):
-    total: int
-    items: List[AICommandRead]
-
-
-# ════════════════════════════════════════════════════════════
 # DRIVERS (blok / blokdan chiqarish)
 # ════════════════════════════════════════════════════════════
 

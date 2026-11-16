@@ -1,18 +1,16 @@
 from __future__ import annotations
 import enum
-from datetime import datetime, date
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
-    Date,
     DateTime,
     Enum,
     ForeignKey,
     Integer,
     Numeric,
     String,
-    Text,
 )
 from sqlalchemy.schema import Index
 from config.base import Base

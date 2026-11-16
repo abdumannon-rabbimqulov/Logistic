@@ -5,8 +5,8 @@ Bu modul turli input validation rules va security checks'ni o'z ichiga oladi.
 """
 
 import re
-from typing import Any, Optional
-from pydantic import BaseModel, Field, field_validator, ValidationError
+from typing import Optional
+from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 
 

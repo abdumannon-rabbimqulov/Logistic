@@ -30,3 +30,4 @@ docker-compose.override.yml
 # Manba shablonlar `monitoring/netdata/` da va ular git'da kuzatiladi; bu papka
 # har `make mon-up` da `monitoring/render-config.py` tomonidan qayta yaratiladi.
 monitoring/.rendered/
+.DS_Store

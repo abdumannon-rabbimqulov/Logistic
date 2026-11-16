@@ -34,21 +34,6 @@ async def get_user_by_phone(db: AsyncSession, phone_number: str) -> Optional[Use
     return result.scalar_one_or_none()
 
 
-async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User]:
-    result = await db.execute(
-        select(User).where(User.username == username)
-    )
-    return result.scalar_one_or_none()
-
-
-async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
-    result = await db.execute(
-        select(User).where(User.email == email)
-    )
-    return result.scalar_one_or_none()
-
-
-
 async def update_user_role(db: AsyncSession, user: User, role: UserRole) -> User:
     user.role = role
     await db.commit()
@@ -77,11 +62,6 @@ async def update_password(
     await db.commit()
     await db.refresh(user)
     return user
-
-
-async def delete_user(db: AsyncSession, user: User) -> None:
-    await db.delete(user)
-    await db.commit()
 
 
 async def deactivate_user(db: AsyncSession, user: User) -> User:

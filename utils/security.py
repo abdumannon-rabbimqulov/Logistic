@@ -1,10 +1,7 @@
 """⚡ SECURITY UTILITIES - Rate Limiting & Input Validation"""
 
 import logging
-import re
 from datetime import datetime, timedelta
-from typing import Optional
-from fastapi import HTTPException, status
 
 logger = logging.getLogger(__name__)
 

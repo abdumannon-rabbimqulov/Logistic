@@ -1,11 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import desc, select, update, delete
-from sqlalchemy.orm import selectinload
-from typing import List, Optional, Sequence
+from sqlalchemy import select, update, delete
+from typing import List, Optional
 from driver.models import (
     TruckType, Driver,
 )
-from order.models import Order, OrderStatus
 from driver.schemas import (
     TruckTypeCreate, TruckTypeUpdate,
     DriverCreate, DriverUpdate
@@ -53,10 +51,6 @@ async def get_driver(db: AsyncSession, pk: int) -> Optional[Driver]:
 async def get_driver_by_user_id(db: AsyncSession, user_id: int) -> Optional[Driver]:
     result = await db.execute(select(Driver).where(Driver.user_id == user_id))
     return result.scalar_one_or_none()
-
-async def get_all_drivers(db: AsyncSession) -> List[Driver]:
-    result = await db.execute(select(Driver))
-    return result.scalars().all()
 
 async def update_driver(db: AsyncSession, pk: int, data: DriverUpdate) -> Optional[Driver]:
     await db.execute(update(Driver).where(Driver.id == pk).values(**data.model_dump(exclude_unset=True)))

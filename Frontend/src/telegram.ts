@@ -103,10 +103,6 @@ export function initTelegramWebApp(): void {
   webApp.expand();
 }
 
-export function haptic(style: 'light' | 'medium' | 'heavy' = 'light'): void {
-  getTelegramWebApp()?.HapticFeedback.impactOccurred(style);
-}
-
 /** Register formasini oldindan to'ldirish uchun — faqat taxminiy, auth uchun ishlatilmaydi. */
 export function getTelegramUser(): TelegramWebAppUser | null {
   return getTelegramWebApp()?.initDataUnsafe.user ?? null;

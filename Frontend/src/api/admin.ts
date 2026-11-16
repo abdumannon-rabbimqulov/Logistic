@@ -155,10 +155,6 @@ export function listDriverMonitor(onlyWithLocation = true): Promise<DriverMonito
 }
 
 // ── Haydovchi jonli lokatsiyalari ────────────────────────────────────────────────
-export function listDriverLocations(): Promise<DriverLocationItem[]> {
-  return api.get<DriverLocationItem[]>('/system/drivers/locations');
-}
-
 /** Bitta haydovchining jonli lokatsiyasi. Translyatsiya o'chiq bo'lsa 404 (ApiError). */
 export function getDriverLocation(driverId: number): Promise<DriverLocationItem> {
   return api.get<DriverLocationItem>(`/system/drivers/${driverId}/location`);

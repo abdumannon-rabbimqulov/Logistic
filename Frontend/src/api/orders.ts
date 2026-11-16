@@ -2,13 +2,11 @@ import { api, apiBaseUrl, getAccessToken } from './client';
 import type {
   DispatchAttemptResponse,
   GeocodeSuggestion,
-  Order,
   OrderCreateInput,
   OrderDetail,
   OrderDriverLocation,
   OrderListItem,
   OrderPriceOptionsResponse,
-  OrderStatus,
   OrderUpdateInput,
   PriceEstimateLocation,
   PriceEstimateResponse,
@@ -108,12 +106,6 @@ export function acceptDispatch(attemptId: number): Promise<OrderDetail> {
 /** Taklifni rad etish — navbat keyingi haydovchiga o'tadi (204). */
 export function rejectDispatch(attemptId: number): Promise<void> {
   return api.post<void>(`/orders/dispatch/${attemptId}/reject`);
-}
-
-/** Buyurtma holatini qo'lda yangilash — FAQAT admin uchun.
- *  Haydovchi oqimni `updateWaypoint` orqali suradi (har qadam GPS bilan tekshiriladi). */
-export function updateOrderStatus(orderId: number, status: OrderStatus): Promise<Order> {
-  return api.patch<Order>(`/orders/${orderId}/status`, { status });
 }
 
 /** Marshrut nuqtasidagi qadamni belgilash ("Yetib keldim" / "Yukni ortdim" / "Topshirdim").

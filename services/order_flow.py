@@ -150,40 +150,6 @@ def waypoint_label(waypoint: OrderWaypoint) -> str:
     }.get(waypoint.type, "nuqta")
 
 
-def ensure_waypoint_actionable(order: Order, waypoint: OrderWaypoint) -> None:
-    """Nuqta ayni paytda o'zgartirilishi mumkinligini tekshiradi.
-
-    Eng muhim qoida — KETMA-KETLIK: faqat `order.current_waypoint` ustida ish olib borish
-    mumkin. Aks holda haydovchi yuk ortish nuqtasiga bormasdan turib to'g'ridan-to'g'ri
-    yetkazish nuqtasini yopib, buyurtmani (va komissiyani) yakunlab yuborardi.
-    """
-    if order.status not in _ACTIVE_ORDER_STATUSES:
-        raise OrderFlowError(
-            f"Buyurtma '{_ORDER_STATUS_LABEL.get(order.status, order.status.value)}' holatida — "
-            "nuqtalarni belgilab bo'lmaydi."
-        )
-
-    current = order.current_waypoint
-    if current is None:
-        raise OrderFlowError("Buyurtmaning barcha nuqtalari allaqachon yakunlangan.")
-
-    if current.id != waypoint.id:
-        raise OrderFlowError(
-            f"Avval {waypoint_label(current)}ni yakunlang "
-            f"({current.address or 'manzil ko‘rsatilmagan'})."
-        )
-
-
-def ensure_waypoint_transition_allowed(
-    waypoint: OrderWaypoint, new_status: WaypointStatus
-) -> None:
-    if new_status not in _ALLOWED_WAYPOINT_TRANSITIONS.get(waypoint.status, set()):
-        raise OrderFlowError(
-            f"Bu nuqtani '{_waypoint_status_label(waypoint.status)}' holatidan "
-            f"'{_waypoint_status_label(new_status)}' holatiga o'tkazib bo'lmaydi."
-        )
-
-
 def collect_waypoint_violations(
     order: Order,
     waypoint: OrderWaypoint,

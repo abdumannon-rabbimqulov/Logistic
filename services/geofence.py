@@ -86,7 +86,7 @@ async def try_resolve_driver_coords(
     longitude: Optional[float],
     accuracy_m: Optional[float],
 ) -> tuple[Optional[DriverCoords], Optional[Violation]]:
-    """`resolve_driver_coords` ning yiqilmaydigan varianti.
+    """Haydovchi koordinatasini aniqlaydi (yiqilmaydi).
 
     Muvaffaqiyatda `(coords, None)`, aks holda `(None, Violation)` qaytaradi —
     chaqiruvchi sababni boshqa sabablar bilan birga yig'a olishi uchun.
@@ -126,26 +126,6 @@ async def try_resolve_driver_coords(
         ),
         context={"max_age_sec": GEOFENCE_LOCATION_MAX_AGE_SEC},
     )
-
-
-async def resolve_driver_coords(
-    driver_id: int,
-    latitude: Optional[float],
-    longitude: Optional[float],
-    accuracy_m: Optional[float],
-) -> DriverCoords:
-    """So'rovdagi koordinatani oladi, bo'lmasa Redis'dagi yangi nuqtaga qaytadi.
-
-    Ikkalasi ham bo'lmasa `GeofenceError` — joylashuvsiz qadamni tasdiqlab bo'lmaydi.
-    Bu `try_resolve_driver_coords` ustidagi "yiqiladigan" qobiq.
-    """
-    coords, violation = await try_resolve_driver_coords(
-        driver_id, latitude, longitude, accuracy_m
-    )
-    if violation is not None:
-        raise GeofenceError(violation.message)
-    assert coords is not None
-    return coords
 
 
 def _is_fresh(ts_raw: Optional[str]) -> bool:

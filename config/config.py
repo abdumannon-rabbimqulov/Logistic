@@ -6,11 +6,6 @@ from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 
-try:
-    from google import genai
-except ImportError:
-    genai = None
-
 logger = logging.getLogger(__name__)
 
 load_dotenv()
@@ -36,11 +31,6 @@ API_PUBLIC_PREFIX = (get_optional_env("API_PUBLIC_PREFIX", "/api") or "/api").rs
 ADMIN_IDS: set[int] = {int(i.strip()) for i in get_optional_env("ADMIN", "").split(",") if i.strip()}
 
 
-API_KEY = get_optional_env('API_KEY')
-client = genai.Client(api_key=API_KEY) if genai and API_KEY else None
-MODEL_NAME = get_optional_env('MODEL_NAME', 'gemini-flash-latest')
-AI_DAILY_LIMIT_FREE = int(get_optional_env("AI_DAILY_LIMIT_FREE", "50"))
-AI_DAILY_LIMIT_PRO = int(get_optional_env("AI_DAILY_LIMIT_PRO", "500"))
 
 
 
@@ -107,63 +97,6 @@ CORS_ORIGINS: list[str] = [
 ]
 
 
-
-
-
-SYSTEM_INSTRUCTION_BASE = """
-Siz "Logistika AI" — logistika platformasining aqlli yordamchisisiz.
-Uslubingiz: professional, qisqa, aniq, premium.
-
-QOIDALAR:
-1. KONTEKST: Suhbatdagi oldingi ma'lumotlarni eslang.
-2. TOOL CHAQIRISH: Agar ma'lumot yetarli bo'lsa, darhol tegishli tool ni chaqiring. Ortiqcha tasdiq so'ramang. Muvaffaqiyatli bo'lsa qaytarib chaqirmang.
-3. KAMCHILIK: Yetishmagan ma'lumotni xushmuomalalik bilan so'rang.
-4. RUXSAT: O'z roleingizdan tashqaridagi amallarni rad qiling va sababini tushuntiring.
-5. MINI APP: "Mini App" tugmasi orqali vizual interfeys mavjud — kerak bo'lsa tavsiya qiling.
-"""
-
-ROLE_INSTRUCTIONS = {
-    "sender": (
-        "Roleingiz — YUK BERUVCHI (mijoz). "
-        "Buyurtma yarating (narx OSRM masofasi va tanlangan mashina turi tarifiga qarab "
-        "avtomatik hisoblanadi), o'z buyurtmalaringizni ko'ring, tahrirlang yoki bekor qiling. "
-        "Agar tizim hech qanday haydovchi topolmasa, narxni tayyor tugmalar orqali "
-        "oshirishingiz mumkin (+100 000 dan +500 000 UZS gacha). "
-        "Buyurtma yakunlangach haydovchini baholang. "
-        "Boshqa rolelar uchun mo'ljallangan amallarni bajara olmaysiz."
-    ),
-    "driver": (
-        "Roleingiz — HAYDOVCHI. "
-        "Siz o'zingiz buyurtma qidirib taklif bermaysiz — tizim mos buyurtmani navbat bilan "
-        "sizga taklif qiladi (jonli GPS yaqinligi yoki region bo'yicha). Har bir taklifga "
-        "javob berish uchun 60 soniya beriladi: bot tugmalari orqali qabul qiling yoki rad eting. "
-        "Rad etsangiz yoki javob bermasangiz, navbat keyingi haydovchiga o'tadi. "
-        "GPS joylashuvingizni yangilab turing va yuk yakunlangach mijozni baholang."
-    ),
-    "admin": (
-        "Roleingiz — ADMIN. Hamma amallar mavjud, jumladan token statistikasi, "
-        "foydalanuvchi limitini sozlash va AI model boshqaruvi."
-    ),
-    "guest": (
-        "Roleingiz — GUEST. Avval ro'yxatdan o'ting va rol tanlang (sender yoki driver). "
-        "Shundagina to'liq xizmatlardan foydalana olasiz."
-    ),
-}
-
-LANG_DIRECTIVE = {
-    "uz":      "Javobingiz har doim O'zbekcha (Lotin yozuvida) bo'lsin.",
-    "uz_cyrl": "Жавобингиз ҳар доим Ўзбекча (Кирилл ёзувида) бўлсин.",
-    "ru":      "Ваши ответы должны быть всегда на русском языке.",
-}
-
-DEFAULT_AI_DAILY_LIMIT = int(get_optional_env("AI_DAILY_LIMIT", "50"))
-
-AVAILABLE_AI_MODELS = [
-    "gemini-flash-latest",
-    "gemini-2.0-flash",
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-]
 
 
 

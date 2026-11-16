@@ -10,7 +10,6 @@ from keyboards.reply import (
     get_role_keyboard,
     get_sender_webapp_keyboard,
 )
-from users.models import UserRole
 import database as db
 from config.config import ADMIN_IDS
 from utils.validation import normalize_phone_number

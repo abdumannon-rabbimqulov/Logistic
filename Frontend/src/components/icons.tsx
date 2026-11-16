@@ -35,15 +35,6 @@ export function SwapIcon({ size = 18, color = 'var(--color-gray-800)', strokeWid
   );
 }
 
-export function CalendarIcon({ size = 19, color = 'var(--color-gray-800)', strokeWidth = 1.9 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="16" rx="3" />
-      <path d="M8 2v4M16 2v4M3 10h18" />
-    </svg>
-  );
-}
-
 /** Destination (manzilga) qatoridagi bayroqcha ikonka. */
 export function DestinationFlagIcon({ size = 20, color = 'var(--color-gray-900)', strokeWidth = 1.8 }: IconProps) {
   return (

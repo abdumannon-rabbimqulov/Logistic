@@ -226,11 +226,6 @@ async def publish_dispatch_job(
         raise QueueUnavailable(f"Xabar yuborilmadi (order #{order_id}): {exc}") from exc
 
 
-async def declare_events_topology() -> None:
-    """Faqat hodisalar topologiyasini e'lon qiladi (`declare_topology` uni ham qamrab oladi)."""
-    await get_channel()
-
-
 def build_event(event: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Hodisa konverti — barcha xabarlar bir xil ko'rinishda bo'lishi uchun.
 

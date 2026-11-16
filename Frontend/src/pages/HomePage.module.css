@@ -201,11 +201,6 @@
   justify-content: center;
 }
 
-.transportIconBoxSelected {
-  composes: transportIconBox;
-  background: var(--color-accent-tint);
-}
-
 .transportLabel {
   font-size: 12px;
   color: var(--color-text-primary);
@@ -215,11 +210,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.transportLabelSelected {
-  composes: transportLabel;
-  font-weight: 600;
 }
 
 .addressRow {
