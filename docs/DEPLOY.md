@@ -93,7 +93,7 @@ nano .env
 | `CORS_ORIGINS` | `https://<DOMAIN>` |
 | `RABBITMQ_PASSWORD` | standart `guest` ni **o'zgartiring** (`RABBITMQ_URL` ni ham) |
 | `ADMIN` | admin Telegram ID(lar), vergul bilan |
-| `API_YANDEX_KEY`, `API_KEY` | geokoder va AI kalitlari |
+| `API_YANDEX_KEY` | Yandex geokoder kaliti |
 
 `ENVIRONMENT=production`, `VITE_API_BASE_URL=/api` — o'zgartirilmaydi.
 
