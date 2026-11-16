@@ -70,7 +70,16 @@ fi
 # ── 3. Kodni yangilash ──────────────────────────────────────────────────────
 if [ "$PULL" = "1" ] && [ -d "$ROOT/.git" ]; then
     say "Kod yangilanmoqda (git pull)..."
+    SELF="$ROOT/scripts/server-deploy.sh"
+    before="$(git hash-object "$SELF")"
     git pull --ff-only
+    # Pull shu skriptning o'zini o'zgartirgan bo'lsa — bash hali ESKI nusxani bajarmoqda
+    # (ochiq fayl). Yangi versiya bilan qaytadan boshlanadi, aks holda yangi qadamlar
+    # (masalan oxiridagi commit qatori, Actions shuni tekshiradi) bajarilmay qoladi.
+    if [ "$(git hash-object "$SELF")" != "$before" ]; then
+        say "Deploy skripti yangilandi — yangi versiyasi bilan qayta ishga tushirilmoqda..."
+        exec "$SELF" --no-pull
+    fi
 fi
 
 PREV_IMAGE="$(docker image inspect logistika_backend:latest --format '{{.Id}}' 2>/dev/null || echo '-')"
