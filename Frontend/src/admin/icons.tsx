@@ -63,6 +63,16 @@ export function ProfileIconAdmin({ size = 20, color = 'currentColor', strokeWidt
   );
 }
 
+export function ServerIcon({ size = 20, color = 'currentColor', strokeWidth = 1.8 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base(color, strokeWidth)}>
+      <rect x="3.5" y="4" width="17" height="6.5" rx="1.6" />
+      <rect x="3.5" y="13.5" width="17" height="6.5" rx="1.6" />
+      <path d="M7 7.25h.01M7 16.75h.01M11 7.25h6M11 16.75h6" />
+    </svg>
+  );
+}
+
 export function TruckTypesIcon({ size = 20, color = 'currentColor', strokeWidth = 1.8 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...base(color, strokeWidth)}>

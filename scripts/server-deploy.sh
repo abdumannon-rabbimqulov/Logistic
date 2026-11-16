@@ -112,6 +112,9 @@ say "Backend /health tekshirilmoqda..."
 
 domain="$(grep -E '^DOMAIN=' "$ROOT/.env" | tail -n1 | cut -d= -f2-)"
 say "Tayyor: https://${domain}"
+# GitHub Actions shu qatorni push qilingan commit bilan solishtiradi
+# (.github/workflows/deploy.yml) — formatini o'zgartirmang.
+echo "Deploy qilingan commit: $(git rev-parse HEAD)"
 
 # ── 7. Tozalash ─────────────────────────────────────────────────────────────
 # Faqat hech qaysi konteyner ishlatmayotgan "osilib qolgan" qatlamlar.

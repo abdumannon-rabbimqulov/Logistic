@@ -5,6 +5,7 @@ import { AdminLayout } from './AdminLayout';
 import { ToastProvider } from './components/Toast';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminDrivers } from './pages/AdminDrivers';
+import { AdminMonitoring } from './pages/AdminMonitoring';
 import { AdminOrders } from './pages/AdminOrders';
 import { AdminProfile } from './pages/AdminProfile';
 import { AdminSettings } from './pages/AdminSettings';
@@ -29,6 +30,7 @@ export function AdminApp() {
           <Route path="users" element={<AdminUsers />} />
           <Route path="truck-types" element={<AdminTruckTypes />} />
           <Route path="tickets" element={<AdminTickets />} />
+          <Route path="monitoring" element={<AdminMonitoring />} />
           <Route path="settings" element={<AdminSettings />} />
           <Route path="profile" element={<AdminProfile />} />
         </Route>

@@ -1,0 +1,411 @@
+/* Holat ranglari — dataviz reference status palitrasi. Ular faqat holat uchun, hech
+   qachon grafik qatori sifatida ishlatilmaydi, va doim ikonka + matn bilan keladi. */
+.controls,
+.banner,
+.compGrid,
+.panel,
+.kpiRow,
+.chartGrid,
+.tableGrid {
+  --st-ok: #0ca30c;
+  --st-warn: #fab219;
+  --st-crit: #d03b3b;
+  --viz-series: #2a78d6;
+}
+
+/* ── Boshqaruv ── */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--color-gray-100);
+}
+
+.seg,
+.segActive {
+  height: 34px;
+  padding: 0 14px;
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.segActive {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.autoToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.skeleton {
+  height: 420px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(90deg, var(--color-gray-100), var(--color-gray-50), var(--color-gray-100));
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* ── Holat belgisi ── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 4px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.pillIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.pill_ok { background: color-mix(in srgb, var(--st-ok) 12%, transparent); }
+.pill_ok .pillIcon { background: var(--st-ok); }
+.pill_warn { background: color-mix(in srgb, var(--st-warn) 22%, transparent); }
+.pill_warn .pillIcon { background: var(--st-warn); color: #3a2a00; }
+.pill_critical { background: color-mix(in srgb, var(--st-crit) 14%, transparent); }
+.pill_critical .pillIcon { background: var(--st-crit); }
+
+/* ── Umumiy banner ── */
+.banner {
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  border-left-width: 4px;
+  background: var(--color-bg);
+}
+
+.banner_ok { border-left-color: var(--st-ok); }
+.banner_warn { border-left-color: var(--st-warn); }
+.banner_critical { border-left-color: var(--st-crit); }
+
+.bannerHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bannerTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.updated {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.issues {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+/* ── Xizmat kartalari ── */
+.compGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 14px;
+}
+
+.compCard {
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.comp_warn { border-color: color-mix(in srgb, var(--st-warn) 60%, var(--color-border)); }
+.comp_critical { border-color: color-mix(in srgb, var(--st-crit) 60%, var(--color-border)); }
+
+.compHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.compTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.compBody {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.statValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.errText {
+  color: var(--st-crit);
+}
+
+/* ── KPI ── */
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  gap: 14px;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.kpiValue {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiSub {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* ── Grafiklar ── 2×2 to'r (4 ta grafik — biri yolg'iz qolmasin), torda 1 ustun. */
+.chartGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .chartGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Panellar ── */
+.panel {
+  padding: 18px 20px;
+  overflow-x: auto; /* keng jadvallar tor ekranda panel ichida suriladi */
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.panelHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.panelSub {
+  font-size: 12.5px;
+  color: var(--color-text-tertiary);
+}
+
+.tableGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr));
+  gap: 14px;
+}
+
+/* ── O'lchagichlar ── */
+.meters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: 18px;
+}
+
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meterHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.meterValue {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.meterTrack {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-gray-100);
+  overflow: hidden;
+}
+
+.meterFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width 0.4s ease;
+}
+
+.fill_ok { background: var(--viz-series); }
+.fill_warn { background: var(--st-warn); }
+.fill_critical { background: var(--st-crit); }
+
+.meterDetail {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-gray-100);
+}
+
+/* ── Gistogramma ── */
+.hist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.histRow {
+  display: grid;
+  grid-template-columns: 130px 1fr 130px;
+  align-items: center;
+  gap: 12px;
+}
+
+.histLabel {
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.histTrack {
+  height: 14px;
+}
+
+.histBar {
+  height: 100%;
+  min-width: 2px;
+  border-radius: 0 4px 4px 0;
+  background: var(--viz-series);
+}
+
+.histValue {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.histPct {
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+}
+
+.empty {
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+}
+
+.footnote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+@media (max-width: 720px) {
+  .histRow {
+    grid-template-columns: 96px 1fr 96px;
+  }
+}

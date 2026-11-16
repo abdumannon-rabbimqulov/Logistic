@@ -517,6 +517,21 @@ async def _ws_authorize(websocket: WebSocket, token: Optional[str]) -> Optional[
     return user
 
 
+@router.get(
+    "/monitoring",
+    summary="Server monitoringi: yuklama, so'rovlar tezligi, xatolar, navbatlar, worker'lar",
+)
+async def server_monitoring(
+    minutes: int = Query(60, ge=5, le=1440, description="Oxirgi necha daqiqa"),
+    _: User = Depends(is_admin),
+):
+    # Import shu yerda: monitoring moduli dispatch/queue'ni tortadi, router importini
+    # og'irlashtirmaslik va aylanma importdan saqlanish uchun.
+    from services import monitoring
+
+    return await monitoring.overview(minutes)
+
+
 @router.websocket("/drivers/locations/stream")
 async def driver_locations_ws(websocket: WebSocket, token: Optional[str] = None):
     user = await _ws_authorize(websocket, token)

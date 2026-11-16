@@ -6,6 +6,7 @@ import {
   LogoutIcon,
   OrdersIcon,
   ProfileIconAdmin,
+  ServerIcon,
   SettingsIcon,
   TicketsIcon,
   TruckTypesIcon,
@@ -20,6 +21,7 @@ const NAV = [
   { to: '/admin/users', label: 'Foydalanuvchilar', Icon: UsersIcon, end: false },
   { to: '/admin/truck-types', label: 'Transport turlari', Icon: TruckTypesIcon, end: false },
   { to: '/admin/tickets', label: 'Murojaatlar', Icon: TicketsIcon, end: false },
+  { to: '/admin/monitoring', label: 'Server', Icon: ServerIcon, end: false },
   { to: '/admin/settings', label: 'Sozlamalar', Icon: SettingsIcon, end: false },
   { to: '/admin/profile', label: 'Profil', Icon: ProfileIconAdmin, end: false },
 ];

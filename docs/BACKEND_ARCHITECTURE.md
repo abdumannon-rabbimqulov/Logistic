@@ -368,7 +368,18 @@ To'liq namuna va izohlar: `.env.example`. Eng muhimlari:
 - **Validatsiya** — Pydantic sxemalar + `utils/validation.py` (telefon normalizatsiyasi `+998...`).
 - **Portlar** — prod'da faqat 80/443 ochiq; db/redis/rabbitmq/osrm/web `127.0.0.1` ga bog'langan.
 - **Healthcheck'lar** — `/health`, `/health/db`; compose'da har xizmat uchun.
-- **Monitoring** — Netdata + Dockge, Telegram alertlari (`docs/MONITORING.md`).
+- **Admin "Server" bo'limi** (`/admin/monitoring`, `GET /system/monitoring`):
+  - `services/metrics.py` — sof ASGI middleware har HTTP so'rovni Redis'dagi daqiqalik
+    bo'lakka yozadi (`mon:m:<minute>`, `mon:r:<minute>`, 26 soat): soni, 4xx/5xx,
+    latency gistogrammasi (p50/p95/p99 shundan), endpoint shabloni bo'yicha. Javob
+    boshlanmasdan uzilgan so'rov 499, istisno — 500 sifatida sanaladi. `/health` va
+    monitoringning o'zi hisobga olinmaydi. Yozish so'rovni hech qachon yiqitmaydi.
+  - `services/monitoring.py` — host resurslari (`/proc`), Postgres (ulanishlar, kesh,
+    uzun so'rovlar), Redis, RabbitMQ navbatlari va o'quvchilari (worker tirikligi,
+    `dispatch.dead` — yo'qolgan vazifalar), OSRM/Support javob vaqti, qotib qolgan
+    buyurtmalar. Har tekshiruv alohida va 3s chegarali — biri yiqilsa qolganlari ko'rinadi.
+    Ogohlantirish chegaralari faylning boshida.
+- **Monitoring (tashqi)** — Netdata + Dockge, Telegram alertlari (`docs/MONITORING.md`).
 
 ---
 

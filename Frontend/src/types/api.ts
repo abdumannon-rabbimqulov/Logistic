@@ -708,3 +708,123 @@ export interface OrderUpdateInput {
   pickup_at?: string;
   required_truck_type_id?: number;
 }
+
+// ── Server monitoringi (`GET /system/monitoring`, services/monitoring.py) ─────────
+export type HealthStatus = 'ok' | 'warn' | 'critical';
+
+export interface MonitoringPoint {
+  /** Bo'lak boshlanishi, unix soniya. */
+  t: number;
+  rpm: number;
+  avg_ms: number | null;
+  p95_ms: number | null;
+  errors_5xx: number;
+  errors_4xx: number;
+}
+
+export interface MonitoringRouteRow {
+  route: string;
+  count: number;
+  avg_ms: number | null;
+  errors_4xx: number;
+  errors_5xx: number;
+}
+
+export interface MonitoringRequests {
+  minutes: number;
+  step_minutes: number;
+  bucket_edges_ms: number[];
+  series: MonitoringPoint[];
+  totals: {
+    requests: number;
+    rpm: number;
+    errors_4xx: number;
+    errors_5xx: number;
+    error_rate_5xx: number;
+    avg_ms: number | null;
+    p50_ms: number | null;
+    p95_ms: number | null;
+    p99_ms: number | null;
+    histogram: number[];
+  };
+  slowest_routes: MonitoringRouteRow[];
+  error_routes: MonitoringRouteRow[];
+  busiest_routes: MonitoringRouteRow[];
+}
+
+export interface MonitoringComponentBase {
+  status: HealthStatus;
+  issues: string[];
+  check_ms: number;
+}
+
+export interface MonitoringQueueRow {
+  queue: string;
+  consumer: string;
+  messages: number | null;
+  consumers: number | null;
+  status: HealthStatus;
+}
+
+// Komponent tekshiruvi yiqilsa faqat `status`/`issues` keladi — shuning uchun
+// qolgan maydonlar ixtiyoriy.
+export interface MonitoringComponents {
+  api: MonitoringComponentBase & {
+    in_flight?: number;
+    process_uptime_sec?: number;
+    process_rss?: number | null;
+    db_pool?: { size: number; checked_out: number; overflow: number };
+  };
+  server: MonitoringComponentBase & {
+    cpu_percent?: number;
+    cpu_cores?: number;
+    load_avg?: [number, number, number];
+    mem_total?: number;
+    mem_used?: number;
+    mem_percent?: number | null;
+    swap_total?: number;
+    swap_used?: number;
+    disk_total?: number;
+    disk_used?: number;
+    disk_percent?: number | null;
+    uptime_sec?: number;
+  };
+  postgres: MonitoringComponentBase & {
+    ping_ms?: number;
+    connections?: number;
+    active_queries?: number;
+    max_connections?: number;
+    size_bytes?: number;
+    cache_hit_percent?: number | null;
+    deadlocks?: number;
+    longest_query_sec?: number;
+  };
+  redis: MonitoringComponentBase & {
+    ping_ms?: number;
+    used_memory?: number;
+    connected_clients?: number;
+    ops_per_sec?: number;
+    hit_rate_percent?: number | null;
+    uptime_sec?: number;
+  };
+  rabbitmq: MonitoringComponentBase & {
+    queues?: MonitoringQueueRow[];
+    workers?: Record<string, number | null>;
+  };
+  osrm: MonitoringComponentBase & { latency_ms?: number };
+  support: MonitoringComponentBase & { latency_ms?: number };
+  business: MonitoringComponentBase & {
+    orders_searching?: number;
+    orders_stuck?: number;
+    orders_waiting_price?: number;
+    orders_created_last_hour?: number;
+    dispatch_attempts_last_hour?: Record<string, number>;
+  };
+}
+
+export interface MonitoringOverview {
+  generated_at: string;
+  status: HealthStatus;
+  components: MonitoringComponents;
+  requests: MonitoringRequests;
+}

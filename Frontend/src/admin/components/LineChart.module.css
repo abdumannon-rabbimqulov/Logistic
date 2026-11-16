@@ -1,0 +1,113 @@
+.card {
+  /* Bitta qator rangi — reference palitradagi 1-slot (ko'k). Admin panelda dark mode
+     yo'q, shuning uchun faqat yorug' qiymat. */
+  --viz-series: #2a78d6;
+  margin: 0;
+  padding: 16px 18px 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.latest {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.plot {
+  position: relative;
+  width: 100%;
+}
+
+.plot svg {
+  display: block;
+  outline: none;
+  touch-action: none;
+}
+
+.plot svg:focus-visible {
+  outline: 2px solid var(--viz-series);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.grid {
+  stroke: var(--color-gray-100);
+  stroke-width: 1;
+}
+
+.axis {
+  font-size: 11px;
+  fill: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.line {
+  fill: none;
+  stroke: var(--viz-series);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.crosshair {
+  stroke: var(--color-gray-400);
+  stroke-width: 1;
+}
+
+.dot {
+  fill: var(--viz-series);
+  stroke: var(--color-bg);
+  stroke-width: 2;
+}
+
+.tooltip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-gray-900);
+  color: #fff;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+}
+
+.tipValue {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tipTime {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}

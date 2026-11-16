@@ -47,10 +47,29 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
+          set -o pipefail
+          # Buyruq ATAYLAB aniq beriladi: kalit `authorized_keys` da `command="..."`
+          # bilan cheklangan bo'lsa server o'sha buyruqni bajaradi (bu yerdagisi e'tiborsiz
+          # qoladi), cheklanmagan bo'lsa — shu buyruq bajariladi. Ilgari buyruq berilmagan
+          # edi: cheklovsiz kalitda bo'sh shell ochilib darhol yopilar, deploy BAJARILMAS,
+          # lekin qadam baribir "success" bo'lardi.
           ssh -i ~/.ssh/deploy_key \
               -o StrictHostKeyChecking=yes \
               -o ServerAliveInterval=30 \
-              root@"$DEPLOY_HOST"
+              root@"$DEPLOY_HOST" \
+              'cd /root/Logistika_bot && ./scripts/server-deploy.sh' | tee deploy.log
+
+      - name: Serverda aynan shu commit turganini tekshirish
+        run: |
+          # server-deploy.sh oxirida "Deploy qilingan commit: <sha>" chop etadi.
+          # Bu qator bo'lmasa yoki boshqa commit bo'lsa — deploy haqiqatda o'tmagan.
+          if grep -q "Deploy qilingan commit: ${GITHUB_SHA}" deploy.log; then
+            echo "Serverda ${GITHUB_SHA::7} ✓"
+          else
+            echo "::error::Serverda ${GITHUB_SHA::7} topilmadi — deploy bajarilmadi"
+            grep "Deploy qilingan commit" deploy.log || echo "(deploy skripti umuman ishlamadi)"
+            exit 1
+          fi
 
       - name: Saytni tekshirish
         run: |

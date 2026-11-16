@@ -16,6 +16,7 @@ from config.config import (
 )
 from config.registry import Base
 from middlewares.error_handler import setup_error_handlers
+from services.metrics import MetricsMiddleware
 import driver.models
 import order.models
 import order.dispatch_models
@@ -95,6 +96,11 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+# So'rovlar soni/tezligi/xatolari → Redis (admin "Server" bo'limi). Oxirgi qo'shilgan
+# middleware eng tashqi qatlam bo'ladi — shuning uchun CORS va boshqa hamma narsa
+# bilan birga o'lchanadi.
+app.add_middleware(MetricsMiddleware)
 
 
 def _register_api_routers(

@@ -13,6 +13,7 @@ import type {
   DriverLocationItem,
   DriverMonitorItem,
   DriverUnblockPayload,
+  MonitoringOverview,
   Order,
   OrderAssignDriverResponse,
 } from '../types/api';
@@ -197,4 +198,10 @@ export function updatePricingSettings(maxDiscountPercent: number): Promise<Prici
   return api.patch<PricingSettings>('/system/settings/pricing', {
     sender_max_discount_percent: maxDiscountPercent,
   });
+}
+
+// ── Server monitoringi ─────────────────────────────────────────────────────────
+// Yuklama, so'rovlar tezligi/xatolari, navbatlar, worker'lar (services/monitoring.py).
+export function getMonitoring(minutes: number): Promise<MonitoringOverview> {
+  return api.get<MonitoringOverview>('/system/monitoring', { minutes });
 }
