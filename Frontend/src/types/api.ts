@@ -88,6 +88,8 @@ export interface UserProfile {
   balance: number;
   created_at: string;
   updated_at: string;
+  /** Brauzerdan (telefon + parol) kirish uchun parol o'rnatilganmi. */
+  has_password: boolean;
 }
 
 export interface TruckType {

@@ -67,8 +67,9 @@ export function selectRole(role: Extract<UserRole, 'sender' | 'driver'>): Promis
   return api.post<UserProfile>('/auth/select-role', { role });
 }
 
-/** Parolni o'zgartirish. Eski parol noto'g'ri bo'lsa backend 400 qaytaradi. */
-export function changePassword(oldPassword: string, newPassword: string): Promise<{ detail: string }> {
+/** Parolni o'rnatish yoki o'zgartirish. Parol hali yo'q bo'lsa (`has_password=false`)
+ *  `oldPassword` `null` beriladi; bor bo'lsa majburiy, noto'g'ri bo'lsa backend 400 qaytaradi. */
+export function changePassword(oldPassword: string | null, newPassword: string): Promise<{ detail: string }> {
   return api.patch<{ detail: string }>('/auth/me/password', {
     old_password: oldPassword,
     new_password: newPassword,

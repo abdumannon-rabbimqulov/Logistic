@@ -6,6 +6,7 @@ import { ToastProvider } from './components/Toast';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminDrivers } from './pages/AdminDrivers';
 import { AdminOrders } from './pages/AdminOrders';
+import { AdminProfile } from './pages/AdminProfile';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminTickets } from './pages/AdminTickets';
 import { AdminTruckTypes } from './pages/AdminTruckTypes';
@@ -29,6 +30,7 @@ export function AdminApp() {
           <Route path="truck-types" element={<AdminTruckTypes />} />
           <Route path="tickets" element={<AdminTickets />} />
           <Route path="settings" element={<AdminSettings />} />
+          <Route path="profile" element={<AdminProfile />} />
         </Route>
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>

@@ -5,6 +5,8 @@ import { ToastProvider } from '../admin/components/Toast';
 // Murojaatlar ekrani xodim (admin/manager) uchun bir xil — support tomonda ham ruxsat
 // `require_staff` bilan beriladi, shuning uchun alohida nusxa yozilmaydi.
 import { AdminTickets } from '../admin/pages/AdminTickets';
+// Profil (login/parol) ham xodim uchun bir xil — faqat `/auth/me` bilan ishlaydi.
+import { AdminProfile } from '../admin/pages/AdminProfile';
 import { ManagerLayout } from './ManagerLayout';
 import { ManagerOrderDetailPage } from './pages/ManagerOrderDetailPage';
 import { ManagerOrders } from './pages/ManagerOrders';
@@ -29,6 +31,7 @@ export function ManagerApp() {
           <Route path="orders" element={<ManagerOrders />} />
           <Route path="orders/:orderId" element={<ManagerOrderDetailPage />} />
           <Route path="tickets" element={<AdminTickets />} />
+          <Route path="profile" element={<AdminProfile />} />
         </Route>
         <Route path="*" element={<Navigate to="/manager" replace />} />
       </Routes>

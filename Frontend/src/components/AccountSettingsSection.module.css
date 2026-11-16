@@ -149,3 +149,41 @@
   border-radius: var(--radius-md);
   cursor: pointer;
 }
+
+/* Login (telefon raqam) — faqat ko'rsatish; o'zgartirish profil formasida. */
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.infoLabel {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.infoValue {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.hint {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-gray-50);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.rowBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

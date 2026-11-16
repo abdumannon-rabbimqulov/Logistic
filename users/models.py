@@ -67,6 +67,13 @@ class User(Base):
 
     driver: Mapped[Optional["Driver"]] = relationship("Driver", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
+    @property
+    def has_password(self) -> bool:
+        """Brauzerdan (telefon + parol) kirish uchun parol o'rnatilganmi. Telegram
+        orqali ro'yxatdan o'tganlarda parol bo'lmaydi — ular uni profilda birinchi
+        marta o'rnatadi (`PATCH /auth/me/password`, eski parolsiz)."""
+        return bool(self.password)
+
 
 
 class VerificationCode(Base):

@@ -1,81 +1,78 @@
-import { useState } from 'react';
-import { changePassword, deleteAccount } from '../api/auth';
+import { useEffect, useState } from 'react';
+import { deleteAccount, getMe } from '../api/auth';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, usePasswordForm } from '../hooks/usePasswordForm';
 import { BottomSheetModal } from './BottomSheetModal';
 import styles from './AccountSettingsSection.module.css';
 
-// Parolni o'zgartirish va akkauntni o'chirish. Ikkala ekranda ham (sender profili va
+// Login/parol va akkauntni o'chirish. Ikkala ekranda ham (sender profili va
 // haydovchi profili) bir xil bo'lgani uchun alohida komponentga chiqarilgan.
+// Admin/menejer paneli uchun desktop varianti — admin/pages/AdminProfile.tsx.
 
-// Backend cheklovi (users/schemas.py ChangePasswordRequest).
-const MIN_PASSWORD_LENGTH = 8;
-
-function ChangePasswordSheet({ onClose }: { onClose: () => void }) {
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
-
-  const mismatch = confirm.length > 0 && newPassword !== confirm;
-  const valid =
-    oldPassword.length > 0 && newPassword.length >= MIN_PASSWORD_LENGTH && !mismatch && confirm.length > 0;
-
-  async function save() {
-    if (!valid || saving) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await changePassword(oldPassword, newPassword);
-      setDone(true);
-    } catch (err) {
-      // Eski parol noto'g'ri bo'lsa backend 400 va aniq sabab qaytaradi.
-      setError(err instanceof ApiError ? err.message : "Parolni o'zgartirib bo'lmadi");
-    } finally {
-      setSaving(false);
-    }
-  }
+function ChangePasswordSheet({
+  hasPassword: initialHasPassword,
+  onClose,
+  onSaved,
+}: {
+  hasPassword: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  // Oyna ochilgandagi holat qotiriladi: saqlangach ota komponent `hasPassword=true`
+  // qiladi, lekin bu oynadagi sarlavha/xabar "o'rnatildi" bo'lib qolishi kerak.
+  const [hasPassword] = useState(initialHasPassword);
+  const f = usePasswordForm(hasPassword, onSaved);
+  const title = hasPassword ? "Parolni o'zgartirish" : "Parol o'rnatish";
 
   return (
-    <BottomSheetModal title="Parolni o'zgartirish" onClose={onClose}>
+    <BottomSheetModal title={title} onClose={onClose}>
       <div className={styles.form}>
-        {done ? (
+        {f.done ? (
           <>
-            <div className={styles.success}>Parol muvaffaqiyatli o'zgartirildi</div>
+            <div className={styles.success}>
+              {hasPassword ? "Parol muvaffaqiyatli o'zgartirildi" : "Parol o'rnatildi"}
+            </div>
             <button className={styles.submit} onClick={onClose}>
               Yopish
             </button>
           </>
         ) : (
           <>
-            {error && <div className={styles.error}>{error}</div>}
+            {f.error && <div className={styles.error}>{f.error}</div>}
 
-            <label className={styles.field}>
-              <span className={styles.label}>Joriy parol</span>
-              <input
-                className={styles.input}
-                type="password"
-                value={oldPassword}
-                autoComplete="current-password"
-                onChange={(e) => setOldPassword(e.target.value)}
-              />
-            </label>
+            {!hasPassword && (
+              <div className={styles.hint}>
+                Parol o'rnatsangiz, saytga brauzerdan ham telefon raqamingiz va shu parol
+                bilan kira olasiz.
+              </div>
+            )}
+
+            {hasPassword && (
+              <label className={styles.field}>
+                <span className={styles.label}>Joriy parol</span>
+                <input
+                  className={styles.input}
+                  type="password"
+                  value={f.oldPassword}
+                  autoComplete="current-password"
+                  onChange={(e) => f.setOldPassword(e.target.value)}
+                />
+              </label>
+            )}
 
             <label className={styles.field}>
               <span className={styles.label}>Yangi parol</span>
               <input
                 className={styles.input}
                 type="password"
-                value={newPassword}
+                value={f.newPassword}
                 autoComplete="new-password"
-                onChange={(e) => setNewPassword(e.target.value)}
+                maxLength={MAX_PASSWORD_LENGTH}
+                onChange={(e) => f.setNewPassword(e.target.value)}
               />
-              {newPassword.length > 0 && newPassword.length < MIN_PASSWORD_LENGTH && (
-                <span className={styles.invalid}>
-                  Kamida {MIN_PASSWORD_LENGTH} ta belgi bo'lishi kerak
-                </span>
+              {f.tooShort && (
+                <span className={styles.invalid}>Kamida {MIN_PASSWORD_LENGTH} ta belgi bo'lishi kerak</span>
               )}
             </label>
 
@@ -84,15 +81,16 @@ function ChangePasswordSheet({ onClose }: { onClose: () => void }) {
               <input
                 className={styles.input}
                 type="password"
-                value={confirm}
+                value={f.confirm}
                 autoComplete="new-password"
-                onChange={(e) => setConfirm(e.target.value)}
+                maxLength={MAX_PASSWORD_LENGTH}
+                onChange={(e) => f.setConfirm(e.target.value)}
               />
-              {mismatch && <span className={styles.invalid}>Parollar mos kelmadi</span>}
+              {f.mismatch && <span className={styles.invalid}>Parollar mos kelmadi</span>}
             </label>
 
-            <button className={styles.submit} disabled={!valid || saving} onClick={save}>
-              {saving ? 'Saqlanmoqda...' : "O'zgartirish"}
+            <button className={styles.submit} disabled={!f.valid || f.saving} onClick={f.save}>
+              {f.saving ? 'Saqlanmoqda...' : hasPassword ? "O'zgartirish" : "O'rnatish"}
             </button>
           </>
         )}
@@ -146,20 +144,51 @@ function DeleteAccountSheet({ onClose }: { onClose: () => void }) {
 
 export function AccountSettingsSection() {
   const [sheet, setSheet] = useState<'password' | 'delete' | null>(null);
+  // Login (telefon) va parol holati — `null` = hali yuklanmagan.
+  const [phone, setPhone] = useState<string | null>(null);
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMe()
+      .then((me) => {
+        if (cancelled) return;
+        setPhone(me.phone_number);
+        setHasPassword(me.has_password);
+      })
+      .catch(() => {
+        // Yuklanmasa — tugma baribir "o'zgartirish" rejimida ishlaydi (eski parol so'raladi).
+        if (!cancelled) setHasPassword(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className={styles.section}>
-      <div className={styles.sectionTitle}>Xavfsizlik</div>
+      <div className={styles.sectionTitle}>Login va parol</div>
 
-      <button className={styles.rowBtn} onClick={() => setSheet('password')}>
-        Parolni o'zgartirish
+      <div className={styles.infoRow}>
+        <span className={styles.infoLabel}>Login (telefon raqam)</span>
+        <span className={styles.infoValue}>{phone || 'Kiritilmagan'}</span>
+      </div>
+
+      <button className={styles.rowBtn} disabled={hasPassword === null} onClick={() => setSheet('password')}>
+        {hasPassword === false ? "Parol o'rnatish" : "Parolni o'zgartirish"}
       </button>
 
       <button className={styles.rowBtnDanger} onClick={() => setSheet('delete')}>
         Akkauntni o'chirish
       </button>
 
-      {sheet === 'password' && <ChangePasswordSheet onClose={() => setSheet(null)} />}
+      {sheet === 'password' && hasPassword !== null && (
+        <ChangePasswordSheet
+          hasPassword={hasPassword}
+          onClose={() => setSheet(null)}
+          onSaved={() => setHasPassword(true)}
+        />
+      )}
       {sheet === 'delete' && <DeleteAccountSheet onClose={() => setSheet(null)} />}
     </div>
   );

@@ -54,6 +54,15 @@ export function UsersIcon({ size = 20, color = 'currentColor', strokeWidth = 1.8
   );
 }
 
+export function ProfileIconAdmin({ size = 20, color = 'currentColor', strokeWidth = 1.8 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base(color, strokeWidth)}>
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M4.5 20c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6" />
+    </svg>
+  );
+}
+
 export function TruckTypesIcon({ size = 20, color = 'currentColor', strokeWidth = 1.8 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...base(color, strokeWidth)}>

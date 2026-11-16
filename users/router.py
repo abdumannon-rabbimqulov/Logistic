@@ -445,14 +445,20 @@ async def change_password(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not verify_password(data.old_password, current_user.password or ""):
+    # Parol bor bo'lsa — eski parol majburiy. Yo'q bo'lsa (Telegram orqali kirgan
+    # foydalanuvchi) — birinchi marta o'rnatiladi: shaxs allaqachon Telegram
+    # initData yoki amaldagi token bilan tasdiqlangan.
+    first_time = not current_user.password
+    if not first_time and not verify_password(data.old_password or "", current_user.password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Eski parol noto'g'ri.",
         )
     new_hash = hash_password(data.new_password)
     await update_password(db, current_user, new_hash)
-    return {"detail": "Parol muvaffaqiyatli o'zgartirildi."}
+    return {
+        "detail": "Parol o'rnatildi." if first_time else "Parol muvaffaqiyatli o'zgartirildi."
+    }
 
 
 @router.delete(

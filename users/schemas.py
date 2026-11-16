@@ -31,6 +31,8 @@ class UserRead(BaseModel):
     balance:      Decimal
     created_at:   datetime
     updated_at:   datetime
+    # Parolning o'zi emas — faqat o'rnatilganmi yoki yo'qligi (User.has_password).
+    has_password: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -53,8 +55,10 @@ class UserUpdate(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    old_password: str
-    new_password: str = Field(..., min_length=8)
+    # Parol hali o'rnatilmagan bo'lsa (Telegram orqali kirgan foydalanuvchi) bo'sh
+    # qoldiriladi; o'rnatilgan bo'lsa backend uni majburiy tekshiradi.
+    old_password: Optional[str] = None
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 class LoginRequest(BaseModel):
