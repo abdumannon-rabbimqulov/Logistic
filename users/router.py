@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.config import (
+    ADMIN_IDS,
     BOT_TOKEN,
     get_db,
     REDIS_HOST,
@@ -229,6 +230,13 @@ async def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Akkaunt faol emas.",
         )
+
+    # `.env` dagi ADMIN ro'yxatidagi foydalanuvchi Mini App'ni botda /start
+    # bosmasdan ochsa ham admin bo'lsin. Aks holda u GUEST bo'lib yaratiladi,
+    # rol tanlab SENDER bo'ladi va frontend admin panelni ochmaydi (bot
+    # `handlers/start.py` dagi xuddi shu moslashni faqat /start da qiladi).
+    if user.id in ADMIN_IDS and user.role != UserRole.ADMIN:
+        user = await update_user_role(db, user, UserRole.ADMIN)
 
     if user.role == UserRole.DRIVER:
         existing_driver = await get_driver_by_user_id(db, user.id)

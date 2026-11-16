@@ -63,10 +63,37 @@ async def main():
             \" ('spatial_ref_sys','geography_columns','geometry_columns','alembic_version')\"
         ))
     await engine.dispose()
-    print('STAMP' if (n_tables and not has_alembic) else 'UPGRADE')
+    if has_alembic:
+        print('UPGRADE')
+    elif n_tables:
+        print('STAMP')
+    else:
+        print('FRESH')
 
 asyncio.run(main())
 ")
+
+    # Toza baza: migratsiya zanjirida baseline yo'q — birinchi revizya
+    # (8b1137822e41) users/orders/drivers allaqachon bor deb hisoblaydi. Shuning
+    # uchun sxema modellardan to'liq yaratiladi va joriy holat `head` deb belgilanadi.
+    if [ "$STATE" = "FRESH" ]; then
+        echo "[entrypoint] Toza baza → modellardan sxema yaratilmoqda (create_all) + 'alembic stamp head'."
+        python -c "
+import asyncio
+from sqlalchemy.ext.asyncio import create_async_engine
+from config.config import DATABASE_URL
+from config.registry import Base
+
+async def main():
+    engine = create_async_engine(DATABASE_URL)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    await engine.dispose()
+
+asyncio.run(main())
+"
+        alembic stamp head
+    fi
 
     if [ "$STATE" = "STAMP" ]; then
         echo "[entrypoint] Mavjud sxema topildi, alembic_version yo'q → 'alembic stamp head'."

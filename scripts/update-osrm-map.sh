@@ -75,9 +75,12 @@ find "$DATA_DIR" -maxdepth 1 -name "$NAME.osrm*" -delete
 find "$DATA_DIR" -maxdepth 1 -name "$NAME.osm.pbf" -delete
 mv "$BUILD_DIR/$NAME".* "$DATA_DIR/"
 
+# Apostrofli standart qiymat heredoc ichidagi `${...:-...}` da EMAS, oldindan
+# beriladi: yangi bash (5.3+, Ubuntu 26.04) uni "bad substitution" deb yiqiladi.
+[ -n "$SNAPSHOT" ] || SNAPSHOT="noma'lum"
 cat > "$DATA_DIR/VERSION" <<EOF
 source: $REGION_URL
-snapshot: ${SNAPSHOT:-noma'lum}
+snapshot: $SNAPSHOT
 processed: $(date +%Y-%m-%d)
 algorithm: mld
 profile: $PROFILE

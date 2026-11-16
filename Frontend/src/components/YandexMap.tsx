@@ -37,12 +37,31 @@ interface Props {
   /** `userLocation` birinchi marta kelganda xarita o'sha nuqtaga markazlashsin
    *  (bosh sahifadagi xarita uchun; buyurtma sahifalarida marshrut ustuvor). */
   followUser?: boolean;
+  /** Berilsa — yuklash nuqtasi belgisini xaritada sudrab ko'chirish mumkin bo'ladi;
+   *  qo'yib yuborilganda yangi koordinata shu callback'ga uzatiladi. */
+  onOriginMove?: (latitude: number, longitude: number) => void;
+  /** `onOriginMove` bilan bir xil, tushirish nuqtasi uchun. */
+  onDestinationMove?: (latitude: number, longitude: number) => void;
+}
+
+// Yandex `Placemark` ning sudrash uchun kerakli qismi (umumiy tur `unknown` bo'lgani uchun).
+interface DraggablePlacemark {
+  events: { add(type: string, handler: () => void): void };
+  geometry: { getCoordinates(): [number, number] };
 }
 
 export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
-  { origin, destination, route, userLocation, driverLocation, followUser = false },
+  { origin, destination, route, userLocation, driverLocation, followUser = false, onOriginMove, onDestinationMove },
   ref,
 ) {
+  // Callback'lar ref'da saqlanadi: ular har render'da yangi funksiya bo'lishi mumkin,
+  // effekt bog'liqligiga qo'yilsa esa belgilar har safar qayta chizilib, xarita sakraydi.
+  const onOriginMoveRef = useRef(onOriginMove);
+  const onDestinationMoveRef = useRef(onDestinationMove);
+  onOriginMoveRef.current = onOriginMove;
+  onDestinationMoveRef.current = onDestinationMove;
+  const originDraggable = Boolean(onOriginMove);
+  const destinationDraggable = Boolean(onDestinationMove);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<YMap | null>(null);
   const [ready, setReady] = useState(false);
@@ -117,17 +136,49 @@ export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
         );
       }
 
+      // Belgi yaratadi; `moveRef` da callback bo'lsa — sudraladigan qiladi va qo'yib
+      // yuborilganda (dragend) yangi koordinatani uzatadi.
+      const addPointMark = (
+        point: MapPoint,
+        options: Record<string, unknown>,
+        draggable: boolean,
+        hint: string,
+        moveRef: { current?: (latitude: number, longitude: number) => void },
+      ) => {
+        const mark = new ymaps.Placemark(
+          [point.latitude, point.longitude],
+          draggable ? { hintContent: hint } : {},
+          { ...options, draggable },
+        );
+        if (draggable) {
+          const dm = mark as DraggablePlacemark;
+          dm.events.add('dragend', () => {
+            const [lat, lon] = dm.geometry.getCoordinates();
+            moveRef.current?.(lat, lon);
+          });
+        }
+        map.geoObjects.add(mark);
+      };
+
       const points: [number, number][] = [];
       if (origin) {
         points.push([origin.latitude, origin.longitude]);
-        map.geoObjects.add(
-          new ymaps.Placemark([origin.latitude, origin.longitude], {}, { preset: 'islands#circleIcon', iconColor: '#15803D' }),
+        addPointMark(
+          origin,
+          { preset: 'islands#circleIcon', iconColor: '#15803D' },
+          originDraggable,
+          "Yuklash nuqtasi — surib o'zgartiring",
+          onOriginMoveRef,
         );
       }
       if (destination) {
         points.push([destination.latitude, destination.longitude]);
-        map.geoObjects.add(
-          new ymaps.Placemark([destination.latitude, destination.longitude], {}, { preset: 'islands#dotIcon', iconColor: '#0F1319' }),
+        addPointMark(
+          destination,
+          { preset: 'islands#dotIcon', iconColor: '#0F1319' },
+          destinationDraggable,
+          "Tushirish nuqtasi — surib o'zgartiring",
+          onDestinationMoveRef,
         );
       }
 
@@ -172,7 +223,7 @@ export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
     return () => {
       cancelled = true;
     };
-  }, [ready, origin, destination, route, userLocation, driverLocation, followUser]);
+  }, [ready, origin, destination, route, userLocation, driverLocation, followUser, originDraggable, destinationDraggable]);
 
   return (
     <div className={styles.wrap}>

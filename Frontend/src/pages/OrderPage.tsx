@@ -120,6 +120,23 @@ export function OrderPage() {
     }
   }
 
+  // Xaritada belgi surib qo'yilganda: yangi koordinata uchun manzil nomi aniqlanadi,
+  // keyin nuqta BIR marta yangilanadi (narx/marshrut ham bir marta qayta hisoblanadi).
+  // Tez-tez surilsa, faqat eng oxirgi surishning natijasi qo'llanadi.
+  const moveSeqRef = useRef({ origin: 0, destination: 0 });
+  function handlePointMoved(target: 'origin' | 'destination', latitude: number, longitude: number) {
+    const seq = ++moveSeqRef.current[target];
+    const apply = (address: string) => {
+      if (moveSeqRef.current[target] !== seq) return;
+      const point: OrderPointPrefill = { address, latitude, longitude };
+      if (target === 'origin') setOrigin(point);
+      else setDestination(point);
+    };
+    reverseGeocode(latitude, longitude)
+      .then((res) => apply(res.address ?? 'Xaritada belgilangan nuqta'))
+      .catch(() => apply('Xaritada belgilangan nuqta'));
+  }
+
   function handleAddressSelected(suggestion: GeocodeSuggestion) {
     const point: OrderPointPrefill = { address: suggestion.address, latitude: suggestion.latitude, longitude: suggestion.longitude };
     if (addressSheet === 'origin') setOrigin(point);
@@ -168,7 +185,14 @@ export function OrderPage() {
   return (
     <div className={styles.page}>
       <div className={styles.mapLayer}>
-        <YandexMap ref={mapRef} origin={origin} destination={destination} route={routeGeometry} />
+        <YandexMap
+          ref={mapRef}
+          origin={origin}
+          destination={destination}
+          route={routeGeometry}
+          onOriginMove={(lat, lon) => handlePointMoved('origin', lat, lon)}
+          onDestinationMove={(lat, lon) => handlePointMoved('destination', lat, lon)}
+        />
         {durationMin !== null && (
           <div className={styles.routeBadge}>
             <span className={styles.routeBadgePart}>
