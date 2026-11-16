@@ -1,0 +1,64 @@
+# Avtomatik deploy: `main` ga push bo'lganda serverda `scripts/server-deploy.sh`
+# ishga tushadi (git pull → build → up → healthcheck → /health).
+#
+# Qo'lda ishga tushirish: GitHub → Actions → Deploy → "Run workflow".
+#
+# Kerakli GitHub Secrets (Settings → Secrets and variables → Actions):
+#   DEPLOY_SSH_KEY      — deploy uchun alohida ed25519 private kalit
+#   DEPLOY_HOST         — server IP yoki domen (masalan 129.121.151.79)
+#   DEPLOY_KNOWN_HOSTS  — `ssh-keyscan -t ed25519 <host>` natijasi (MITM himoyasi)
+#
+# Serverdagi `authorized_keys` da shu kalit `command="..."` bilan cheklangan:
+# u faqat deploy skriptini ishga tushira oladi, shell ochib bo'lmaydi. Shuning
+# uchun bu yerda ssh'ga buyruq berilmaydi — server o'zi biladi nima qilishni.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    # Faqat hujjat o'zgarsa serverni qayta build qilish shart emas.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  workflow_dispatch:
+
+# Ketma-ket ikki push bo'lsa — deploy'lar bir-biriga urilmasin, navbat bilan.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: SSH kalitini sozlash
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Serverda deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=yes \
+              -o ServerAliveInterval=30 \
+              root@"$DEPLOY_HOST"
+
+      - name: Saytni tekshirish
+        run: |
+          for i in $(seq 10); do
+            if curl -fsS --max-time 10 https://logistic.org.uz/api/health | grep -q '"status":"ok"'; then
+              echo "Sayt ishlayapti ✓"; exit 0
+            fi
+            sleep 6
+          done
+          echo "::error::https://logistic.org.uz/api/health javob bermadi"
+          exit 1
