@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import func, select, update, delete
 from typing import List, Optional
 from driver.models import (
     TruckType, Driver,
@@ -8,6 +8,16 @@ from driver.schemas import (
     TruckTypeCreate, TruckTypeUpdate,
     DriverCreate, DriverUpdate
 )
+
+
+async def find_truck_type_by_name(
+    db: AsyncSession, name: str, *, exclude_id: Optional[int] = None
+) -> Optional[TruckType]:
+    """Nom bo'yicha qidirish, katta-kichik harf farqisiz ("ISUZU" == "Isuzu")."""
+    query = select(TruckType).where(func.lower(func.trim(TruckType.name)) == name.strip().lower())
+    if exclude_id is not None:
+        query = query.where(TruckType.id != exclude_id)
+    return await db.scalar(query)
 
 
 async def create_truck_type(db: AsyncSession, data: TruckTypeCreate) -> TruckType:

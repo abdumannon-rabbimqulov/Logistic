@@ -63,12 +63,43 @@ def _normalize_ws_token(raw: Optional[str]) -> Optional[str]:
     return token
 
 
+async def _ensure_truck_type_name_free(
+    db: AsyncSession, name: str, *, exclude_id: Optional[int] = None
+) -> None:
+    """Nom band bo'lsa — tushunarli 409. Ilgari DB'ning unique xatosi umumiy
+    "Database conflict" bo'lib qaytardi va adminlarga Telegram alert yuborardi."""
+    existing = await crud.find_truck_type_by_name(db, name, exclude_id=exclude_id)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"\"{existing.name}\" nomli mashina turi allaqachon bor. Boshqa nom kiriting "
+            "yoki mavjudini tahrirlang.",
+        )
+
+
+# Fayl turi brauzer yuborgan Content-Type'ga qarab EMAS, faylning o'z baytlariga
+# qarab aniqlanadi: ba'zi brauzer/WebView'lar WebP'ni `application/octet-stream`
+# deb yuboradi va rasm rad etilardi. Bu, shuningdek, rasm deb niqoblangan boshqa
+# fayllarni ham to'xtatadi.
+def _detect_image_ext(head: bytes) -> Optional[str]:
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if head.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return ".webp"
+    if head.startswith((b"GIF87a", b"GIF89a")):
+        return ".gif"
+    return None
+
+
 @router.post("/truck-types", response_model=schemas.TruckTypeResponse, status_code=status.HTTP_201_CREATED, summary="Yangi mashina turi qo'shish,admin uchun")
 async def create_truck_type(
     data: schemas.TruckTypeCreate,
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(is_admin),
 ):
+    await _ensure_truck_type_name_free(db, data.name)
     return await crud.create_truck_type(db, data)
 
 @router.get("/truck-types", response_model=List[schemas.TruckTypeResponse], summary="Barcha mashina turlarini olish,hamma uchun")
@@ -80,19 +111,19 @@ async def upload_truck_type_image(
     file: UploadFile = File(...),
     admin: User = Depends(is_admin),
 ):
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Faqat image fayl yuklash mumkin")
-
-    file_ext = os.path.splitext(file.filename or "")[1].lower()
-    if file_ext not in ALLOWED_IMAGE_EXTS:
-        raise HTTPException(status_code=400, detail="Rasm formati noto'g'ri")
-
     # Hajm limiti — DoS/disk to'ldirilishining oldini olish uchun cheklab o'qiymiz.
     contents = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(contents) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="Fayl juda katta (maks. 5MB)",
+        )
+
+    file_ext = _detect_image_ext(contents[:16])
+    if file_ext not in ALLOWED_IMAGE_EXTS:
+        raise HTTPException(
+            status_code=400,
+            detail="Faqat rasm yuklash mumkin: PNG, JPG, WebP yoki GIF",
         )
 
     unique_filename = f"truck_type_{uuid.uuid4()}{file_ext}"
@@ -109,6 +140,8 @@ async def update_truck_type(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(is_admin),
 ):
+    if data.name is not None:
+        await _ensure_truck_type_name_free(db, data.name, exclude_id=pk)
     obj = await crud.update_truck_type(db, pk, data)
     if not obj:
         raise HTTPException(status_code=404, detail="Truck type not found")
