@@ -306,39 +306,40 @@ async def dashboard_stats(db: AsyncSession) -> AdminDashboardStats:
     today_end = datetime.combine(today, datetime.max.time())
     seven_days_ago = today - timedelta(days=6)
 
-    users_total = (await db.execute(select(func.count(User.id)))).scalar_one()
-    users_today = (
+    # Har jadval bo'yicha BITTA so'rov (`count(*) FILTER (WHERE ...)`): ilgari har bir
+    # raqam alohida so'rov edi (~10 ta ketma-ket DB safari).
+    users_total, users_today = (
         await db.execute(
-            select(func.count(User.id)).where(User.created_at.between(today_start, today_end))
+            select(
+                func.count(User.id),
+                func.count(User.id).filter(User.created_at.between(today_start, today_end)),
+            )
         )
-    ).scalar_one()
+    ).one()
 
-    drivers_total = (await db.execute(select(func.count(Driver.id)))).scalar_one()
-    drivers_online = (
-        await db.execute(select(func.count(Driver.id)).where(Driver.is_available == True))  # noqa: E712
-    ).scalar_one()
-    drivers_live_gps = (
+    drivers_total, drivers_online, drivers_live_gps = (
         await db.execute(
-            select(func.count(Driver.id)).where(Driver.is_live_location_active == True)  # noqa: E712
+            select(
+                func.count(Driver.id),
+                func.count(Driver.id).filter(Driver.is_available.is_(True)),
+                func.count(Driver.id).filter(Driver.is_live_location_active.is_(True)),
+            )
         )
-    ).scalar_one()
-
-    orders_total = (await db.execute(select(func.count(Order.id)))).scalar_one()
-    orders_today = (
-        await db.execute(
-            select(func.count(Order.id)).where(Order.created_at.between(today_start, today_end))
-        )
-    ).scalar_one()
+    ).one()
 
     # Umumiy aylanma — DB tomonda SUM bilan. Buni frontendda sahifalangan ro'yxatni
     # qo'shib hisoblab bo'lmaydi: /system/orders limiti 200 ta bilan cheklangan.
-    revenue_total = (
+    orders_total, orders_today, revenue_total = (
         await db.execute(
-            select(func.coalesce(func.sum(Order.price), 0)).where(
-                Order.status == OrderStatus.COMPLETED
+            select(
+                func.count(Order.id),
+                func.count(Order.id).filter(Order.created_at.between(today_start, today_end)),
+                func.coalesce(
+                    func.sum(Order.price).filter(Order.status == OrderStatus.COMPLETED), 0
+                ),
             )
         )
-    ).scalar_one()
+    ).one()
 
     by_status_rows = (
         await db.execute(select(Order.status, func.count(Order.id)).group_by(Order.status))

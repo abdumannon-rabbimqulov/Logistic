@@ -1,3 +1,9 @@
+"""/auth — kirish va shaxsiy profil (barcha rollar).
+
+Login (Telegram initData yoki telefon+parol), token yangilash, /me profil, parol
+o'rnatish/tiklash, rol tanlash. Rol tekshiruvlari: users/permissions.py.
+"""
+
 import logging
 from typing import Optional
 
@@ -29,9 +35,9 @@ from users.auth import (
     create_password_reset_token,
     create_refresh_token,
     get_current_user,
-    hash_password,
+    hash_password_async,
     token_payload_for,
-    verify_password,
+    verify_password_async,
     verify_token,
 )
 from users.models import User, UserRole, VerificationCode
@@ -213,7 +219,7 @@ async def login(
 
         user = await get_user_by_phone(db, phone_number)
 
-        if not user or not user.password or not verify_password(password, user.password):
+        if not user or not user.password or not await verify_password_async(password, user.password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Telefon raqam yoki parol noto'g'ri.",
@@ -380,7 +386,7 @@ async def reset_password(
             detail="Foydalanuvchi topilmadi.",
         )
 
-    await update_password(db, user, hash_password(new_password))
+    await update_password(db, user, await hash_password_async(new_password))
     return {"detail": "Parol muvaffaqiyatli tiklandi."}
 
 
@@ -449,12 +455,12 @@ async def change_password(
     # foydalanuvchi) — birinchi marta o'rnatiladi: shaxs allaqachon Telegram
     # initData yoki amaldagi token bilan tasdiqlangan.
     first_time = not current_user.password
-    if not first_time and not verify_password(data.old_password or "", current_user.password):
+    if not first_time and not await verify_password_async(data.old_password or "", current_user.password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Eski parol noto'g'ri.",
         )
-    new_hash = hash_password(data.new_password)
+    new_hash = await hash_password_async(data.new_password)
     await update_password(db, current_user, new_hash)
     return {
         "detail": "Parol o'rnatildi." if first_time else "Parol muvaffaqiyatli o'zgartirildi."

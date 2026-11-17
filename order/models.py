@@ -1,7 +1,7 @@
 from __future__ import annotations
 import enum
 from config.base import Base
-from sqlalchemy import Integer, ForeignKey, DateTime, func, BigInteger, String, Numeric, Enum as SQLEnum, SmallInteger, Float
+from sqlalchemy import Integer, ForeignKey, DateTime, func, BigInteger, String, Numeric, Enum as SQLEnum, SmallInteger, Float, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from geoalchemy2 import Geometry
 from datetime import datetime
@@ -54,6 +54,13 @@ class WaypointStatus(str, enum.Enum):
 
 class Order(Base):
     __tablename__ = "orders"
+    # Ro'yxatlar shu ustunlar bo'yicha filtrlanib, created_at bo'yicha saralanadi
+    # (migrations/versions/f1a6c2e83d47_perf_indexes.py).
+    __table_args__ = (
+        Index("ix_orders_customer_created", "customer_id", "created_at"),
+        Index("ix_orders_driver_created", "driver_id", "created_at"),
+        Index("ix_orders_status_created", "status", "created_at"),
+    )
 
     id          : Mapped[int]   = mapped_column(Integer, primary_key=True, autoincrement=True)
     customer_id : Mapped[int]   = mapped_column(BigInteger, ForeignKey("users.id"),       nullable=False)
@@ -239,6 +246,7 @@ class OrderRoutePostGIS(Base):
 
 class OrderWaypoint(Base):
     __tablename__ = "order_waypoints"
+    __table_args__ = (Index("ix_order_waypoints_order_id", "order_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)

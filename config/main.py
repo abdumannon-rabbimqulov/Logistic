@@ -1,10 +1,20 @@
+"""FastAPI ilovasi — backendning kirish nuqtasi (`uvicorn config.main:app`).
+
+So'rov yo'li:  router (HTTP: validatsiya, ruxsat)  →  services/ yoki crud (mantiq, DB)  →  models
+
+Bu faylda faqat: lifespan (startup/shutdown), middleware'lar, router'larni ulash va
+/health. Biznes-mantiq bu yerga yozilmaydi.
+"""
+
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
-
-
-from config import registry
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+from sqlalchemy.orm import configure_mappers
 from config.config import (
     engine,
     UPLOAD_DIR,
@@ -14,25 +24,17 @@ from config.config import (
     WEBAPP_URL,
     CORS_ORIGINS,
 )
-from config.registry import Base
+from config.registry import Base  # barcha modellarni ro'yxatdan o'tkazadi
 from middlewares.error_handler import setup_error_handlers
 from services.metrics import MetricsMiddleware
-import driver.models
-import order.models
-import order.dispatch_models
-import users.models
 
-from sqlalchemy.orm import configure_mappers
 configure_mappers()
 
-from driver.router import router as driver_router
-from order.router import router as order_router
-from users.router import router as auth_router
-from Admin_panel.router import router as admin_router
-from manager.router import router as manager_router
-
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from Admin_panel.router import router as admin_router  # noqa: E402
+from driver.router import router as driver_router  # noqa: E402
+from manager.router import router as manager_router  # noqa: E402
+from order.router import router as order_router  # noqa: E402
+from users.router import router as auth_router  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -103,26 +105,30 @@ app.add_middleware(
 app.add_middleware(MetricsMiddleware)
 
 
+# Barcha API router'lari bitta jadvalda: (router, qo'shimcha prefiks, teglar).
+# Kim ishlatishini bilish uchun har router faylining boshidagi docstring'ga qarang.
+API_ROUTERS = [
+    (auth_router, "/auth", ["Auth"]),   # users/router.py       — login, profil, parol (hamma)
+    (order_router, "", None),           # order/router.py       — /orders (sender, driver)
+    (driver_router, "", None),          # driver/router.py      — /drivers (driver, truck-types)
+    (admin_router, "", None),           # Admin_panel/router.py — /system (faqat admin, moliya)
+    # `/manager` — moliyasiz operativ panel. `/system` dan ATAYLAB alohida:
+    # menejerga admin endpointlaridan birortasi ham ochilmasligi kerak.
+    (manager_router, "", None),         # manager/router.py     — /manager (menejer, admin)
+]
+
+
 def _register_api_routers(
     target: FastAPI,
     *,
     prefix: str = "",
     include_in_schema: bool = True,
 ) -> None:
-    kwargs = {"prefix": prefix, "include_in_schema": include_in_schema}
-    target.include_router(driver_router, **kwargs)
-    target.include_router(order_router, **kwargs)
-    auth_prefix = f"{prefix}/auth".replace("//", "/")
-    target.include_router(
-        auth_router,
-        prefix=auth_prefix,
-        tags=["Auth"],
-        include_in_schema=include_in_schema,
-    )
-    target.include_router(admin_router, **kwargs)
-    # `/manager` — moliyasiz operativ panel. `/system` (admin, moliya) dan ATAYLAB
-    # alohida router: menejerga admin endpointlaridan birortasi ham ochilmasligi kerak.
-    target.include_router(manager_router, **kwargs)
+    for router, extra_prefix, tags in API_ROUTERS:
+        kwargs = {"prefix": f"{prefix}{extra_prefix}", "include_in_schema": include_in_schema}
+        if tags:
+            kwargs["tags"] = tags
+        target.include_router(router, **kwargs)
 
 
 _register_api_routers(app)
@@ -159,7 +165,6 @@ async def api_root():
 @app.get(f"{API_PUBLIC_PREFIX}/health", tags=["System"], include_in_schema=False)
 async def health_check():
     """Service ishlayaptimi tekshirish."""
-    from datetime import datetime, timezone
     return {
         "status": "ok",
         "service": "Logistika AI API",
@@ -174,7 +179,7 @@ async def db_health():
     """Database ulanishini tekshirish."""
     try:
         async with engine.begin() as conn:
-            await conn.execute(__import__("sqlalchemy").text("SELECT 1"))
+            await conn.execute(text("SELECT 1"))
         return {"status": "ok", "database": "connected"}
     except Exception as e:
         return {

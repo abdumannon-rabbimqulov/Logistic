@@ -122,9 +122,9 @@ bilan (`/api/orders`, nginx shu orqali proxy qiladi). Swagger: `/api/docs`.
 | Prefiks | Fayl | Asosiy endpointlar | Kim |
 |---|---|---|---|
 | `/auth` | `users/router.py` | `POST /login` (initData yoki telefon+parol), `POST /refresh`, `GET/PATCH /me`, `PATCH /me/password`, `POST /select-role`, `POST /reset-phone`, `/verify-reset-code`, `/reset-password`, `DELETE /me`, `POST /logout` | hamma |
-| `/orders` | `order/router.py` | `POST ""`, `GET ""`, `POST /estimate-price`, `GET /geocode/search\|reverse`, `GET /{id}`, `PATCH /{id}/status`, `PATCH /{id}/waypoints/{wid}`, `GET/PATCH /{id}/price`, `POST /{id}/price-bump`, `POST /{id}/dispatch/pause\|resume`, `POST /dispatch/{attempt}/accept\|reject`, `GET /available/list`, `DELETE /{id}`, WS `/{id}/ws/driver-location` | sender, driver |
-| `/drivers` | `driver/router.py` | `POST/GET /profile`, `GET/PATCH /me`, `GET /me/earnings`, `GET /me/balance/transactions`, `/truck-types` CRUD (yozish — admin), WS `/ws/location` | driver, admin |
-| `/system` | `Admin_panel/router.py` | `/dashboard/stats`, `/users` CRUD, `/users/{id}/balance/adjust\|transactions`, `/orders`, `/drivers`, `/drivers/{id}/block\|unblock`, `/drivers/monitor`, `/drivers/locations`, `/settings/commission\|pricing`, WS `/drivers/locations/stream` | **faqat admin** |
+| `/orders` | `order/router.py` | `POST ""`, `GET ""`, `POST /estimate-price`, `GET /geocode/search\|reverse`, `GET /{id}`, `PATCH /{id}/waypoints/{wid}`, `GET/PATCH /{id}/price`, `POST /{id}/price-bump`, `POST /{id}/dispatch/pause\|resume`, `POST /dispatch/{attempt}/accept\|reject`, `GET /available/list` (`?skip=&limit=`, max 200), `DELETE /{id}`, WS `/{id}/ws/driver-location` | sender, driver |
+| `/drivers` | `driver/router.py` | `POST /profile`, `GET/PATCH /me`, `GET /me/earnings`, `GET /me/balance/transactions`, `/truck-types` CRUD (yozish — admin), WS `/ws/location` | driver, admin |
+| `/system` | `Admin_panel/router.py` | `/dashboard/stats`, `/users` CRUD, `/users/{id}/balance/adjust\|transactions`, `/orders`, `/drivers`, `/drivers/{id}/block\|unblock`, `/drivers/monitor`, `/drivers/{id}/location`, `/settings/commission\|pricing`, WS `/drivers/locations/stream` | **faqat admin** |
 | `/manager` | `manager/router.py` | `/orders`, `/orders/{id}`, `PATCH /orders/{id}/status`, `/orders/{id}/available-trucks`, `POST /orders/{id}/assign-truck` | menejer, admin |
 | `/support` | `support_service/router.py` | `/tickets`, `/tickets/{id}`, `/tickets/{id}/messages`, `/tickets/{id}/status` | hamma (alohida xizmat) |
 | — | `config/main.py` | `GET /health`, `GET /health/db` | monitoring |
@@ -383,6 +383,28 @@ To'liq namuna va izohlar: `.env.example`. Eng muhimlari:
 
 ---
 
+## 11.1. Tezlik (performance) qoidalari
+
+2026-11 dagi tozalashda topilgan va tuzatilgan sekinlik sabablari — qaytarmang:
+
+| Muammo | Tuzatish |
+|---|---|
+| `bcrypt` (~250 ms CPU) async handler ichida → butun server to'xtardi | API'da faqat `hash_password_async` / `verify_password_async` (`users/auth.py`, `asyncio.to_thread`) |
+| `orders`, `order_waypoints`, `users.phone_number` da indeks yo'q | `f1a6c2e83d47_perf_indexes` migratsiyasi + modellarda `Index(...)` |
+| `GET /orders`, `/orders/available/list` sahifalanmagan | `skip` / `limit` (standart 100, max 200) |
+| Admin dashboard ~10 ta ketma-ket COUNT | har jadvalga bitta so'rov: `count(*) FILTER (WHERE ...)` |
+
+Qoidalar: ro'yxat endpointlari doim `limit` bilan; WHERE/ORDER BY dagi ustunga indeks;
+CPU-og'ir sinxron kod (`bcrypt`, katta JSON/geo hisoblar) → `asyncio.to_thread`;
+tashqi HTTP (OSRM, Yandex) → `httpx.AsyncClient` timeout bilan.
+
+Olib tashlangan (hech kim chaqirmagan) endpointlar: `GET /drivers/profile` (`/drivers/me`
+dublikati), `GET /drivers/truck-types/{pk}`, `GET /system/drivers/locations` (WS stream bor),
+`PATCH /orders/{id}/status` (admin `PATCH /system/orders/{id}` ishlatadi). Bo'sh
+`users/tariff_*.py` fayllari ham o'chirildi.
+
+---
+
 ## 14. Ishga tushirish va deploy
 
 | Vazifa | Buyruq |
@@ -392,6 +414,20 @@ To'liq namuna va izohlar: `.env.example`. Eng muhimlari:
 | Prod'ni lokalda sinash | `make prod-local` |
 | Serverda deploy | `make deploy` (`scripts/server-deploy.sh`) yoki `main` ga push → GitHub Actions (`.github/workflows/deploy.yml`) |
 | OSRM xaritasini yangilash | `./scripts/update-osrm-map.sh` |
+
+### Sinov hisoblari
+
+```bash
+docker compose exec web python scripts/seed_test_users.py           # yaratish / tiklash
+docker compose exec web python scripts/seed_test_users.py --delete  # o'chirish
+```
+
+Parol hammasida `1111`. Kirish: Mini App / brauzerda telefon + parol.
+
+| Rol | Telefonlar |
+|---|---|
+| Haydovchi 1–5 (tasdiqlangan, liniyada) | `+998900000001` … `+998900000005` |
+| Yuboruvchi 1–5 (sender) | `+998900000011` … `+998900000015` |
 
 Batafsil: `docs/DEPLOY.md`, `docs/MICROSERVICES.md`, `docs/DISPATCH_SYSTEM_PLAN.md`.
 

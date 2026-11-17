@@ -1,4 +1,8 @@
+"""/system — admin paneli (FAQAT admin; moliya shu yerda).
 
+Dashboard, foydalanuvchilar, balans, buyurtmalar, haydovchilarni bloklash, xarita
+monitoringi, komissiya/narx sozlamalari, server monitoringi. Menejer uchun: manager/router.py.
+"""
 
 from __future__ import annotations
 
@@ -378,12 +382,6 @@ async def admin_drivers_monitor(
     return items
 
 
-@router.get("/drivers/locations", response_model=List[admin_schemas.DriverLocationItem])
-async def admin_list_driver_locations(_: User = Depends(is_admin)):
-    items = await live_location.get_all_online_drivers()
-    return items
-
-
 @router.get(
     "/drivers/{driver_id}/location",
     response_model=admin_schemas.DriverLocationItem,
@@ -398,8 +396,8 @@ async def admin_get_driver_location(
     return item
 
 
-# DIQQAT: bu marshrut `/drivers/locations` dan KEYIN turishi shart — aks holda "locations"
-# so'zi `{driver_id}` sifatida o'qilib, 422 qaytardi.
+# DIQQAT: `/drivers/{driver_id}` aniq yo'llardan (`/drivers/monitor` va h.k.) KEYIN turishi
+# shart — aks holda "monitor" so'zi `{driver_id}` sifatida o'qilib, 422 qaytaradi.
 @router.get(
     "/drivers/{driver_id}",
     response_model=admin_schemas.AdminDriverListItem,

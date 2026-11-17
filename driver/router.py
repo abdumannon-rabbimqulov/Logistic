@@ -1,3 +1,9 @@
+"""/drivers — haydovchi kabineti va mashina turlari.
+
+Driver: profil yaratish (POST /profile), kabinet (/me), daromad, balans tarixi,
+jonli GPS (WS /ws/location). Mashina turlari: o'qish hamma uchun, yozish faqat admin.
+"""
+
 import logging
 import os
 import time
@@ -96,13 +102,6 @@ async def upload_truck_type_image(
 
     return {"url": f"{STATIC_PATH}/{unique_filename}"}
 
-@router.get("/truck-types/{pk}", response_model=schemas.TruckTypeResponse, summary="Mashina turi tafsilotlari,hamma uchun")
-async def get_truck_type(pk: int, db: AsyncSession = Depends(get_db)):
-    obj = await crud.get_truck_type(db, pk)
-    if not obj:
-        raise HTTPException(status_code=404, detail="Truck type not found")
-    return obj
-
 @router.patch("/truck-types/{pk}", response_model=schemas.TruckTypeResponse, summary="Mashina turini tahrirlash,admin uchun")
 async def update_truck_type(
     pk: int,
@@ -152,11 +151,6 @@ async def _require_driver(db: AsyncSession, current_user: User) -> Driver:
     "/me",
     response_model=schemas.DriverProfileResponse,
     summary="Mening haydovchi profilim (kabinet)",
-)
-@router.get(
-    "/profile",
-    response_model=schemas.DriverProfileResponse,
-    summary="Haydovchi profili — batafsil kabinet ma'lumotlari",
 )
 async def get_my_driver_profile(
     db: AsyncSession = Depends(get_db),

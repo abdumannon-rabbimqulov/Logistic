@@ -1,3 +1,10 @@
+"""/orders — buyurtmalar (yuk beruvchi va haydovchi).
+
+Sender: yaratish, narx, tahrirlash, bekor qilish, qidiruvni to'xtatish/davom ettirish.
+Driver: dispatch takliflarini qabul/rad etish, marshrut nuqtalarini yopish (GPS bilan).
+Jonli kuzatuv: WS /orders/{id}/ws/driver-location. Biznes-mantiq: services/ va order/crud.py.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -115,14 +122,16 @@ async def create_order(
 async def list_my_orders(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
 ):
     if current_user.role == UserRole.DRIVER:
         driver = await get_driver_by_user_id(db, current_user.id)
         if not driver:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Haydovchi profili topilmadi")
-        return await crud.list_orders_by_driver(db, driver.id)
+        return await crud.list_orders_by_driver(db, driver.id, skip=skip, limit=limit)
 
-    orders = await crud.list_orders_by_customer(db, current_user.id)
+    orders = await crud.list_orders_by_customer(db, current_user.id, skip=skip, limit=limit)
     if is_manager(current_user):
         # Menejerning o'z buyurtmalari bo'lmasa ham ro'yxat bo'sh qaytadi; narx
         # maydonlari baribir tozalanadi (kelajakda menejer sender bo'lib qolsa ham).
@@ -138,10 +147,12 @@ async def list_available_orders(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     truck_type_id: Optional[int] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
 ):
     if current_user.role != UserRole.DRIVER:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Bu ro'yxat faqat haydovchilar uchun")
-    return await crud.list_available_orders(db, truck_type_id=truck_type_id)
+    return await crud.list_available_orders(db, truck_type_id=truck_type_id, skip=skip, limit=limit)
 
 
 @router.get("/geocode/search", response_model=List[schemas.GeocodeSuggestion],
@@ -318,39 +329,6 @@ async def update_order(
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Faqat buyurtma egasi tahrirlay oladi")
     order = await crud.update_order(db, order, data)
     return schemas.OrderDetailResponse.from_order(order)
-
-
-@router.patch("/{order_id}/status", response_model=schemas.OrderResponse,
-              summary="Buyurtma holatini qo'lda yangilash (faqat admin)")
-async def update_order_status(
-    order_id: int,
-    data: schemas.OrderStatusUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-):
-    """DIQQAT: bu endpoint endi FAQAT admin uchun.
-
-    Ilgari biriktirilgan haydovchi ham statusni to'g'ridan-to'g'ri qo'ya olardi va shu
-    yo'l bilan manzilga umuman bormasdan buyurtmani `COMPLETED` qilib, komissiyani
-    ishga tushirardi. Endi haydovchi oqimni faqat nuqtalar orqali suradi
-    (`PATCH /orders/{id}/waypoints/{waypoint_id}`), u yerda esa har qadam GPS bilan
-    tekshiriladi — geofence'ni chetlab o'tadigan yo'l qolmasligi uchun.
-    """
-    order = await _require_order_access(db, order_id, current_user)
-
-    if not _is_admin(current_user):
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Buyurtma holatini qo'lda faqat admin o'zgartira oladi. "
-                "Haydovchi buyurtmani marshrut nuqtalari orqali yuritadi."
-            ),
-        )
-
-    # `OrderFlowError` bu yerda ATAYLAB tutilmaydi — uni global handler 400 Bad Request
-    # qilib qaytaradi (`middlewares/error_handler.py`). Shu bilan barcha endpointlarda
-    # bir xil javob bo'ladi va yangi chaqiruv joyi qo'shilganda 500 berish xavfi yo'q.
-    return await crud.update_order_status(db, order, data.status)
 
 
 @router.patch("/{order_id}/waypoints/{waypoint_id}", response_model=schemas.OrderDetailResponse,

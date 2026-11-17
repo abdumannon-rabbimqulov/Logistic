@@ -35,6 +35,8 @@ class UserRole(str, enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
+    # Login telefon raqam bo'yicha qidiradi (migrations/versions/f1a6c2e83d47_perf_indexes.py).
+    __table_args__ = (Index("ix_users_phone_number", "phone_number"),)
 
     id:         Mapped[int] = mapped_column(BigInteger, primary_key=True)
     username:   Mapped[str | None] = mapped_column(String(32), nullable=True)

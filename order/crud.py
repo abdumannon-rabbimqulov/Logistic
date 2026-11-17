@@ -162,27 +162,33 @@ async def get_order(db: AsyncSession, order_id: int) -> Optional[Order]:
     return result.scalar_one_or_none()
 
 
-async def list_orders_by_customer(db: AsyncSession, customer_id: int) -> Sequence[Order]:
+async def list_orders_by_customer(db: AsyncSession, customer_id: int, *, skip: int = 0, limit: int = 100) -> Sequence[Order]:
     result = await db.execute(
         select(Order)
         .options(selectinload(Order.waypoints))
         .where(Order.customer_id == customer_id)
         .order_by(Order.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     )
     return result.scalars().all()
 
 
-async def list_orders_by_driver(db: AsyncSession, driver_id: int) -> Sequence[Order]:
+async def list_orders_by_driver(db: AsyncSession, driver_id: int, *, skip: int = 0, limit: int = 100) -> Sequence[Order]:
     result = await db.execute(
         select(Order)
         .options(selectinload(Order.waypoints))
         .where(Order.driver_id == driver_id)
         .order_by(Order.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     )
     return result.scalars().all()
 
 
-async def list_available_orders(db: AsyncSession, *, truck_type_id: Optional[int] = None) -> Sequence[Order]:
+async def list_available_orders(
+    db: AsyncSession, *, truck_type_id: Optional[int] = None, skip: int = 0, limit: int = 100
+) -> Sequence[Order]:
     """Hali haydovchisi biriktirilmagan, PENDING holatdagi buyurtmalar (haydovchi ilovasi uchun)."""
     query = (
         select(Order)
@@ -192,7 +198,7 @@ async def list_available_orders(db: AsyncSession, *, truck_type_id: Optional[int
     )
     if truck_type_id is not None:
         query = query.where(Order.required_truck_type_id == truck_type_id)
-    result = await db.execute(query)
+    result = await db.execute(query.offset(skip).limit(limit))
     return result.scalars().all()
 
 

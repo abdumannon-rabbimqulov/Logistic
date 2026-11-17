@@ -16,6 +16,8 @@ from config.config import (
 from users.crud import get_user_by_id
 from users.models import User, UserRole
 
+import asyncio
+
 import bcrypt
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{API_PUBLIC_PREFIX}/auth/login")
@@ -29,6 +31,18 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
     except ValueError:
         return False
+
+
+# bcrypt ataylab sekin (~250 ms CPU). Async handler ichida to'g'ridan-to'g'ri chaqirilsa
+# event loop shu vaqtga to'xtaydi va serverdagi BARCHA so'rovlar kutib qoladi. Shuning
+# uchun API ichida doim shu ikki async versiyadan foydalaning — ular hisoblashni alohida
+# thread'ga chiqaradi. Sinxron versiyalar faqat skriptlar uchun qoldirilgan.
+async def hash_password_async(password: str) -> str:
+    return await asyncio.to_thread(hash_password, password)
+
+
+async def verify_password_async(plain_password: str, hashed_password: str) -> bool:
+    return await asyncio.to_thread(verify_password, plain_password, hashed_password)
 
 
 # Parolni tiklash tokeni qancha vaqt amal qiladi (daqiqa)

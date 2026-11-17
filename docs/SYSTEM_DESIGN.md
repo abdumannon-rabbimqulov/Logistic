@@ -66,7 +66,7 @@ flowchart LR
 
 | Modul | Vazifasi |
 |---|---|
-| `users/` | `User` modeli, JWT auth (`auth.py`), Telegram `initData` tekshiruvi (`telegram_auth.py`), tarif to'lovlari (`tariff_crud.py`, `tariff_router.py`) |
+| `users/` | `User` modeli, JWT auth (`auth.py`), Telegram `initData` tekshiruvi (`telegram_auth.py`) |
 | `driver/` | `Driver`, `TruckType` modellari, profil CRUD, `/ws/location` WebSocket (live GPS) |
 | `order/` | `Order`, `OrderWaypoint`, `OrderRoutePostGIS` modellari, schemas |
 | `Admin_panel/` | Admin CRUD/router, `is_admin` ruxsat tekshiruvi |
