@@ -1,7 +1,7 @@
-from pydantic import BaseModel, Field, ConfigDict, field_validator, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_serializer, field_validator, model_validator
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Annotated, Optional
 from utils.validation import CaseInsensitiveSchemaEnum
 
 
@@ -21,41 +21,80 @@ class DocumentType(CaseInsensitiveSchemaEnum):
     OTHER             = "OTHER"
 
 
-class TruckTypeBase(BaseModel):
-    name: str = Field()
-    max_weight: Decimal
-    max_volume: Decimal
-    length: Optional[Decimal] = Field(None)
-    width: Optional[Decimal] = Field(None)
-    height: Optional[Decimal] = Field(None)
-    pallet_capacity: Optional[int] = Field(None)
-    base_price: Decimal = Field(Decimal("0"), ge=0, description="Boshlang'ich narx, UZS")
-    price_per_km: Decimal = Field(Decimal("0"), ge=0, description="1 km uchun narx, UZS")
-    min_price: Optional[Decimal] = Field(None, ge=0, description="Minimal narx (pol), UZS")
+# ── Mashina turi ─────────────────────────────────────────────────────────────
+# Chegaralar DB ustunlariga mos (driver/models.py TruckType). Ilgari sxemada hech
+# qanday chegara yo'q edi: 50+ belgili nom yoki 10 000+ tonna DB'da "numeric field
+# overflow" bilan 500 berardi, bo'sh nom va manfiy og'irlik esa saqlanib qolardi.
+TruckName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
+Capacity = Annotated[Decimal, Field(gt=0, le=Decimal("9999.99"))]       # Numeric(6, 2)
+Dimension = Annotated[Decimal, Field(gt=0, le=Decimal("999.99"))]       # Numeric(5, 2), metr
+Money = Annotated[Decimal, Field(ge=0, le=Decimal("9999999999.99"))]    # Numeric(12, 2), UZS
+Pallets = Annotated[int, Field(ge=0, le=10_000)]
+
+
+class TruckTypeCreate(BaseModel):
+    name: TruckName
+    max_weight: Capacity = Field(description="Maksimal og'irlik, tonna")
+    max_volume: Capacity = Field(description="Maksimal hajm, m³")
+    length: Optional[Dimension] = None
+    width: Optional[Dimension] = None
+    height: Optional[Dimension] = None
+    pallet_capacity: Optional[Pallets] = None
+    base_price: Money = Field(Decimal("0"), description="Boshlang'ich narx, UZS")
+    price_per_km: Money = Field(Decimal("0"), description="1 km uchun narx, UZS")
+    min_price: Optional[Money] = Field(None, description="Minimal narx (pol), UZS")
     image_url: Optional[str] = Field(None, max_length=512)
     description: Optional[str] = Field(None, max_length=200)
     is_active: bool = True
 
-class TruckTypeCreate(TruckTypeBase):
-    pass
 
 class TruckTypeUpdate(BaseModel):
-    name: Optional[str] = Field(None, max_length=50)
-    max_weight: Optional[Decimal] = None
-    max_volume: Optional[Decimal] = None
+    """Qisman yangilash: faqat yuborilgan maydonlar o'zgaradi."""
+
+    name: Optional[TruckName] = None
+    max_weight: Optional[Capacity] = None
+    max_volume: Optional[Capacity] = None
+    length: Optional[Dimension] = None
+    width: Optional[Dimension] = None
+    height: Optional[Dimension] = None
+    pallet_capacity: Optional[Pallets] = None
+    base_price: Optional[Money] = None
+    price_per_km: Optional[Money] = None
+    min_price: Optional[Money] = None
+    image_url: Optional[str] = Field(None, max_length=512)
+    description: Optional[str] = Field(None, max_length=200)
+    is_active: Optional[bool] = None
+
+    # DB'da NOT NULL ustunlar: ularga ochiq `null` yuborilsa DB xatosi (IntegrityError)
+    # o'rniga oddiy 422 qaytsin.
+    _NOT_NULL = ("name", "max_weight", "max_volume", "base_price", "price_per_km", "is_active")
+
+    @model_validator(mode="after")
+    def _reject_null_for_required(self):
+        for field in self._NOT_NULL:
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"'{field}' bo'sh (null) bo'lishi mumkin emas")
+        return self
+
+
+class TruckTypeResponse(BaseModel):
+    """Javob sxemasi ATAYLAB chegarasiz: bazada eski (chegaralardan oldin saqlangan)
+    yozuv bo'lsa ham ro'yxat 500 bermasin."""
+
+    id: int
+    name: str
+    max_weight: Decimal
+    max_volume: Decimal
     length: Optional[Decimal] = None
     width: Optional[Decimal] = None
     height: Optional[Decimal] = None
     pallet_capacity: Optional[int] = None
-    base_price: Optional[Decimal] = Field(None, ge=0)
-    price_per_km: Optional[Decimal] = Field(None, ge=0)
-    min_price: Optional[Decimal] = Field(None, ge=0)
+    base_price: Decimal
+    price_per_km: Decimal
+    min_price: Optional[Decimal] = None
     image_url: Optional[str] = None
     description: Optional[str] = None
-    is_active: Optional[bool] = None
-
-class TruckTypeResponse(TruckTypeBase):
-    id: int
+    is_active: bool
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
