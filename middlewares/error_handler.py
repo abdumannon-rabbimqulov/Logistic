@@ -15,6 +15,23 @@ from utils.admin_alerts import send_error_to_admins, format_details_for_alert
 logger = logging.getLogger(__name__)
 
 
+async def _report_error(*, title: str, **kwargs) -> None:
+    """Xatoni ikki joyga yuboradi: adminlarga Telegram alert va admin panelning
+    "Server" bo'limidagi "Oxirgi xatolar" ro'yxati (services/metrics.py)."""
+    from services import metrics  # aylanma importdan saqlanish uchun shu yerda
+
+    status_code = 409 if "Integrity" in title else 500
+    await metrics.record_error(
+        method=kwargs["method"],
+        path=kwargs["path"],
+        status=status_code,
+        exc_type=kwargs["exc_type"],
+        message=kwargs["details"],
+        request_id=kwargs["request_id"],
+    )
+    await send_error_to_admins(title=title, **kwargs)
+
+
 class ErrorResponse:
     """Standard error response format."""
     
@@ -60,7 +77,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
                 "error": str(exc.orig),
             }
         )
-        await send_error_to_admins(
+        await _report_error(
             title="Database Integrity Error",
             request_id=request_id,
             method=method,
@@ -91,7 +108,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             },
             exc_info=exc
         )
-        await send_error_to_admins(
+        await _report_error(
             title="Database Error",
             request_id=request_id,
             method=method,
@@ -180,7 +197,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             },
             exc_info=exc
         )
-        await send_error_to_admins(
+        await _report_error(
             title="Unhandled Exception",
             request_id=request_id,
             method=method,
@@ -259,7 +276,7 @@ def setup_error_handlers(app: FastAPI):
                 response.headers["X-Request-ID"] = request_id
                 return response
             except Exception as exc:
-                await send_error_to_admins(
+                await _report_error(
                     title="Unhandled Exception (middleware)",
                     request_id=request_id,
                     method=request.method,

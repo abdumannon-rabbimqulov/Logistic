@@ -750,6 +750,19 @@ export interface MonitoringRequests {
   slowest_routes: MonitoringRouteRow[];
   error_routes: MonitoringRouteRow[];
   busiest_routes: MonitoringRouteRow[];
+  /** Oxirgi server xatolari, eng yangisi birinchi (services/metrics.py record_error). */
+  recent_errors?: MonitoringErrorEntry[];
+}
+
+export interface MonitoringErrorEntry {
+  /** unix soniya */
+  ts: number;
+  method: string;
+  path: string;
+  status: number;
+  exc_type: string;
+  message: string;
+  request_id: string;
 }
 
 export interface MonitoringComponentBase {

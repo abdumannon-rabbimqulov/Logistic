@@ -4,7 +4,9 @@ import { ApiError } from '../../api/client';
 import type {
   HealthStatus,
   MonitoringComponentBase,
+  MonitoringErrorEntry,
   MonitoringOverview,
+  MonitoringRequests,
   MonitoringQueueRow,
   MonitoringRouteRow,
 } from '../../types/api';
@@ -162,6 +164,65 @@ const routeColumns: Column<MonitoringRouteRow>[] = [
   },
 ];
 
+// ── Muammo bosilganda ochiladigan tafsilot ──────────────────────────────────
+// Faqat API muammolarida tafsilot bor: qaysi endpoint xato bergani va nima uchun
+// (oxirgi xatolar ro'yxati), yoki qaysi endpointlar sekin.
+
+function issueDetail(name: string, text: string, req: MonitoringRequests): ReactNode | null {
+  if (name !== 'api') return null;
+  if (text.includes('5xx')) {
+    const routes = req.error_routes.filter((r) => r.errors_5xx > 0);
+    const errors = (req.recent_errors ?? []).filter((e) => e.status >= 500);
+    return (
+      <>
+        {routes.length > 0 && (
+          <DataTable columns={routeColumns} rows={routes} rowKey={(r) => r.route} emptyText="" />
+        )}
+        <RecentErrors errors={errors} />
+      </>
+    );
+  }
+  if (text.startsWith('Sekin')) {
+    return (
+      <DataTable
+        columns={routeColumns}
+        rows={req.slowest_routes.slice(0, 5)}
+        rowKey={(r) => r.route}
+        emptyText="So'rov yo'q"
+      />
+    );
+  }
+  return null;
+}
+
+function RecentErrors({ errors }: { errors: MonitoringErrorEntry[] }) {
+  if (!errors.length) {
+    return (
+      <div className={styles.issueEmpty}>
+        Xato matni saqlanmagan (bu funksiya qo'shilishidan oldingi xato bo'lishi mumkin).
+      </div>
+    );
+  }
+  return (
+    <ul className={styles.errorList}>
+      {errors.map((e) => (
+        <li key={`${e.request_id}-${e.ts}`} className={styles.errorItem}>
+          <div className={styles.errorHead}>
+            <span className={shared.mono}>
+              {e.method} {e.path}
+            </span>
+            <span className={styles.errorMeta}>
+              {e.status} · {e.exc_type} · {new Date(e.ts * 1000).toLocaleString('uz-UZ')}
+            </span>
+          </div>
+          <div className={styles.errorMsg}>{e.message}</div>
+          <div className={styles.errorMeta}>request_id: {e.request_id}</div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 const queueColumns: Column<MonitoringQueueRow>[] = [
   { key: 'queue', header: 'Navbat', render: (r) => <span className={shared.mono}>{r.queue}</span> },
   { key: 'consumer', header: "Kim o'qiydi", render: (r) => r.consumer },
@@ -191,6 +252,7 @@ export function AdminMonitoring() {
   const [auto, setAuto] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const reqId = useRef(0);
+  const [openIssue, setOpenIssue] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const id = ++reqId.current;
@@ -292,11 +354,34 @@ export function AdminMonitoring() {
             </div>
             {allIssues.length > 0 && (
               <ul className={styles.issues}>
-                {allIssues.map((i, k) => (
-                  <li key={k}>
-                    <strong>{COMPONENT_LABELS[i.name] ?? i.name}:</strong> {i.text}
-                  </li>
-                ))}
+                {allIssues.map((i) => {
+                  const key = `${i.name}:${i.text}`;
+                  const label = (
+                    <>
+                      <strong>{COMPONENT_LABELS[i.name] ?? i.name}:</strong> {i.text}
+                    </>
+                  );
+                  const detail = issueDetail(i.name, i.text, req);
+                  if (!detail) return <li key={key}>{label}</li>;
+                  // Matn har 15s yangilanadi (masalan foiz o'zgaradi) — ochiq holat
+                  // komponent nomi + muammo turiga bog'lanadi, to'liq matnga emas.
+                  const openKey = `${i.name}:${i.text.includes('5xx') ? '5xx' : 'slow'}`;
+                  const open = openIssue === openKey;
+                  return (
+                    <li key={key}>
+                      <button
+                        type="button"
+                        className={styles.issueToggle}
+                        aria-expanded={open}
+                        onClick={() => setOpenIssue(open ? null : openKey)}
+                      >
+                        {label}
+                        <span className={styles.issueHint}>{open ? 'Yopish ▴' : 'Batafsil ▾'}</span>
+                      </button>
+                      {open && <div className={styles.issueDetail}>{detail}</div>}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

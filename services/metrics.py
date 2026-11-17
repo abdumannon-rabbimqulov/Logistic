@@ -23,6 +23,7 @@ bo'lsa metrika jimgina tashlab yuboriladi (`WRITE_TIMEOUT_SEC`).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from typing import Any, Optional
@@ -161,6 +162,63 @@ def _percentile(buckets: list[int], total: int, q: float) -> Optional[float]:
     return float(BUCKETS_MS[-1])
 
 
+# ── Oxirgi server xatolari ────────────────────────────────────────────────────
+# Gistogramma "nechta xato" ni biladi, lekin "qaysi va nima uchun" ni emas. Admin
+# monitoringida muammo bosilganda aynan shu ro'yxat ko'rsatiladi. Faqat oxirgi
+# ERRORS_KEEP tasi saqlanadi (Redis LIST, LTRIM).
+ERRORS_KEY = "mon:errors"
+ERRORS_KEEP = 100
+
+
+async def _write_error(entry: dict[str, Any]) -> None:
+    r = get_redis()
+    pipe = r.pipeline(transaction=False)
+    pipe.lpush(ERRORS_KEY, json.dumps(entry, ensure_ascii=False))
+    pipe.ltrim(ERRORS_KEY, 0, ERRORS_KEEP - 1)
+    pipe.expire(ERRORS_KEY, RETENTION_SEC)
+    await pipe.execute()
+
+
+async def record_error(
+    *, method: str, path: str, status: int, exc_type: str, message: str, request_id: str
+) -> None:
+    """Xatoni monitoring ro'yxatiga yozadi. Hech qachon exception tashlamaydi."""
+    entry = {
+        "ts": int(time.time()),
+        "method": method,
+        "path": path,
+        "status": status,
+        "exc_type": exc_type,
+        "message": message[:400],
+        "request_id": request_id,
+    }
+    try:
+        await asyncio.wait_for(_write_error(entry), WRITE_TIMEOUT_SEC)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Xato monitoringga yozilmadi: %s", exc)
+
+
+async def read_recent_errors(minutes: int, limit: int = 30) -> list[dict[str, Any]]:
+    """Oxirgi `minutes` daqiqadagi xatolar, eng yangisi birinchi."""
+    since = time.time() - minutes * 60
+    try:
+        raw = await get_redis().lrange(ERRORS_KEY, 0, ERRORS_KEEP - 1)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Xatolar ro'yxatini o'qib bo'lmadi: %s", exc)
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        try:
+            entry = json.loads(item)
+        except (TypeError, ValueError):
+            continue
+        if entry.get("ts", 0) >= since:
+            out.append(entry)
+            if len(out) >= limit:
+                break
+    return out
+
+
 async def read_window(minutes: int) -> dict[str, Any]:
     """Oxirgi `minutes` daqiqa: vaqt qatori (≤ ~120 nuqta), jami ko'rsatkichlar va
     endpointlar reytingi."""
@@ -256,6 +314,7 @@ async def read_window(minutes: int) -> dict[str, Any]:
             reverse=True,
         )[:10],
         "busiest_routes": sorted(route_rows, key=lambda r: r["count"], reverse=True)[:10],
+        "recent_errors": await read_recent_errors(minutes),
     }
 
 
