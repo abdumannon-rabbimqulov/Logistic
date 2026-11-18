@@ -11,7 +11,7 @@ import pytest
 from order.models import OrderStatus
 from services import order_flow, queue
 from services.outbox import OutboxEvent
-from services.order_notifications import sender_message_for
+from notification_service.handlers.orders import sender_message_for
 from services.start_reminders import reminder_for
 
 

@@ -164,16 +164,11 @@ services:
         condition: service_healthy
     restart: always
 
-  events-worker:
-    build: .
-    image: logistika_backend:latest
-    container_name: logistika_events_worker_prod
+  notification:
+    image: logistika_notification:latest
+    container_name: logistika_notification_prod
     volumes: !reset null
     depends_on:
-      migrate:
-        condition: service_completed_successfully
-      db:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: always

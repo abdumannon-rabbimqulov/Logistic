@@ -28,7 +28,7 @@
  Postgres          │   ▲
  + PostGIS         │   │ publish
                    ▼   │
-     [dispatch-worker] [events-worker]       [bot] aiogram (polling)
+     [dispatch-worker] [notification]       [bot] aiogram (polling)
                                                  │
                                           Telegram Bot API
 ```
@@ -38,7 +38,7 @@
 | `web` | `config/main.py` (uvicorn) | Asosiy REST API + WebSocket |
 | `bot` | `main.py` (aiogram, polling) | Ro'yxatdan o'tish, dispatch tugmalari, Mini App menyu tugmasi |
 | `dispatch-worker` | `workers/dispatch_worker.py` | Haydovchi qidirish navbatini bajaradi |
-| `events-worker` | `workers/events_worker.py` | Support hodisalari → adminlarga Telegram xabar |
+| `notification` | `notification_service` | Support hodisalari → adminlarga Telegram xabar |
 | `support` | `support_service/` | Murojaatlar (ticket) mikroservisi, **o'z bazasi** |
 | `migrate` | `scripts/docker-entrypoint.sh` | Bir martalik: sxema/alembic, keyin tugaydi |
 | `db` | `postgis/postgis:15-3.4` | Asosiy baza + `support_db` |
@@ -47,7 +47,7 @@
 | `osrm` | `osrm/osrm-backend` | Self-hosted marshrut/masofa (O'zbekiston xaritasi) |
 | `frontend` / `caddy` | `Frontend/`, `Caddyfile` | SPA + reverse proxy + TLS |
 
-`web`, `bot`, `dispatch-worker`, `events-worker` va `migrate` — **bitta Docker image**
+`web`, `bot`, `dispatch-worker`, `notification` va `migrate` — **bitta Docker image**
 (`logistika_backend`, `Dockerfile`), faqat ishga tushirish buyrug'i farq qiladi.
 
 ---
@@ -293,7 +293,7 @@ dispatch.delayed  (iste'molchisiz; x-message-ttl → dead-letter → dispatch.jo
 logistika.events (topic, durable)             — HODISALAR (ko'p iste'molchi)
   ├── order.status_changed  ─┬→ support.order_events   ← support xizmati
   ├── order.truck_assigned  ─┘
-  ├── support.ticket_created ─┬→ support.notifications ← events-worker → adminlarga Telegram
+  ├── support.ticket_created ─┬→ support.notifications ← notification → adminlarga Telegram
   └── support.ticket_replied ─┘
 ```
 
@@ -308,7 +308,7 @@ xizmat birinchi ko'tarilishidan qat'i nazar xabar yo'qolmaydi.
 - Asosiy loyiha kodini ham, bazasini ham **import qilmaydi**. Bog'lovchi faqat:
   umumiy `SECRET_KEY` (JWT tekshirish) va RabbitMQ `logistika.events`.
 - Telegram'ga o'zi yozmaydi — "ticket yaratildi" hodisasini e'lon qiladi,
-  bildirishnomani `events-worker` yuboradi.
+  bildirishnomani `notification` yuboradi.
 - Sxema startda `create_all` bilan yaratiladi.
 
 ---

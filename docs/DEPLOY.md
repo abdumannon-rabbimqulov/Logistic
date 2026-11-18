@@ -22,7 +22,7 @@ Internet :80 / :443
       ├── /support/              → support:8000
       └── /osrm/route/v1/...     → osrm:5000   (5 r/s, faqat GET, faqat `route`)
       
- [web] [bot] [dispatch-worker] [events-worker] [support]  — port ochmaydi
+ [web] [bot] [dispatch-worker] [notification] [support]  — port ochmaydi
  [db] [logistika-redis] [rabbitmq] [osrm]                 — faqat 127.0.0.1
  [migrate]  — bir martalik: alembic upgrade head, keyin tugaydi
 ```

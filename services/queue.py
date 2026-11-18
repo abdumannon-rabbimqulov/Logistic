@@ -32,7 +32,7 @@ topic exchange va har bir iste'molchi uchun alohida navbat.
     logistika.events (topic, durable)
         ├── order.status_changed  ─┬→ support.order_events   (support_service o'qiydi)
         ├── order.truck_assigned  ─┘
-        ├── support.ticket_created ─┬→ support.notifications (workers/events_worker.py o'qiydi)
+        ├── support.ticket_created ─┬→ support.notifications (notification_service o'qiydi)
         └── support.ticket_replied ─┘
 """
 
@@ -85,7 +85,7 @@ SUPPORT_EVENTS_PATTERN = "order.*"
 SUPPORT_NOTIFICATIONS_QUEUE = "support.notifications"
 SUPPORT_NOTIFICATIONS_PATTERN = "support.*"
 
-# Buyurtma hodisalari bo'yicha mijozga Telegram xabarlari (`workers/events_worker.py`).
+# Buyurtma hodisalari bo'yicha mijozga Telegram xabarlari (`notification_service`).
 ORDER_NOTIFICATIONS_QUEUE = "notifications.order_events"
 ORDER_NOTIFICATIONS_PATTERN = "order.*"
 

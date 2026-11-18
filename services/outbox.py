@@ -10,7 +10,7 @@ Yechim:
   1. `enqueue(db, event, payload)` hodisani `outbox_events` jadvaliga yozadi —
      biznes o'zgarishi bilan BITTA tranzaksiyada (chaqiruvchi commit qiladi).
      Commit bo'lmasa, hodisa ham yo'q; commit bo'lsa, hodisa albatta bor.
-  2. `relay_once()` (events_worker ichida har soniyada) yuborilmagan yozuvlarni
+  2. `relay_once()` (dispatch-worker ichida har soniyada) yuborilmagan yozuvlarni
      `FOR UPDATE SKIP LOCKED` bilan oladi, RabbitMQ'ga yuboradi va belgilaydi.
      Bir nechta worker parallel ishlasa ham bir yozuv ikki marta olinmaydi.
 

@@ -297,7 +297,8 @@ QUEUES: list[tuple[str, str, bool]] = [
     (queue.JOBS_QUEUE, "dispatch-worker", True),
     (queue.DELAYED_QUEUE, "— (TTL taymer, iste'molchisiz)", False),
     (queue.DEAD_QUEUE, "— (yo'qolgan vazifalar)", False),
-    (queue.SUPPORT_NOTIFICATIONS_QUEUE, "events-worker", True),
+    (queue.SUPPORT_NOTIFICATIONS_QUEUE, "notification", True),
+    (queue.ORDER_NOTIFICATIONS_QUEUE, "notification", True),
     (queue.SUPPORT_EVENTS_QUEUE, "support", True),
 ]
 
@@ -350,7 +351,7 @@ async def check_rabbitmq() -> dict[str, Any]:
 
     workers = {
         "dispatch-worker": next((r["consumers"] for r in rows if r["queue"] == queue.JOBS_QUEUE), None),
-        "events-worker": next(
+        "notification": next(
             (r["consumers"] for r in rows if r["queue"] == queue.SUPPORT_NOTIFICATIONS_QUEUE), None
         ),
     }

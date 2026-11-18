@@ -434,7 +434,7 @@ def record_status_changed(
     joylar shu funksiyani COMMIT'DAN OLDIN chaqiradi (qabul qilish, biriktirish, bekor
     qilish, rejalashtirilgan buyurtmani faollashtirish, nuqtalar orqali o'tish).
 
-    Hodisa biznes o'zgarishi bilan bitta tranzaksiyada saqlanadi va events-worker uni
+    Hodisa biznes o'zgarishi bilan bitta tranzaksiyada saqlanadi va dispatch-worker (outbox relay) uni
     RabbitMQ'ga yetkazadi (`services/outbox.py`). Ilgari commit'dan keyin to'g'ridan-
     to'g'ri yuborilardi va broker o'chiq bo'lsa hodisa izsiz yo'qolardi.
     """

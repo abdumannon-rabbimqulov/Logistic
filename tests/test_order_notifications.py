@@ -2,8 +2,9 @@
 
 import pytest
 
+from notification_service.handlers import orders as order_handlers
+from notification_service.handlers.orders import sender_message_for
 from services import queue
-from services.order_notifications import sender_message_for
 
 S = queue.EVENT_ORDER_STATUS_CHANGED
 W = queue.EVENT_ORDER_WAYPOINT_CHANGED
@@ -39,3 +40,8 @@ def test_messages_sent(event, data, expected):
 )
 def test_no_message(event, data):
     assert sender_message_for(event, {"order_id": 7, "customer_id": 50, **data}) is None
+
+
+def test_handle_builds_message_for_customer():
+    [msg] = order_handlers.handle(S, {"order_id": 7, "customer_id": 50, "new_status": "COMPLETED"})
+    assert msg.chat_id == 50 and "yetkazildi" in msg.text

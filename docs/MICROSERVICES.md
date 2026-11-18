@@ -16,7 +16,7 @@ bilan qanday ishga tushirib sinash mumkin.
                         ▲              ▲   │                    │
              publish    │              │   │ consume            │ consume
         ┌───────────────┴──┐    ┌──────┴───┴─────┐    ┌─────────▼──────────┐
-        │  web             │    │ dispatch-worker│    │ events-worker      │
+        │  web             │    │ dispatch-worker│    │ notification      │
         │  FastAPI monolit │    │ qidiruv jarayoni│   │ adminlarga xabar   │
         │  /orders /auth   │    └────────────────┘    └────────────────────┘
         │  /system /manager│
@@ -40,7 +40,7 @@ bilan qanday ishga tushirib sinash mumkin.
 | `web` | 8000 | Asosiy API: buyurtmalar, auth, admin (`/system`), menejer (`/manager`) |
 | `support` | 8010 | **Yordam mikroservizi** — murojaatlar va yozishmalar |
 | `dispatch-worker` | — | Haydovchi qidirish navbatini qayta ishlaydi (mavjud edi) |
-| `events-worker` | — | Support hodisalarini adminlarga Telegram orqali yetkazadi |
+| `notification` | — | Support hodisalarini adminlarga Telegram orqali yetkazadi |
 | `bot` | — | aiogram Telegram bot |
 | `db` | 5432 | PostgreSQL + PostGIS (`logistika_db` va `support_db`) |
 | `rabbitmq` | 5672 / 15672 | Broker + boshqaruv UI |
@@ -130,7 +130,7 @@ noma'lum.
 logistika.events (topic, durable)
     ├── order.status_changed   ─┬→ support.order_events    → support xizmati
     ├── order.truck_assigned   ─┘
-    ├── support.ticket_created ─┬→ support.notifications   → events-worker
+    ├── support.ticket_created ─┬→ support.notifications   → notification
     └── support.ticket_replied ─┘
 ```
 
@@ -155,7 +155,7 @@ Oqim misoli:
    oid **ochiq** murojaatlarga tizim izohini qo'shadi:
    *"Buyurtma #12 holati o'zgardi: haydovchi biriktirildi → yo'lda (manager)"*.
 4. Teskari yo'nalish: foydalanuvchi murojaat yozsa, support
-   `support.ticket_created` yuboradi, `events-worker` esa adminlarga Telegram
+   `support.ticket_created` yuboradi, `notification` esa adminlarga Telegram
    xabarini beradi.
 
 **Publish hech qachon so'rovni buzmaydi.** `publish_event()` barcha istisnolarni
@@ -393,7 +393,7 @@ Yoki host'da: `pytest tests/ -q`. Testlar baza yoki broker talab qilmaydi.
 | `users/permissions.py` | **Rol matritsasining yagona joyi** (RBAC) |
 | `manager/router.py`, `manager/schemas.py` | Menejer paneli va narxsiz sxemalar |
 | `services/queue.py` | RabbitMQ: dispatch vazifalari + `logistika.events` |
-| `workers/events_worker.py` | Support hodisalari → adminlarga Telegram |
+| `notification_service` | Support hodisalari → adminlarga Telegram |
 | `support_service/` | **Mustaqil mikroserviz** (o'z DB, image, requirements) |
 | `scripts/init-support-db.sh` | `support_db` bazasini yaratadi |
 | `migrations/versions/b2f7c1a94d03_manager_role.py` | `userrole` enum'iga `manager` |

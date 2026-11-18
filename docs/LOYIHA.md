@@ -70,7 +70,7 @@ majburlangan**: kimdir tasodifan `from order.models import Order` deb yozsa, kon
 |---|---|
 | `bot` | aiogram, Telegram long polling |
 | `dispatch-worker` | RabbitMQ `dispatch.jobs` navbatini iste'mol qiladi (haydovchi qidirish) |
-| `events-worker` | `support.notifications` navbatini iste'mol qiladi → adminlarga Telegram xabari |
+| `notification` | `support.notifications` navbatini iste'mol qiladi → adminlarga Telegram xabari |
 
 ### 2.4 Infratuzilma
 
@@ -164,7 +164,7 @@ bilan qulflangan — o'zgartirsangiz test yiqiladi):
 order.status_changed   ┐
 order.truck_assigned   ┴──► support.order_events   ──► support
 support.ticket_created ┐
-support.ticket_replied ┴──► support.notifications  ──► events-worker ──► Telegram (adminlarga)
+support.ticket_replied ┴──► support.notifications  ──► notification ──► Telegram (adminlarga)
 ```
 
 **Ichkariga (`web` → `support`):**
@@ -189,10 +189,10 @@ tizimga kirmasdan ko'radi.
 **Tashqariga (`support` → `web` tomoni):**
 
 `support_service/router.py:64,146` yangi ticket yoki javob bo'lganda `support.ticket_created`
-/ `support.ticket_replied` chiqaradi. Ularni `events-worker` oladi va adminlarga Telegram
+/ `support.ticket_replied` chiqaradi. Ularni `notification` oladi va adminlarga Telegram
 xabari yuboradi.
 
-**Nega `events-worker` kerak?** Chunki `support` da `BOT_TOKEN` ham, admin ro'yxati ham
+**Nega `notification` kerak?** Chunki `support` da `BOT_TOKEN` ham, admin ro'yxati ham
 yo'q va bo'lmasligi kerak. Telegram bilan gaplashish asosiy tomonning ishi.
 
 **Ishonchlilik:** `publish_event()` (`services/queue.py:287`) ataylab fire-and-forget —
@@ -278,7 +278,7 @@ boradi, chunki token beruvchi faqat o'sha. Support token bermaydi, faqat tekshir
         │
         │  publish("support.ticket_created") → logistika.events
         ▼
-4. support.notifications navbati ──► events-worker ──► Telegram: adminlarga xabar
+4. support.notifications navbati ──► notification ──► Telegram: adminlarga xabar
 
 ... keyinroq, buyurtma holati o'zgaradi ...
 
@@ -317,7 +317,7 @@ flowchart TB
     WEB["web :8000 — FastAPI<br/>/auth /orders /drivers /manager /system"]
     BOT["bot — aiogram"]
     DW["dispatch-worker"]
-    EW["events-worker"]
+    EW["notification"]
   end
 
   SUP["support :8010<br/>ALOHIDA image + ALOHIDA baza"]
@@ -457,7 +457,7 @@ Bitta PostGIS konteyneri, **ikkita mantiqiy baza**:
 
 | Baza | Kim ishlatadi | Migratsiya |
 |---|---|---|
-| `logistika_db` | `web`, `bot`, `dispatch-worker`, `events-worker` | Alembic (`migrations/versions/`, `make migrate`) |
+| `logistika_db` | `web`, `bot`, `dispatch-worker`, `notification` | Alembic (`migrations/versions/`, `make migrate`) |
 | `support_db` | faqat `support` | `Base.metadata.create_all` startda |
 
 `support_db` `scripts/init-support-db.sh` orqali yaratiladi, lekin Postgres bu skriptni

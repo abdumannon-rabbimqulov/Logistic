@@ -45,7 +45,7 @@ configure_mappers()
 
 from config.config import DISPATCH_PREFETCH, async_session  # noqa: E402
 from services import dispatch as dispatch_service  # noqa: E402
-from services import live_location, location_watch, queue, start_reminders  # noqa: E402
+from services import live_location, location_watch, outbox, queue, start_reminders  # noqa: E402
 
 logger = logging.getLogger("dispatch_worker")
 
@@ -143,6 +143,39 @@ async def _sweep_loop(stop: asyncio.Event) -> None:
             pass
 
 
+OUTBOX_POLL_SEC = 1.0
+OUTBOX_PURGE_EVERY_SEC = 3600
+
+
+async def _outbox_loop(stop: asyncio.Event) -> None:
+    """Transactional outbox relay: bazadagi yuborilmagan hodisalarni RabbitMQ'ga.
+
+    Relay core'ning ishi (bazani faqat core biladi), shuning uchun u bildirishnomalar
+    servisi emas, shu worker ichida. Batch to'liq bo'lsa kutmasdan davom etadi; broker
+    ishlamasa yozuvlar bazada qoladi va keyingi aylanishda qayta urinadi.
+    """
+    loop = asyncio.get_running_loop()
+    last_purge = 0.0
+    while not stop.is_set():
+        sent = 0
+        try:
+            async with async_session() as db:
+                sent = await outbox.relay_once(db)
+                if loop.time() - last_purge > OUTBOX_PURGE_EVERY_SEC:
+                    last_purge = loop.time()
+                    purged = await outbox.purge_published(db)
+                    if purged:
+                        logger.info("Outbox: %s ta eski yozuv o'chirildi", purged)
+        except Exception:
+            logger.exception("Outbox relay xatosi")
+        if sent >= outbox.RELAY_BATCH:
+            continue
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=OUTBOX_POLL_SEC)
+        except asyncio.TimeoutError:
+            pass
+
+
 async def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -166,6 +199,7 @@ async def main() -> None:
     )
 
     sweep_task = asyncio.create_task(_sweep_loop(stop))
+    relay_task = asyncio.create_task(_outbox_loop(stop))
     try:
         await stop.wait()
     finally:
@@ -178,11 +212,12 @@ async def main() -> None:
             logger.exception("Consumer'ni to'xtatishda xato")
         await asyncio.sleep(1)
 
-        sweep_task.cancel()
-        try:
-            await sweep_task
-        except asyncio.CancelledError:
-            pass
+        for task in (sweep_task, relay_task):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
         await queue.close_queue()
         await live_location.close_redis()

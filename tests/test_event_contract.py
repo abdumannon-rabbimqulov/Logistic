@@ -109,3 +109,34 @@ def test_support_service_uses_same_contract(monkeypatch):
         support_queue.EVENT_SUPPORT_TICKET_STATUS_CHANGED
         == queue.EVENT_SUPPORT_TICKET_STATUS_CHANGED
     )
+
+
+def test_notification_service_contract_matches_core():
+    """Notification mikroservizi asosiy kodni import qilmaydi — nomlar qo'lda
+    takrorlangan, shuning uchun bu yerda qulflanadi."""
+    from notification_service import contracts as nc
+
+    assert nc.EVENTS_EXCHANGE == queue.EVENTS_EXCHANGE
+    assert nc.EVENT_ORDER_STATUS_CHANGED == queue.EVENT_ORDER_STATUS_CHANGED
+    assert nc.EVENT_ORDER_WAYPOINT_CHANGED == queue.EVENT_ORDER_WAYPOINT_CHANGED
+    assert nc.EVENT_ORDER_TRIP_STARTED == queue.EVENT_ORDER_TRIP_STARTED
+    assert nc.EVENT_SUPPORT_TICKET_CREATED == queue.EVENT_SUPPORT_TICKET_CREATED
+    assert nc.EVENT_SUPPORT_TICKET_REPLIED == queue.EVENT_SUPPORT_TICKET_REPLIED
+    assert nc.EVENT_SUPPORT_TICKET_STATUS_CHANGED == queue.EVENT_SUPPORT_TICKET_STATUS_CHANGED
+    assert nc.SUPPORT_NOTIFICATIONS_QUEUE == queue.SUPPORT_NOTIFICATIONS_QUEUE
+    assert nc.SUPPORT_NOTIFICATIONS_PATTERN == queue.SUPPORT_NOTIFICATIONS_PATTERN
+    assert nc.ORDER_NOTIFICATIONS_QUEUE == queue.ORDER_NOTIFICATIONS_QUEUE
+    assert nc.ORDER_NOTIFICATIONS_PATTERN == queue.ORDER_NOTIFICATIONS_PATTERN
+
+
+def test_notification_service_does_not_import_core():
+    """Alohida image'ga faqat `notification_service/` ko'chiriladi."""
+    import pathlib
+
+    core = ("config.", "order", "driver", "users", "services", "Admin_panel", "manager", "handlers.", "workers")
+    for path in pathlib.Path("notification_service").rglob("*.py"):
+        for line in path.read_text().splitlines():
+            stripped = line.strip()
+            if stripped.startswith(("import ", "from ")):
+                module = stripped.split()[1]
+                assert not module.startswith(core), f"{path}: {stripped}"

@@ -14,7 +14,7 @@ COMPOSE_MON  := docker compose -f docker-compose.monitoring.yml
 
 .DEFAULT_GOAL := help
 .PHONY: help fe dev up down logs ps fe-logs fe-restart fe-rebuild fe-install fe-add fe-shell fe-build fe-lint prod-up prod-down \
-        worker-logs worker-restart worker-scale mq-ui support-logs support-ui support-db events-logs migrate test \
+        worker-logs worker-restart worker-scale mq-ui support-logs support-ui support-db notification-logs migrate test \
         mon-up mon-down mon-restart mon-ps mon-logs mon-collectors mon-alert-test mon-tunnel \
         prod-local prod-smoke prod-logs prod-ps prod-migrate prod-shell deploy
 
@@ -64,8 +64,8 @@ support-logs: ## Support mikroservizi loglari
 support-ui: ## Support Swagger UI (murojaatlar API si)
 	open http://localhost:8010/docs
 
-events-logs: ## Support hodisalarini adminlarga yetkazuvchi worker loglari
-	$(COMPOSE) logs -f events-worker
+notification-logs: ## Telegram bildirishnomalari servisi (notification) loglari
+	$(COMPOSE) logs -f notification
 
 support-db: ## Support bazasiga psql bilan kirish
 	$(COMPOSE) exec db psql -U postgres -d support_db

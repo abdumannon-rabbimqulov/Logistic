@@ -1,7 +1,7 @@
 """Transactional outbox jadvali (outbox_events)
 
 Biznes hodisalari (order.status_changed va h.k.) endi o'zgarish bilan bitta
-tranzaksiyada shu jadvalga yoziladi va events-worker ularni RabbitMQ'ga yuboradi
+tranzaksiyada shu jadvalga yoziladi va outbox relay ularni RabbitMQ'ga yuboradi
 (`services/outbox.py`).
 
 Revision ID: a7e4c2d91f60

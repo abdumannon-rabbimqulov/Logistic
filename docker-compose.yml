@@ -306,25 +306,25 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  # 10. Events worker — support hodisalarini adminlarga yetkazadi
+  # 10. Notification mikroservizi — barcha Telegram bildirishnomalari
   #
-  # `support.notifications` navbatini o'qiydi va yangi murojaat / javob haqida
-  # Telegram orqali adminlarga xabar beradi. Nega support o'zi yubormaydi: unda
-  # `BOT_TOKEN` ham, adminlar ro'yxati ham yo'q va bo'lmasligi kerak.
-  events-worker:
-    build: .
-    container_name: logistika_events_worker
+  # `support.notifications` (murojaatlar) va `notifications.order_events` (buyurtma
+  # holati, Start, nuqtalar) navbatlarini o'qiydi va Telegram'ga yuboradi. O'z
+  # image'i (`notification_service/Dockerfile`): bazaga ulanmaydi, asosiy kodni
+  # import qilmaydi. Outbox relay esa core'da — `dispatch-worker` ichida.
+  notification:
+    build:
+      context: .
+      dockerfile: notification_service/Dockerfile
+    container_name: logistika_notification
     volumes:
-      - .:/app
+      - ./notification_service:/app/notification_service
     env_file:
       - .env
     environment:
       - TZ=Asia/Tashkent
-    command: python -m workers.events_worker
     restart: always
     depends_on:
-      db:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
 

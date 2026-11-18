@@ -414,7 +414,7 @@ export function AdminMonitoring() {
             </ComponentCard>
             <ComponentCard title="RabbitMQ va worker'lar" status={c.rabbitmq.status}>
               <Stat label="dispatch-worker" value={workerLabel(c.rabbitmq.workers?.['dispatch-worker'])} />
-              <Stat label="events-worker" value={workerLabel(c.rabbitmq.workers?.['events-worker'])} />
+              <Stat label="notification" value={workerLabel(c.rabbitmq.workers?.['notification'])} />
               <Stat
                 label="Dispatch navbati"
                 value={fmtNum(c.rabbitmq.queues?.find((q) => q.queue === 'dispatch.jobs')?.messages)}
