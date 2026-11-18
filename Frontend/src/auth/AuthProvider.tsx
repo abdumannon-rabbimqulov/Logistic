@@ -1,7 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getMe, loginWithInitData, loginWithPassword, logout as logoutRequest } from '../api/auth';
-import { clearTokens, getAccessToken, getRefreshToken, setTokens, setUnauthorizedHandler } from '../api/client';
-import { getInitData } from '../telegram';
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  getTokenOwner,
+  setTokenOwner,
+  setTokens,
+  setUnauthorizedHandler,
+} from '../api/client';
+import { getInitData, getTelegramUser } from '../telegram';
 import type { UserRole } from '../types/api';
 
 // 'local-login' — Telegram init_data yo'q (oddiy brauzer/local manzildan ochilgan) —
@@ -67,8 +75,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus('loading');
       setErrorMessage(null);
       try {
+        const initData = getInitData();
+        const telegramUserId = getTelegramUser()?.id ?? null;
+        // Telegram ichida ochilgan, lekin saqlangan tokenlar boshqa Telegram akkauntiga
+        // (yoki telefon+parol sessiyasiga) tegishli — ularni tashlab, joriy akkaunt bilan
+        // qayta kiramiz. Aks holda bitta telefonda akkaunt almashtirilganda eski
+        // (masalan admin) sessiya ochilib qolardi. Haqiqiy tekshiruv baribir backendda
+        // imzolangan initData orqali bo'ladi; bu yerda user.id faqat solishtirish uchun.
+        if (initData && telegramUserId !== null && getTokenOwner() !== String(telegramUserId)) {
+          clearTokens();
+        }
+
         if (!getAccessToken() || !getRefreshToken()) {
-          const initData = getInitData();
           if (!initData) {
             // Telegram tashqarisida ochilgan (masalan lokal http://localhost:5173) —
             // xato bermasdan telefon+parol bilan kirish formasini ko'rsatamiz.
@@ -78,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const login = await loginWithInitData(initData);
           if (cancelled) return;
           setTokens(login.access_token, login.refresh_token);
+          setTokenOwner(telegramUserId);
           setRole(login.role);
           setUserId(login.user_id);
           setStatus(statusForRole(login.role));
@@ -120,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithPhone = useCallback(async (phone: string, password: string) => {
     const login = await loginWithPassword(phone, password);
     setTokens(login.access_token, login.refresh_token);
+    setTokenOwner(null);
     setRole(login.role);
     setUserId(login.user_id);
     setStatus(statusForRole(login.role));

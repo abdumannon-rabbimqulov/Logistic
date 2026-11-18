@@ -15,6 +15,11 @@ const SUPPORT_BASE_URL = (import.meta.env.VITE_SUPPORT_BASE_URL ?? '').replace(/
 
 const ACCESS_KEY = 'yuk_access_token';
 const REFRESH_KEY = 'yuk_refresh_token';
+// Tokenlarni qaysi Telegram foydalanuvchisi (initData user.id) olgani. Telegram WebView
+// localStorage'ni origin bo'yicha saqlaydi, akkaunt bo'yicha emas — bitta telefonda
+// Telegram akkaunti almashtirilsa, eski akkaunt tokenlari qolib ketadi. AuthProvider
+// shu qiymatni joriy initData foydalanuvchisi bilan solishtiradi.
+const OWNER_KEY = 'yuk_token_owner_tg_id';
 
 /** API bazasi — `api` wrapper'idan tashqarida (masalan multipart yuklashda) kerak bo'ladi. */
 export function apiBaseUrl(): string {
@@ -34,9 +39,20 @@ export function setTokens(access: string, refresh: string): void {
   localStorage.setItem(REFRESH_KEY, refresh);
 }
 
+/** Tokenlar egasi — Telegram user.id; telefon+parol bilan kirilganda `null`. */
+export function setTokenOwner(telegramUserId: number | null): void {
+  if (telegramUserId === null) localStorage.removeItem(OWNER_KEY);
+  else localStorage.setItem(OWNER_KEY, String(telegramUserId));
+}
+
+export function getTokenOwner(): string | null {
+  return localStorage.getItem(OWNER_KEY);
+}
+
 export function clearTokens(): void {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem(OWNER_KEY);
 }
 
 /** Bitta pydantic validatsiya xatosi (FastAPI 422 javobidagi element). */
