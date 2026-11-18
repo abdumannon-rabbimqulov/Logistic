@@ -3,7 +3,7 @@
 `workers/dispatch_worker.py` sweep sikli har ~20 s da `check_active_orders()` ni
 chaqiradi (keyinchalik tracking-service'ga ko'chadi).
 
-Qoidalar (ACCEPTED / IN_PROGRESS buyurtmalar):
+Qoidalar ("Start" bosilgan ACCEPTED va IN_PROGRESS buyurtmalar):
   * Haydovchi ilovasi "GPS o'chdi" deb xabar bergan (`gps_lost`) yoki nuqta
     3 daqiqadan eski → haydovchiga Telegram: "joylashuvni yoqing".
   * 10 daqiqadan eski → admin va menejerlarga Telegram.
@@ -80,6 +80,10 @@ async def check_active_orders(db: AsyncSession, *, now: Optional[datetime] = Non
         .where(
             Order.status.in_([OrderStatus.ACCEPTED, OrderStatus.IN_PROGRESS]),
             Order.driver_id.is_not(None),
+            # Faqat yo'lga chiqqanlar: "Start" bosilmagan (masalan 2 kundan keyingi)
+            # buyurtmada haydovchi ilovani ochmagan bo'lishi tabiiy — u uchun
+            # `services/start_reminders.py` eslatadi, GPS ogohlantirishi emas.
+            (Order.started_at.is_not(None)) | (Order.status == OrderStatus.IN_PROGRESS),
         )
     )
     orders = list(result.scalars().all())

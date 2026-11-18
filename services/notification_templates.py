@@ -83,8 +83,9 @@ def navigation_message(order) -> Optional[tuple[str, dict]]:
 
 def departure_due_text(order, pickup_address: Optional[str]) -> str:
     return (
-        f"⏰ '{order.cargo_name}' buyurtmasi uchun yo'lga chiqish vaqti keldi.\n"
-        f"Yuk ortish nuqtasi: {pickup_address or 'manzil ko‘rsatilmagan'}"
+        f"⏰ '{order.cargo_name}' buyurtmasi uchun yo'lga chiqish vaqti yaqinlashdi.\n"
+        f"Yuk ortish nuqtasi: {pickup_address or 'manzil ko‘rsatilmagan'}\n"
+        "Yo'lga chiqayotganda ilovada \"Start\" tugmasini bosing."
     )
 
 

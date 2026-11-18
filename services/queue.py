@@ -70,6 +70,8 @@ EVENT_ORDER_STATUS_CHANGED = "order.status_changed"
 EVENT_ORDER_TRUCK_ASSIGNED = "order.truck_assigned"
 # Nuqta (yuk olish/tushirish) holati o'zgardi: ARRIVED / COMPLETED / SKIPPED.
 EVENT_ORDER_WAYPOINT_CHANGED = "order.waypoint_changed"
+# Haydovchi "Start" ni bosdi — yuk olish nuqtasiga yo'lga chiqdi.
+EVENT_ORDER_TRIP_STARTED = "order.trip_started"
 EVENT_SUPPORT_TICKET_CREATED = "support.ticket_created"
 EVENT_SUPPORT_TICKET_REPLIED = "support.ticket_replied"
 EVENT_SUPPORT_TICKET_STATUS_CHANGED = "support.ticket_status_changed"

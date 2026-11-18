@@ -262,3 +262,13 @@ async def test_apply_waypoint_progress_raises_problem_with_all_reasons():
 
     assert len(exc.value.violations) >= 4
     assert "WRONG_WAYPOINT" in {v.code for v in exc.value.violations}
+
+
+def test_arrival_blocked_until_start_pressed():
+    """Har bir buyurtma "Start" bilan boshlanadi — undan oldin nuqtani belgilab bo'lmaydi."""
+    order = make_order(status=OrderStatus.ACCEPTED)
+    order.started_at = None
+    violations = order_flow.collect_waypoint_violations(
+        order, order.waypoints[0], WaypointStatus.ARRIVED, coords=at(SAMARKAND)
+    )
+    assert "TRIP_NOT_STARTED" in codes(violations)

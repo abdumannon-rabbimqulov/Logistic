@@ -24,6 +24,7 @@ EXPECTED_ROUTING_KEYS = {
     "support.ticket_replied",
     "support.ticket_status_changed",
     "order.waypoint_changed",
+    "order.trip_started",
 }
 
 
@@ -36,6 +37,7 @@ def test_routing_keys_are_stable():
         queue.EVENT_ORDER_STATUS_CHANGED,
         queue.EVENT_ORDER_TRUCK_ASSIGNED,
         queue.EVENT_ORDER_WAYPOINT_CHANGED,
+        queue.EVENT_ORDER_TRIP_STARTED,
         queue.EVENT_SUPPORT_TICKET_CREATED,
         queue.EVENT_SUPPORT_TICKET_REPLIED,
         queue.EVENT_SUPPORT_TICKET_STATUS_CHANGED,

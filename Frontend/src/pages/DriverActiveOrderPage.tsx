@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError, type ApiProblem } from '../api/client';
-import { getOrder, getOrderRoute, updateWaypoint } from '../api/orders';
+import { getOrder, getOrderRoute, startOrderTrip, updateWaypoint } from '../api/orders';
 import { BackIcon, ClockIcon, PhoneIcon, RouteIcon, SendIcon, WeightIcon } from '../components/icons';
 import { YandexMap } from '../components/YandexMap';
 import { useLiveLocation } from '../hooks/useLiveLocation';
 import type { OrderDetail, OrderWaypoint, WaypointStatus, WaypointType } from '../types/api';
 import { getCurrentPositionOnce, PositionError } from '../utils/currentPosition';
 import { openTelegramLocationSettings } from '../utils/telegramLocation';
+import { getTelegramWebApp } from '../telegram';
 import { formatPrice, shortAddress, statusLabel, unloadingLabel } from '../utils/format';
 import { describePickupAt } from '../utils/pickupTime';
 import { buildYandexPointUrl, buildYandexRouteUrl } from '../utils/yandexRoute';
@@ -135,6 +136,27 @@ export function DriverActiveOrderPage() {
     void load();
   }, [load]);
 
+  // "Start" — yo'lga chiqdim. Bosilmaguncha nuqtalarni belgilab bo'lmaydi (backend ham
+  // `TRIP_NOT_STARTED` bilan rad etadi), senderga esa "haydovchi yo'lga chiqdi" xabari boradi.
+  const [starting, setStarting] = useState(false);
+  async function handleStart() {
+    if (!order) return;
+    setStarting(true);
+    setError(null);
+    try {
+      setOrder(await startOrderTrip(order.id));
+      try {
+        getTelegramWebApp()?.HapticFeedback?.notificationOccurred('success');
+      } catch {
+        // eski klient
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Boshlab bo'lmadi, qayta urinib ko'ring");
+    } finally {
+      setStarting(false);
+    }
+  }
+
   async function handleAdvance() {
     if (!order) return;
     const waypoint = currentWaypointOf(order);
@@ -195,6 +217,9 @@ export function DriverActiveOrderPage() {
   const step = currentWaypoint ? nextStep(currentWaypoint) : null;
   const isDone = order.status === 'COMPLETED';
   const isCancelled = order.status === 'CANCELLED';
+  // Har bir buyurtma "Start" bilan boshlanadi (IN_PROGRESS — eski, migratsiyadan oldingi holat).
+  const needsStart =
+    !order.started_at && (order.status === 'ACCEPTED' || order.status === 'SCHEDULED');
 
   // Xarita uchun koordinatalar. `OrderRouteMap` `{latitude, longitude}` kutadi,
   // waypoint'da esa ular `null` bo'lishi mumkin (manzil qo'lda kiritilgan bo'lsa).
@@ -478,6 +503,17 @@ export function DriverActiveOrderPage() {
           <div className={styles.doneNote}>Buyurtma yakunlandi ✅</div>
         ) : isCancelled ? (
           <div className={styles.doneNote}>Buyurtma bekor qilingan</div>
+        ) : needsStart ? (
+          <>
+            <div className={styles.stepHint}>
+              {order.departure_at
+                ? `Yo'lga chiqish vaqti: ${describePickupAt(new Date(order.departure_at))}. Chiqayotganda bosing.`
+                : "Yuk olish joyiga yo'lga chiqayotganda bosing."}
+            </div>
+            <button className={styles.startBtn} onClick={handleStart} disabled={starting}>
+              {starting ? 'Boshlanmoqda...' : "▶ Start — yo'lga chiqdim"}
+            </button>
+          </>
         ) : step && currentWaypoint ? (
           <>
             {/* Qadam nuqtaga borib bosilishi kerakligi oldindan aytiladi — haydovchi

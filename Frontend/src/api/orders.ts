@@ -30,6 +30,11 @@ export function getOrder(orderId: number): Promise<OrderDetail> {
   return api.get<OrderDetail>(`/orders/${orderId}`);
 }
 
+/** Haydovchi "Start" — yuk olish nuqtasiga yo'lga chiqdi (har bir buyurtma shu bilan boshlanadi). */
+export function startOrderTrip(orderId: number): Promise<OrderDetail> {
+  return api.post<OrderDetail>(`/orders/${orderId}/start`);
+}
+
 /** Buyurtmaning saqlangan OSRM marshruti — Yandex xaritada chiziq sifatida chiziladi. */
 export function getOrderRoute(orderId: number): Promise<{ geometry: [number, number][] }> {
   return api.get<{ geometry: [number, number][] }>(`/orders/${orderId}/route`);

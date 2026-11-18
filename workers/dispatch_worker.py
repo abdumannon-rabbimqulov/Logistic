@@ -45,7 +45,7 @@ configure_mappers()
 
 from config.config import DISPATCH_PREFETCH, async_session  # noqa: E402
 from services import dispatch as dispatch_service  # noqa: E402
-from services import live_location, location_watch, queue  # noqa: E402
+from services import live_location, location_watch, queue, start_reminders  # noqa: E402
 
 logger = logging.getLogger("dispatch_worker")
 
@@ -124,6 +124,11 @@ async def _sweep_loop(stop: asyncio.Event) -> None:
                 requeued = await dispatch_service.requeue_stuck_orders(db)
                 if requeued:
                     logger.info("Sweep: %s ta buyurtma navbatga qaytarildi", requeued)
+
+                # "Start" bosilmagan buyurtmalar: yo'lga chiqish vaqtiga qarab eslatma.
+                reminded = await start_reminders.send_due_reminders(db)
+                if reminded:
+                    logger.info("Sweep: %s ta Start eslatmasi yuborildi", reminded)
 
                 # Faol buyurtmadagi haydovchining GPS'i o'chib qolganini aniqlash.
                 warned = await location_watch.check_active_orders(db)

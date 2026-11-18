@@ -219,6 +219,8 @@ export interface Order {
   dispatch_paused_at: string | null;
   overload_warning: string | null;
   completed_at: string | null;
+  /** Haydovchi "Start" bosgan payt (yuk olishga yo'lga chiqdi). */
+  started_at?: string | null;
   cancelled_at?: string | null;
   cancel_reason?: string | null;
   created_at: string;

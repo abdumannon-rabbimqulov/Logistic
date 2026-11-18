@@ -42,6 +42,9 @@ def sender_message_for(event: str, data: dict[str, Any]) -> Optional[str]:
             return f"🔎 #{order_id} buyurtmangiz uchun haydovchi qayta qidirilmoqda."
         return None
 
+    if event == queue.EVENT_ORDER_TRIP_STARTED:
+        return f"🚚 Haydovchi #{order_id} buyurtma bo'yicha yo'lga chiqdi — yuk olish joyiga kelmoqda."
+
     if event == queue.EVENT_ORDER_WAYPOINT_CHANGED:
         if data.get("new_status") != "ARRIVED":
             return None

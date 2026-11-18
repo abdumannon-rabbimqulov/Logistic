@@ -209,8 +209,12 @@ export function OrderTrackingPage() {
   const driverPoint = useOrderDriverLocation(order?.id ?? null, isTrackable);
 
   // ETA va joylashuv yangiligi — faqat haydovchi yo'lga chiqqan holatlarda (30 s da bir).
+  // "Start" bosilmaguncha haydovchi hali yo'lga chiqmagan — ETA va "joylashuv eskirgan"
+  // ogohlantirishi chalg'itardi (masalan yuk 2 kundan keyin ortiladi).
   const etaEnabled =
-    order != null && order.driver_id != null && (order.status === 'ACCEPTED' || order.status === 'IN_PROGRESS');
+    order != null &&
+    order.driver_id != null &&
+    (order.status === 'IN_PROGRESS' || (order.status === 'ACCEPTED' && Boolean(order.started_at)));
   const etaOrderId = order?.id ?? null;
   const [eta, setEta] = useState<OrderEta | null>(null);
   useEffect(() => {
@@ -353,7 +357,11 @@ export function OrderTrackingPage() {
                   ? "Qidiruv to'xtatilgan"
                   : order.status === 'CANCELLED' && order.cancel_reason
                     ? `Bekor qilindi: ${order.cancel_reason}`
-                    : orderStatusMeta(order.status).hint}
+                    : (order.status === 'ACCEPTED' || order.status === 'SCHEDULED') && !order.started_at
+                      ? order.departure_at
+                        ? `Haydovchi ${describePickupAt(new Date(order.departure_at))} da yo'lga chiqadi`
+                        : "Haydovchi yo'lga chiqishga tayyorlanmoqda"
+                      : orderStatusMeta(order.status).hint}
           </div>
 
           {eta && <EtaLine eta={eta} />}

@@ -195,6 +195,21 @@ def collect_waypoint_violations(
             )
         )
 
+    # Har bir buyurtma "Start" bilan boshlanadi: haydovchi yo'lga chiqqanini bildirmay
+    # turib nuqtani belgilay olmaydi (admin qo'lda tasdiqlasa — mustasno).
+    # Faqat boshlanishi kutilayotgan holatlarda — noaktiv buyurtmada bu sabab ortiqcha shovqin.
+    if (
+        order.started_at is None
+        and not is_override
+        and order.status in (OrderStatus.ACCEPTED, OrderStatus.SCHEDULED)
+    ):
+        violations.append(
+            Violation(
+                code="TRIP_NOT_STARTED",
+                message="Avval \"Start\" tugmasini bosing — yuk olish nuqtasiga yo'lga chiqqaningizni bildiring.",
+            )
+        )
+
     # ── Ketma-ketlik: faqat joriy nuqta ustida ish olib boriladi ──────────────
     current = order.current_waypoint
     if current is None:
@@ -517,4 +532,52 @@ async def change_order_status(
                 details=format_details_for_alert(exc),
             )
 
+    return order
+
+
+# ────────────────────────────────────────────────────────────
+#  "Start" — haydovchi yo'lga chiqdi
+# ────────────────────────────────────────────────────────────
+
+class TripStartError(Exception):
+    """Start bosib bo'lmaydigan holat (router 409 ga aylantiradi)."""
+
+
+async def start_trip(db: AsyncSession, order: Order, *, actor_user_id: Optional[int] = None) -> Order:
+    """Haydovchi "Start" ni bosdi: yuk olish nuqtasiga yo'lga chiqdi.
+
+    * Takroriy bosish xato emas — buyurtma o'zgarishsiz qaytadi (idempotent).
+    * SCHEDULED buyurtmada haydovchi oldinroq yo'lga chiqsa — ACCEPTED ga o'tadi.
+    * Hodisa outbox orqali: sender "haydovchi yo'lga chiqdi" xabarini oladi.
+    """
+    if order.started_at is not None:
+        return order
+    if order.status not in (OrderStatus.ACCEPTED, OrderStatus.SCHEDULED):
+        raise TripStartError(
+            "Faqat qabul qilingan buyurtmani boshlash mumkin "
+            f"(hozirgi holat: {_ORDER_STATUS_LABEL.get(order.status, order.status.value)})"
+        )
+    if order.driver_id is None:
+        raise TripStartError("Buyurtmaga haydovchi biriktirilmagan")
+
+    now = datetime.now(timezone.utc)
+    old_status = order.status
+    order.started_at = now
+    if order.status == OrderStatus.SCHEDULED:
+        order.status = OrderStatus.ACCEPTED
+        record_order_status_changed(db, order, old_status, actor_user_id=actor_user_id, actor_role="driver")
+    outbox.enqueue(
+        db,
+        queue.EVENT_ORDER_TRIP_STARTED,
+        {
+            "order_id": order.id,
+            "customer_id": order.customer_id,
+            "driver_id": order.driver_id,
+            "started_at": now,
+            "departure_at": order.departure_at,
+            "pickup_at": order.pickup_at,
+        },
+    )
+    await db.commit()
+    await db.refresh(order, attribute_names=["started_at", "status", "updated_at"])
     return order

@@ -36,6 +36,7 @@ function computeOrderSteps(order: OrderDetail): { steps: Step[]; current: number
     { key: 'created', label: 'Buyurtma berildi', time: formatTime(order.created_at) },
     { key: 'search', label: 'Haydovchi qidirilmoqda' },
     { key: 'found', label: 'Haydovchi topildi' },
+    { key: 'started', label: "Haydovchi yo'lga chiqdi", time: formatTime(order.started_at) },
     { key: 'loading', label: 'Yuk ortilmoqda', time: formatTime(pickup?.arrived_at) },
     { key: 'transit', label: "Yo'lda", time: formatTime(pickup?.completed_at) },
     {
@@ -47,8 +48,9 @@ function computeOrderSteps(order: OrderDetail): { steps: Step[]; current: number
 
   let current: number;
   if (order.status === 'COMPLETED') current = steps.length;
-  else if (isDone(pickup)) current = 4;
-  else if (pickup?.status === 'ARRIVED') current = 3;
+  else if (isDone(pickup)) current = 5;
+  else if (pickup?.status === 'ARRIVED') current = 4;
+  else if (order.started_at) current = 3;
   else if (order.driver_id != null) current = 2;
   else current = 1;
 

@@ -366,6 +366,9 @@ class OrderResponse(OrderBase):
     dispatch_paused_at: Optional[datetime] = None
     overload_warning: Optional[str] = None
     completed_at: Optional[datetime] = None
+    # Haydovchi "Start" bosgan payt (yuk olishga yo'lga chiqdi) va yo'lga chiqishi
+    # kerak bo'lgan payt (masofaga qarab hisoblangan).
+    started_at: Optional[datetime] = None
     # Mijozning bosqichlar ro'yxatida "Bekor qilindi" vaqti ko'rsatiladi.
     cancelled_at: Optional[datetime] = None
     cancel_reason: Optional[str] = None

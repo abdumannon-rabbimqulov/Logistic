@@ -240,8 +240,12 @@ async def get_order_eta(
     current_user: User = Depends(get_current_active_user),
 ):
     order = await _require_order_access(db, order_id, current_user)
-    if order.driver_id is None or order.status not in (OrderStatus.ACCEPTED, OrderStatus.IN_PROGRESS):
-        return schemas.OrderEtaResponse()
+    started = order.status == OrderStatus.IN_PROGRESS or (
+        order.status == OrderStatus.ACCEPTED and order.started_at is not None
+    )
+    if order.driver_id is None or not started:
+        # Haydovchi hali "Start" bosmagan — ETA ham, joylashuv ogohlantirishi ham ma'nosiz.
+        return schemas.OrderEtaResponse(location_stale=False)
     driver = await get_driver(db, order.driver_id)
     if driver is None:
         return schemas.OrderEtaResponse()
@@ -385,6 +389,28 @@ async def update_order(
         order = await crud.update_order(db, order, data)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return schemas.OrderDetailResponse.from_order(order)
+
+
+@router.post("/{order_id}/start", response_model=schemas.OrderDetailResponse,
+             summary="Haydovchi \"Start\" — yuk olish nuqtasiga yo'lga chiqdi")
+async def start_order_trip(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Har bir buyurtma shu tugma bilan boshlanadi. Bosilmaguncha nuqtalarni belgilab
+    bo'lmaydi, haydovchiga esa yo'lga chiqish vaqtiga qarab eslatmalar boradi
+    (`services/start_reminders.py`). Senderga "haydovchi yo'lga chiqdi" xabari ketadi."""
+    order = await _require_order_access(db, order_id, current_user)
+    driver = await get_driver_by_user_id(db, current_user.id) if current_user.role == UserRole.DRIVER else None
+    if driver is None or order.driver_id != driver.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Buyurtmani faqat biriktirilgan haydovchi boshlay oladi")
+    try:
+        await order_flow.start_trip(db, order, actor_user_id=current_user.id)
+    except order_flow.TripStartError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    order = await crud.get_order(db, order_id) or order
     return schemas.OrderDetailResponse.from_order(order)
 
 

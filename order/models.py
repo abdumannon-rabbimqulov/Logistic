@@ -93,6 +93,10 @@ class Order(Base):
         DateTime(timezone=True),
         nullable=True
     )
+    # Haydovchi "Start" ni bosgan payt — yuk olish nuqtasiga yo'lga chiqdi. Har bir
+    # buyurtma Start bilan boshlanadi: bosilmaguncha nuqtalarni belgilab bo'lmaydi va
+    # `services/start_reminders.py` haydovchiga eslatib turadi.
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # FIX: Decimal aniqroq, float bilan moliyaviy/masofa hisob-kitoblarida floating-point xatolarga yo'l qo'yilmaydi
     total_distance_km : Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
