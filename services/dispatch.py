@@ -201,10 +201,10 @@ async def promote_due_scheduled(db: AsyncSession) -> int:
 
     for order in orders:
         order.status = OrderStatus.ACCEPTED
+        order_crud.record_order_status_changed(db, order, OrderStatus.SCHEDULED, actor_role="system")
     await db.commit()
 
     for order in orders:
-        await order_crud.publish_status_changed(order, OrderStatus.SCHEDULED, actor_role="system")
         if order.driver_id is None:
             continue
         drv = await driver_crud.get_driver(db, order.driver_id)
@@ -847,11 +847,11 @@ async def accept_attempt(db: AsyncSession, attempt_id: int, *, acting_user_id: i
     # va yo'lga chiqish vaqti (`departure_at`) hisoblanadi — vaqt yaqinlashganda
     # `promote_due_scheduled` uni ACCEPTED ga o'tkazib, haydovchiga eslatma yuboradi.
     order.status, order.departure_at = await resolve_departure_plan(order, driver)
+    order_crud.record_order_status_changed(
+        db, order, old_status, actor_user_id=acting_user_id, actor_role="driver"
+    )
     await db.commit()
     await db.refresh(order, attribute_names=["driver_id", "status", "departure_at", "updated_at"])
-    await order_crud.publish_status_changed(
-        order, old_status, actor_user_id=acting_user_id, actor_role="driver"
-    )
 
     # Ehtiyot chorasi (odatda bo'sh): ketma-ket dispatch bo'lgani uchun shu order uchun
     # boshqa pending attempt bo'lmasligi kerak, lekin himoya qatlami sifatida yopib qo'yiladi.
@@ -1105,6 +1105,7 @@ async def apply_price_bump(db: AsyncSession, order: Order, new_price: Decimal) -
         )
         .values(status=DispatchAttemptStatus.CANCELLED)
     )
+    order_crud.record_order_status_changed(db, order, old_status, actor_role="sender")
     await db.commit()
     await db.refresh(
         order,
@@ -1118,7 +1119,6 @@ async def apply_price_bump(db: AsyncSession, order: Order, new_price: Decimal) -
             "updated_at",
         ],
     )
-    await order_crud.publish_status_changed(order, old_status, actor_role="sender")
 
     await _dispatch_next(db, order, reason="price_bump")
     return order

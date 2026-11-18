@@ -1,4 +1,10 @@
-"""RabbitMQ consumer: support mikroservizidan kelgan hodisalarni qayta ishlaydi.
+"""RabbitMQ consumer + transactional outbox relay.
+
+Uch vazifa:
+  * `support.notifications` — support hodisalari bo'yicha Telegram xabarlari;
+  * `notifications.order_events` — buyurtma hodisalari bo'yicha senderga xabar;
+  * outbox relay — `outbox_events` jadvalidagi hodisalarni RabbitMQ'ga yuboradi
+    (`services/outbox.py`).
 
 Ishga tushirish:  `python -m workers.events_worker`
 (docker-compose'dagi `events-worker` xizmati aynan shuni bajaradi.)
@@ -36,10 +42,12 @@ import driver.models  # noqa: F401
 import order.dispatch_models  # noqa: F401
 import order.models  # noqa: F401
 import users.models  # noqa: F401
+import services.outbox  # noqa: F401
 
 configure_mappers()
 
-from services import queue  # noqa: E402
+from config.config import async_session  # noqa: E402
+from services import outbox, queue  # noqa: E402
 from services.order_notifications import handle_order_event  # noqa: E402
 from services.notifications import send_telegram_message  # noqa: E402
 from utils.admin_alerts import send_notice_to_admins  # noqa: E402
@@ -194,6 +202,38 @@ async def _handle_order_message(message: AbstractIncomingMessage) -> None:
             logger.exception("Buyurtma bildirishnomasi yuborilmadi: %s", event)
 
 
+OUTBOX_POLL_SEC = 1.0
+OUTBOX_PURGE_EVERY_SEC = 3600
+
+
+async def _outbox_loop(stop: asyncio.Event) -> None:
+    """Transactional outbox relay: bazadagi yuborilmagan hodisalarni RabbitMQ'ga.
+
+    Navbat to'la bo'lsa (batch to'liq yuborilgan) kutmasdan davom etadi; broker
+    ishlamasa yozuvlar bazada qoladi va keyingi aylanishda qayta urinadi.
+    """
+    loop = asyncio.get_running_loop()
+    last_purge = 0.0
+    while not stop.is_set():
+        sent = 0
+        try:
+            async with async_session() as db:
+                sent = await outbox.relay_once(db)
+                if loop.time() - last_purge > OUTBOX_PURGE_EVERY_SEC:
+                    last_purge = loop.time()
+                    purged = await outbox.purge_published(db)
+                    if purged:
+                        logger.info("Outbox: %s ta eski yozuv o'chirildi", purged)
+        except Exception:
+            logger.exception("Outbox relay xatosi")
+        if sent >= outbox.RELAY_BATCH:
+            continue
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=OUTBOX_POLL_SEC)
+        except asyncio.TimeoutError:
+            pass
+
+
 async def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -218,9 +258,11 @@ async def main() -> None:
         PREFETCH,
     )
 
+    relay_task = asyncio.create_task(_outbox_loop(stop))
     try:
         await stop.wait()
     finally:
+        relay_task.cancel()
         logger.info("To'xtatilmoqda…")
         try:
             await events_queue.cancel(consumer_tag)

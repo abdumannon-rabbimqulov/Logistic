@@ -26,7 +26,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from order.models import Order, OrderStatus, OrderWaypoint, WaypointStatus, WaypointType
-from services import geofence, queue
+from services import geofence, outbox, queue
 from services.problems import Violation, WaypointProblem
 
 logger = logging.getLogger(__name__)
@@ -368,13 +368,12 @@ async def apply_waypoint_progress(
         if waypoint.arrived_at is None:
             waypoint.arrived_at = now
 
-    await db.commit()
-    await db.refresh(order, attribute_names=["waypoints", "status", "updated_at"])
-
     actor_role = "staff" if is_override else "driver"
     # Sender kuzatish sahifasi, bildirishnomalar va kelajakdagi tracking servisi
-    # "yuk olishga yetib keldi / tushirildi" ni shu hodisadan biladi.
-    await queue.publish_event(
+    # "yuk olishga yetib keldi / tushirildi" ni shu hodisadan biladi. Outbox orqali —
+    # nuqta holati bilan bitta tranzaksiyada (services/outbox.py).
+    outbox.enqueue(
+        db,
         queue.EVENT_ORDER_WAYPOINT_CHANGED,
         {
             "order_id": order.id,
@@ -388,6 +387,8 @@ async def apply_waypoint_progress(
             "changed_by_role": actor_role,
         },
     )
+    await db.commit()
+    await db.refresh(order, attribute_names=["waypoints", "status", "updated_at"])
 
     # Nuqtalar o'zgargach buyurtma holati qayta hisoblanadi.
     target = next_order_status(order)

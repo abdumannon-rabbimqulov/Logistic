@@ -250,6 +250,31 @@ def build_event(event: str, payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def publish_envelope(envelope: dict[str, Any]) -> None:
+    """Tayyor konvertni `logistika.events` ga yuboradi. Xatoda `QueueUnavailable` tashlaydi.
+
+    Transactional outbox relay'i (`services/outbox.py`) shu funksiyadan foydalanadi:
+    yuborilmagan hodisa bazada qoladi va keyingi urinishda qayta yuboriladi.
+    """
+    event = str(envelope["event"])
+    message = aio_pika.Message(
+        body=json.dumps(envelope, separators=(",", ":"), default=str).encode(),
+        content_type="application/json",
+        delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+        message_id=str(envelope["event_id"]),
+        type=event,
+    )
+    try:
+        await get_channel()  # `_events_exchange` shu yerda to'ldiriladi
+        if _events_exchange is None:
+            raise QueueUnavailable("events exchange e'lon qilinmagan")
+        await _events_exchange.publish(message, routing_key=event)
+    except QueueUnavailable:
+        raise
+    except Exception as exc:
+        raise QueueUnavailable(f"Hodisa yuborilmadi: {event}: {exc}") from exc
+
+
 async def publish_event(event: str, payload: dict[str, Any]) -> bool:
     """Biznes hodisasini `logistika.events` ga yuboradi. Hech qachon istisno tashlamaydi.
 
@@ -260,19 +285,8 @@ async def publish_event(event: str, payload: dict[str, Any]) -> bool:
     diagnostika uchun.
     """
     envelope = build_event(event, payload)
-    message = aio_pika.Message(
-        body=json.dumps(envelope, separators=(",", ":"), default=str).encode(),
-        content_type="application/json",
-        delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-        message_id=envelope["event_id"],
-        type=event,
-    )
-
     try:
-        await get_channel()  # `_events_exchange` shu yerda to'ldiriladi
-        if _events_exchange is None:
-            raise QueueUnavailable("events exchange e'lon qilinmagan")
-        await _events_exchange.publish(message, routing_key=event)
+        await publish_envelope(envelope)
         return True
     except Exception:
         logger.exception("Hodisa yuborilmadi: %s (payload=%s)", event, payload)

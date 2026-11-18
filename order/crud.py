@@ -16,7 +16,7 @@ from driver.models import Driver, TruckType
 from order.dispatch_models import DispatchAttempt, DispatchAttemptStatus
 from order.models import Order, OrderRoutePostGIS, OrderStatus, OrderWaypoint
 from order.schemas import OrderCreate, PriceEstimateRequest, OrderUpdate, OrderWaypointCreate
-from services import billing, order_flow, osrm_client, pricing, queue, regions, yandex_geocoder
+from services import billing, order_flow, osrm_client, outbox, pricing, queue, regions, yandex_geocoder
 from utils.geo import simplify_polyline
 
 logger = logging.getLogger(__name__)
@@ -249,37 +249,60 @@ async def update_order(db: AsyncSession, order: Order, data: OrderUpdate) -> Ord
     return order
 
 
-async def publish_status_changed(
+def record_status_changed(
+    db: AsyncSession,
+    *,
+    order_id: int,
+    customer_id: int,
+    driver_id: Optional[int],
+    old_status: Optional[OrderStatus],
+    new_status: OrderStatus,
+    actor_user_id: Optional[int] = None,
+    actor_role: Optional[str] = None,
+) -> None:
+    """`order.status_changed` hodisasini outbox'ga yozadi — status o'zgaradigan BARCHA
+    joylar shu funksiyani COMMIT'DAN OLDIN chaqiradi (qabul qilish, biriktirish, bekor
+    qilish, rejalashtirilgan buyurtmani faollashtirish, nuqtalar orqali o'tish).
+
+    Hodisa biznes o'zgarishi bilan bitta tranzaksiyada saqlanadi va events-worker uni
+    RabbitMQ'ga yetkazadi (`services/outbox.py`). Ilgari commit'dan keyin to'g'ridan-
+    to'g'ri yuborilardi va broker o'chiq bo'lsa hodisa izsiz yo'qolardi.
+    """
+    if old_status == new_status:
+        return
+    outbox.enqueue(
+        db,
+        queue.EVENT_ORDER_STATUS_CHANGED,
+        {
+            "order_id": order_id,
+            "customer_id": customer_id,
+            "driver_id": driver_id,
+            "old_status": old_status.value if old_status is not None else None,
+            "new_status": new_status.value,
+            "changed_by_user_id": actor_user_id,
+            "changed_by_role": actor_role,
+        },
+    )
+
+
+def record_order_status_changed(
+    db: AsyncSession,
     order: Order,
     old_status: Optional[OrderStatus],
     *,
     actor_user_id: Optional[int] = None,
     actor_role: Optional[str] = None,
 ) -> None:
-    """`order.status_changed` hodisasini yuboradi — status o'zgaradigan BARCHA joylar
-    shu funksiyani chaqiradi (qabul qilish, biriktirish, bekor qilish, rejalashtirilgan
-    buyurtmani faollashtirish, nuqtalar orqali o'tish).
-
-    Ilgari hodisa faqat `update_order_status` dan chiqardi: haydovchi taklifni qabul
-    qilgani yoki buyurtma bekor qilingani haqida senderga ham, support va kelajakdagi
-    chat/tracking servislariga ham hech narsa bormasdi.
-
-    Hodisa commit'dan KEYIN yuboriladi: iste'molchi xabarni olgan zahoti bazaga qarasa,
-    o'zgarish allaqachon ko'rinishi kerak. `publish_event` o'zi istisnolarni yutadi.
-    """
-    if old_status == order.status:
-        return
-    await queue.publish_event(
-        queue.EVENT_ORDER_STATUS_CHANGED,
-        {
-            "order_id": order.id,
-            "customer_id": order.customer_id,
-            "driver_id": order.driver_id,
-            "old_status": old_status.value if old_status is not None else None,
-            "new_status": order.status.value,
-            "changed_by_user_id": actor_user_id,
-            "changed_by_role": actor_role,
-        },
+    """`record_status_changed` — `order` obyektining joriy (yangi) holati bilan."""
+    record_status_changed(
+        db,
+        order_id=order.id,
+        customer_id=order.customer_id,
+        driver_id=order.driver_id,
+        old_status=old_status,
+        new_status=order.status,
+        actor_user_id=actor_user_id,
+        actor_role=actor_role,
     )
 
 
@@ -311,10 +334,9 @@ async def update_order_status(
     # qilish sanani surib yubormasligi uchun). Daromad hisoboti shu ustunga tayanadi.
     if new_status == OrderStatus.COMPLETED and not was_completed:
         order.completed_at = datetime.now(timezone.utc)
+    record_order_status_changed(db, order, old_status, actor_user_id=actor_user_id, actor_role=actor_role)
     await db.commit()
     await db.refresh(order, attribute_names=["status", "completed_at", "updated_at"])
-
-    await publish_status_changed(order, old_status, actor_user_id=actor_user_id, actor_role=actor_role)
 
     # Komissiya faqat PENDING/ACCEPTED/IN_PROGRESS -> COMPLETED o'tishida bir marta yechiladi
     # (allaqachon COMPLETED bo'lgan orderni qayta COMPLETED qilish qayta hisoblamaydi).
@@ -359,9 +381,18 @@ async def assign_driver(
     if result.rowcount == 0:
         await db.rollback()
         return None
+    record_status_changed(
+        db,
+        order_id=order.id,
+        customer_id=order.customer_id,
+        driver_id=driver_id,
+        old_status=old_status,
+        new_status=OrderStatus.ACCEPTED,
+        actor_user_id=actor_user_id,
+        actor_role=actor_role,
+    )
     await db.commit()
     await db.refresh(order, attribute_names=["driver_id", "status", "updated_at"])
-    await publish_status_changed(order, old_status, actor_user_id=actor_user_id, actor_role=actor_role)
     return order
 
 
@@ -403,12 +434,12 @@ async def cancel_order(
     order.cancelled_at = datetime.now(timezone.utc)
     order.cancelled_by_user_id = cancelled_by_user_id
     order.cancel_reason = reason
+    record_order_status_changed(db, order, old_status, actor_user_id=cancelled_by_user_id)
     await db.commit()
     await db.refresh(
         order,
         attribute_names=["status", "cancelled_at", "cancelled_by_user_id", "cancel_reason", "updated_at"],
     )
-    await publish_status_changed(order, old_status, actor_user_id=cancelled_by_user_id)
     return order
 
 

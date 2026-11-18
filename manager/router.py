@@ -44,7 +44,7 @@ from manager import schemas
 from order import crud as order_crud
 from order.models import Order, OrderStatus
 from services import dispatch as dispatch_service
-from services import queue
+from services import outbox, queue
 from users.models import User
 from users.permissions import get_current_staff
 
@@ -225,7 +225,9 @@ async def assign_truck(
 
     truck_type = await db.get(TruckType, driver.truck_type_id)
 
-    await queue.publish_event(
+    # Outbox orqali: broker o'chiq bo'lsa ham hodisa yo'qolmaydi (services/outbox.py).
+    outbox.enqueue(
+        db,
         queue.EVENT_ORDER_TRUCK_ASSIGNED,
         {
             "order_id": order.id,
@@ -237,6 +239,7 @@ async def assign_truck(
             "assigned_by_role": current_user.role.value if current_user.role else None,
         },
     )
+    await db.commit()
 
     return schemas.AssignTruckResponse(
         order=schemas.ManagerOrderDetail.from_order(order),
