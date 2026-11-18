@@ -7,7 +7,9 @@ import react from '@vitejs/plugin-react'
 const API_TARGET = process.env.VITE_DEV_API_TARGET || 'http://localhost:8000'
 
 // Support — alohida mikroservis (o'z konteyneri, o'z bazasi). Docker tarmog'ida
-// "support" nomi bilan 8000-portda, host'dan esa 8010-portda ochiq (SUPPORT_SERVICE_PORT).
+// "support" nomi bilan 8000-portda; host'ga port OCHILMAYDI (docker-compose.yml), shuning
+// uchun Vite'ni host'da ishlatganda support'ni o'zingiz ko'tarib, manzilini
+// `VITE_DEV_SUPPORT_TARGET` bilan bering (masalan `uvicorn ... --port 8010`).
 const SUPPORT_TARGET = process.env.VITE_DEV_SUPPORT_TARGET || 'http://localhost:8010'
 
 // OSRM — marshrut hisoblash. Buyurtma sahifasidagi Leaflet xaritasi (Leaflet Routing
@@ -55,10 +57,11 @@ export default defineConfig({
       // Support mikroservisi — yo'llari `/api` ostida EMAS, o'zining `/support` prefiksida
       // (support_service/router.py). Shu proxy bo'lmasa SPA unga umuman yeta olmaydi:
       // brauzer `/support/tickets` ni Vite'dan so'rab, SPA index.html olardi.
-      // WebSocket yo'q — `ws: true` kerak emas.
+      // `ws: true` — real vaqt oqimi `/support/ws` (yangi javob, holat o'zgarishi).
       '/support': {
         target: SUPPORT_TARGET,
         changeOrigin: true,
+        ws: true,
       },
       // Backend yuklangan fayllarni `/static/uploads/...` ostida beradi (masalan admin
       // panelda yuklangan transport turi rasmi). Bu proxy bo'lmasa dev serverda rasm

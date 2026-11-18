@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import os
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from support_service.config import SUPPORT_DB_URL
 
-engine = create_async_engine(SUPPORT_DB_URL, echo=False, pool_pre_ping=True, pool_size=5, max_overflow=10)
+# Testlar har bir test uchun alohida event loop ochadi — pool'dagi ulanishlar
+# loop'lar orasida ko'chib yura olmaydi, shuning uchun u yerda pool o'chiriladi.
+if os.getenv("SUPPORT_DB_NULLPOOL") == "1":
+    engine = create_async_engine(SUPPORT_DB_URL, echo=False, poolclass=NullPool)
+else:
+    engine = create_async_engine(
+        SUPPORT_DB_URL, echo=False, pool_pre_ping=True, pool_size=5, max_overflow=10
+    )
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

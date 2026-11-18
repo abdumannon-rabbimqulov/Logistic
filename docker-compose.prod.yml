@@ -173,10 +173,9 @@ services:
         condition: service_healthy
     restart: always
 
+  # Port ochilmaydi (bazaviy faylda ham yo'q) — faqat frontend nginx `/support/` orqali.
   support:
     container_name: logistika_support_prod
-    ports: !override
-      - "127.0.0.1:8010:8000"
 
   # Frontend — ishlab chiqarish rejimi: nginx + `npm run build` bergan statik `dist/`.
   # Bazaviy docker-compose.yml dagi SHU NOMLI dev xizmati (Vite, port 5173) ustiga

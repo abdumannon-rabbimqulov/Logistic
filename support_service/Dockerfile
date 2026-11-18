@@ -23,6 +23,9 @@ RUN pip install --no-cache-dir -r support_service/requirements.txt
 
 COPY support_service/ ./support_service/
 
+RUN mkdir -p /app/uploads/support
+
 EXPOSE 8000
 
-CMD ["uvicorn", "support_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Avval o'z alembic zanjiri (baseline mavjud jadvallarni buzmaydi), keyin API.
+CMD ["sh", "-c", "alembic -c support_service/alembic.ini upgrade head && exec uvicorn support_service.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]

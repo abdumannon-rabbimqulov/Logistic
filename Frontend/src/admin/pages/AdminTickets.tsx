@@ -1,15 +1,26 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import {
+  SUPPORT_ROLE_LABELS,
   TICKET_PRIORITY_LABELS,
   TICKET_STATUS_LABELS,
+  assignTicketToMe,
+  formatFileSize,
   getTicket,
   isTicketClosed,
+  listTicketMessages,
   listTickets,
+  markTicketRead,
+  mergeTicket,
+  previewText,
   replyToTicket,
+  supportUrl,
+  unassignTicket,
   updateTicketStatus,
+  useSupportEvents,
 } from '../../api/support';
-import type { TicketDetail, TicketListItem, TicketStatus } from '../../types/api';
+import { useAuth } from '../../auth/AuthProvider';
+import type { TicketDetail, TicketListItem, TicketMessage, TicketStatus } from '../../types/api';
 import { DataTable } from '../components/DataTable';
 import type { Column } from '../components/DataTable';
 import { Modal } from '../components/Modal';
@@ -18,59 +29,102 @@ import shared from '../shared.module.css';
 import styles from './AdminTickets.module.css';
 
 // Foydalanuvchilarning murojaatlari — support MIKROSERVISIDAN keladi (`/support/...`,
-// `/api` ostida emas). Xodim (admin/manager) hamma murojaatni ko'radi va holatini
-// o'zgartira oladi; oddiy foydalanuvchi esa faqat o'zinikini.
+// `/api` ostida emas). Xodim (admin/manager) hamma murojaatni ko'radi, o'ziga oladi va
+// holatini `allowed_statuses` doirasida o'zgartiradi (support_service/rules.py).
+// Ro'yxat va ochiq murojaat `/support/ws` orqali jonli yangilanadi.
 
 const PAGE_SIZE = 50;
+const REPLY_MAX_HEIGHT = 200;
 
 const STATUSES: TicketStatus[] = ['open', 'in_progress', 'resolved', 'closed'];
+
+type AssignedFilter = '' | 'me' | 'none';
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('uz-UZ');
 }
 
+function roleLabel(role: string | null): string {
+  return role ? SUPPORT_ROLE_LABELS[role] ?? role : '-';
+}
+
+function appendUnique(list: TicketMessage[], message: TicketMessage): TicketMessage[] {
+  return list.some((m) => m.id === message.id) ? list : [...list, message];
+}
+
 export function AdminTickets() {
   const toast = useToast();
+  const { userId } = useAuth();
 
   const [rows, setRows] = useState<TicketListItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<TicketStatus | ''>('');
+  const [assignedFilter, setAssignedFilter] = useState<AssignedFilter>('');
   const [page, setPage] = useState(0);
 
   const [active, setActive] = useState<TicketDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
+  const replyRef = useRef<HTMLTextAreaElement>(null);
+  const threadEndRef = useRef<HTMLDivElement>(null);
+  const readTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
-      setRows(
-        await listTickets({
-          status: statusFilter || undefined,
-          limit: PAGE_SIZE,
-          offset: page * PAGE_SIZE,
-        }),
-      );
+      const result = await listTickets({
+        status: statusFilter || undefined,
+        assigned: assignedFilter || undefined,
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+      });
+      setRows(result.items);
+      setTotal(result.total);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Murojaatlar yuklanmadi');
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, page]);
+  }, [statusFilter, assignedFilter, page]);
 
   useEffect(() => {
+    setLoading(true);
     void load();
   }, [load]);
+
+  useEffect(() => () => clearTimeout(readTimer.current), []);
+
+  // Javob maydoni matnga qarab o'sadi.
+  useLayoutEffect(() => {
+    const el = replyRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, REPLY_MAX_HEIGHT)}px`;
+  }, [reply, active?.id]);
+
+  const lastMessageId = active?.messages[active.messages.length - 1]?.id;
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [lastMessageId]);
+
+  /** Server qaytargan yangi ko'rinishni jadval qatoriga ham yozadi. */
+  function patchRow(summary: TicketListItem) {
+    setRows((prev) => prev.map((r) => (r.id === summary.id ? summary : r)));
+  }
 
   async function openTicket(row: TicketListItem) {
     setDetailLoading(true);
     setReply('');
     try {
-      setActive(await getTicket(row.id));
+      const detail = await getTicket(row.id);
+      setActive(detail);
+      // Ochildi — o'qilgan (server `getTicket` da belgiladi).
+      patchRow({ ...detail, unread_count: 0 });
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Murojaat ochilmadi');
     } finally {
@@ -78,30 +132,104 @@ export function AdminTickets() {
     }
   }
 
+  async function refreshActive(ticketId: number) {
+    try {
+      const detail = await getTicket(ticketId);
+      setActive((prev) => (prev && prev.id === ticketId ? detail : prev));
+      patchRow({ ...detail, unread_count: 0 });
+    } catch {
+      // Ochiq oyna — keyingi hodisada qayta urinadi.
+    }
+  }
+
+  useSupportEvents((event) => {
+    if (event.type === 'resync' || event.type === 'ticket.created') {
+      void load();
+      if (event.type === 'resync' && active) void refreshActive(active.id);
+      return;
+    }
+    if (event.type !== 'message.created' && event.type !== 'ticket.updated') return;
+
+    const update = event.ticket;
+    const isActive = active?.id === update.id;
+
+    if (event.type === 'message.created') {
+      const fromOwner = !event.message.is_system && event.message.author_user_id === update.user_id;
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === update.id
+            ? {
+                ...mergeTicket(r, update),
+                unread_count: fromOwner && !isActive ? r.unread_count + 1 : r.unread_count,
+              }
+            : r,
+        ),
+      );
+      if (isActive) {
+        setActive((prev) =>
+          prev ? { ...mergeTicket(prev, update), messages: appendUnique(prev.messages, event.message) } : prev,
+        );
+        if (fromOwner) {
+          clearTimeout(readTimer.current);
+          readTimer.current = setTimeout(() => void markTicketRead(update.id).catch(() => undefined), 500);
+        }
+      }
+      return;
+    }
+
+    // ticket.updated — holat yoki mas'ul o'zgardi; ruxsat etilgan holatlar ham o'zgaradi.
+    setRows((prev) => prev.map((r) => (r.id === update.id ? mergeTicket(r, update) : r)));
+    if (isActive) void refreshActive(update.id);
+  });
+
+  async function loadOlder() {
+    if (!active || loadingOlder || !active.messages.length) return;
+    setLoadingOlder(true);
+    try {
+      const older = await listTicketMessages(active.id, active.messages[0].id);
+      setActive((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: [...older.items.filter((m) => !prev.messages.some((p) => p.id === m.id)), ...prev.messages],
+              has_more_messages: older.has_more,
+            }
+          : prev,
+      );
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Xabarlar yuklanmadi');
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
+
   async function sendReply() {
     if (!active || !reply.trim() || busy) return;
     setBusy(true);
     try {
-      const message = await replyToTicket(active.id, reply.trim());
-      setActive({ ...active, messages: [...active.messages, message] });
+      const { ticket: summary, ...message } = await replyToTicket(active.id, reply.trim());
+      // Server javobdan keyin holatni o'zi o'zgartiradi (OPEN → IN_PROGRESS, mas'ul) —
+      // javobdagi `ticket` bilan modal ham, jadval ham darhol yangilanadi.
+      setActive((prev) => (prev ? { ...prev, ...summary, messages: appendUnique(prev.messages, message) } : prev));
+      patchRow(summary);
       setReply('');
       toast.success('Javob yuborildi');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Javob yuborilmadi');
+      if (err instanceof ApiError && err.status === 409) void refreshActive(active.id);
     } finally {
       setBusy(false);
     }
   }
 
   async function changeStatus(status: TicketStatus) {
-    if (!active || busy) return;
+    if (!active || busy || status === active.status) return;
+    if (status === 'closed' && !window.confirm("Murojaat yopilsinmi? Yopilgan murojaat qayta ochilmaydi.")) return;
     setBusy(true);
     try {
-      const updated = await updateTicketStatus(active.id, status);
-      // Server faqat ticketni qaytaradi (yozishmalarsiz emas — TicketDetail), lekin
-      // ro'yxatni ham yangilab qo'yamiz, aks holda jadvalda eski holat qolardi.
-      setActive(updated);
-      setRows((prev) => prev.map((r) => (r.id === updated.id ? { ...r, status: updated.status } : r)));
+      const summary = await updateTicketStatus(active.id, status);
+      setActive((prev) => (prev ? { ...prev, ...summary } : prev));
+      patchRow(summary);
       toast.success('Holat yangilandi');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Holat o'zgartirilmadi");
@@ -110,13 +238,44 @@ export function AdminTickets() {
     }
   }
 
+  async function toggleAssign() {
+    if (!active || busy) return;
+    setBusy(true);
+    try {
+      const summary =
+        active.assigned_to === userId ? await unassignTicket(active.id) : await assignTicketToMe(active.id);
+      setActive((prev) => (prev ? { ...prev, ...summary } : prev));
+      patchRow(summary);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Biriktirib bo'lmadi");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const columns: Column<TicketListItem>[] = [
     { key: 'id', header: 'ID', width: '70px', render: (r) => `#${r.id}` },
-    { key: 'subject', header: 'Mavzu' },
+    {
+      key: 'subject',
+      header: 'Mavzu',
+      render: (r) => (
+        <div className={styles.subjectCell}>
+          <div className={styles.subjectLine}>
+            <span className={r.unread_count > 0 ? styles.subjectUnread : undefined}>{r.subject}</span>
+            {r.unread_count > 0 && (
+              <span className={styles.unreadBadge} title="O'qilmagan xabarlar">
+                {r.unread_count}
+              </span>
+            )}
+          </div>
+          {r.last_message && <div className={styles.preview}>{previewText(r)}</div>}
+        </div>
+      ),
+    },
     {
       key: 'user',
       header: 'Foydalanuvchi',
-      render: (r) => `${r.user_id}${r.user_role ? ` (${r.user_role})` : ''}`,
+      render: (r) => `${r.user_name ?? `#${r.user_id}`} (${roleLabel(r.user_role)})`,
     },
     {
       key: 'order_id',
@@ -137,8 +296,22 @@ export function AdminTickets() {
         </span>
       ),
     },
-    { key: 'updated_at', header: "O'zgargan", render: (r) => formatDateTime(r.updated_at) },
+    {
+      key: 'assigned',
+      header: "Mas'ul",
+      render: (r) => (r.assigned_to == null ? '—' : r.assigned_to === userId ? 'Men' : r.assigned_name ?? `#${r.assigned_to}`),
+    },
+    { key: 'last_message_at', header: 'Oxirgi faollik', render: (r) => formatDateTime(r.last_message_at) },
   ];
+
+  const from = total === 0 ? 0 : page * PAGE_SIZE + 1;
+  const to = Math.min(total, (page + 1) * PAGE_SIZE);
+
+  function authorLabel(m: TicketMessage, ticket: TicketDetail): string {
+    if (m.author_user_id === ticket.user_id) return ticket.user_name ?? 'Foydalanuvchi';
+    if (m.author_user_id === userId) return 'Siz';
+    return m.author_name ? `${m.author_name} (${roleLabel(m.author_role)})` : 'Xodim';
+  }
 
   return (
     <div className={shared.page}>
@@ -155,6 +328,7 @@ export function AdminTickets() {
         <select
           className={shared.select}
           value={statusFilter}
+          aria-label="Holat bo'yicha filtr"
           onChange={(e) => {
             setStatusFilter(e.target.value as TicketStatus | '');
             setPage(0);
@@ -168,6 +342,23 @@ export function AdminTickets() {
           ))}
         </select>
 
+        <select
+          className={shared.select}
+          value={assignedFilter}
+          aria-label="Mas'ul bo'yicha filtr"
+          onChange={(e) => {
+            setAssignedFilter(e.target.value as AssignedFilter);
+            setPage(0);
+          }}
+        >
+          <option value="">Hamma murojaatlar</option>
+          <option value="me">Menga biriktirilgan</option>
+          <option value="none">Hech kimga biriktirilmagan</option>
+        </select>
+
+        <span className={styles.pageInfo}>
+          {from}–{to} / {total}
+        </span>
         <button
           className={shared.ghostBtn}
           disabled={page === 0}
@@ -177,7 +368,7 @@ export function AdminTickets() {
         </button>
         <button
           className={shared.ghostBtn}
-          disabled={rows.length < PAGE_SIZE}
+          disabled={(page + 1) * PAGE_SIZE >= total}
           onClick={() => setPage((p) => p + 1)}
         >
           Keyingi →
@@ -201,18 +392,26 @@ export function AdminTickets() {
           footer={
             active && (
               <div className={styles.footer}>
-                <select
-                  className={shared.select}
-                  value={active.status}
-                  disabled={busy}
-                  onChange={(e) => void changeStatus(e.target.value as TicketStatus)}
-                >
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {TICKET_STATUS_LABELS[s]}
-                    </option>
-                  ))}
-                </select>
+                <div className={styles.footerLeft}>
+                  <select
+                    className={shared.select}
+                    value={active.status}
+                    disabled={busy || active.allowed_statuses.length === 0}
+                    aria-label="Murojaat holati"
+                    onChange={(e) => void changeStatus(e.target.value as TicketStatus)}
+                  >
+                    {[active.status, ...active.allowed_statuses].map((s) => (
+                      <option key={s} value={s}>
+                        {TICKET_STATUS_LABELS[s]}
+                      </option>
+                    ))}
+                  </select>
+                  {active.status !== 'closed' && (
+                    <button className={shared.ghostBtn} disabled={busy} onClick={toggleAssign}>
+                      {active.assigned_to === userId ? "Bo'shatish" : "O'zimga olish"}
+                    </button>
+                  )}
+                </div>
                 <button className={shared.ghostBtn} onClick={() => setActive(null)}>
                   Yopish
                 </button>
@@ -225,18 +424,25 @@ export function AdminTickets() {
           ) : (
             <div className={styles.detail}>
               <div className={styles.detailMeta}>
-                Foydalanuvchi {active.user_id}
-                {active.user_role && ` (${active.user_role})`} ·{' '}
-                {TICKET_PRIORITY_LABELS[active.priority]}
+                {active.user_name ?? `Foydalanuvchi #${active.user_id}`} ({roleLabel(active.user_role)}, id{' '}
+                {active.user_id}) · {TICKET_PRIORITY_LABELS[active.priority]}
                 {active.order_id != null && ` · Buyurtma #${active.order_id}`} ·{' '}
                 {formatDateTime(active.created_at)}
+                {' · '}Mas'ul: {active.assigned_name ?? (active.assigned_to != null ? `#${active.assigned_to}` : '—')}
               </div>
 
-              <div className={styles.thread}>
-                <div className={styles.userMsg}>
-                  <div className={styles.msgBody}>{active.body}</div>
-                  <div className={styles.msgTime}>{formatDateTime(active.created_at)}</div>
-                </div>
+              <div className={styles.thread} role="log" aria-live="polite" aria-label="Yozishma">
+                {active.has_more_messages ? (
+                  <button className={styles.olderBtn} onClick={loadOlder} disabled={loadingOlder}>
+                    {loadingOlder ? 'Yuklanmoqda...' : 'Oldingi xabarlar'}
+                  </button>
+                ) : (
+                  <div className={styles.userMsg}>
+                    <div className={styles.msgAuthor}>{active.user_name ?? 'Foydalanuvchi'}</div>
+                    <div className={styles.msgBody}>{active.body}</div>
+                    <div className={styles.msgTime}>{formatDateTime(active.created_at)}</div>
+                  </div>
+                )}
 
                 {active.messages.map((m) =>
                   m.is_system ? (
@@ -248,30 +454,52 @@ export function AdminTickets() {
                       key={m.id}
                       className={m.author_user_id === active.user_id ? styles.userMsg : styles.staffMsg}
                     >
-                      <div className={styles.msgAuthor}>
-                        {m.author_user_id === active.user_id ? 'Foydalanuvchi' : 'Xodim'}
-                      </div>
-                      <div className={styles.msgBody}>{m.body}</div>
+                      <div className={styles.msgAuthor}>{authorLabel(m, active)}</div>
+                      {m.body && <div className={styles.msgBody}>{m.body}</div>}
+                      {m.attachments.map((att) => {
+                        const url = supportUrl(att.url);
+                        return att.kind === 'image' ? (
+                          <a key={att.id} href={url} target="_blank" rel="noreferrer">
+                            <img src={url} alt={att.filename} className={styles.attImage} loading="lazy" />
+                          </a>
+                        ) : att.kind === 'video' ? (
+                          <video key={att.id} src={url} controls preload="metadata" className={styles.attImage} />
+                        ) : (
+                          <a key={att.id} href={url} target="_blank" rel="noreferrer" className={styles.attDoc}>
+                            📄 {att.filename} · {formatFileSize(att.size)}
+                          </a>
+                        );
+                      })}
                       <div className={styles.msgTime}>{formatDateTime(m.created_at)}</div>
                     </div>
                   ),
                 )}
+                <div ref={threadEndRef} />
               </div>
 
               {isTicketClosed(active.status) ? (
                 <div className={styles.closedNote}>
-                  Murojaat yopilgan — javob yozish uchun avval holatini "Ochiq" yoki
-                  "Ko’rib chiqilmoqda" ga qaytaring.
+                  {active.status === 'closed'
+                    ? "Murojaat yopilgan — unga yozib bo'lmaydi va qayta ochilmaydi."
+                    : 'Murojaat hal qilingan — javob yozish uchun holatini "Ko’rib chiqilmoqda" ga qaytaring.'}
                 </div>
               ) : (
                 <div className={styles.replyBox}>
                   <textarea
+                    ref={replyRef}
                     className={styles.replyInput}
-                    rows={3}
+                    rows={2}
                     maxLength={5000}
                     value={reply}
-                    placeholder="Javob yozing..."
+                    placeholder="Javob yozing... (Ctrl+Enter — yuborish)"
+                    aria-label="Javob matni"
                     onChange={(e) => setReply(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        void sendReply();
+                      }
+                    }}
                   />
                   <button
                     className={shared.primaryBtn}
