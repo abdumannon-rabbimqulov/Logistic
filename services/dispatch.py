@@ -43,7 +43,8 @@ from config.config import APP_TIMEZONE
 from driver.models import Driver
 from order.dispatch_models import DispatchAttempt, DispatchAttemptStatus, DispatchMatchType
 from order.models import Order, OrderStatus
-from services import dispatch_timing, live_location, navigation, notifications, osrm_client, pricing, queue
+from services import dispatch_timing, live_location, notifications, osrm_client, pricing, queue
+from services import notification_templates as templates
 from services.problems import Violation
 from utils.geo import calculate_distance_km
 
@@ -213,9 +214,7 @@ async def promote_due_scheduled(db: AsyncSession) -> int:
         _, _, pickup_address = _pickup_info(order)
         # Driver.user_id — Telegram chat id (dispatch.py'dagi boshqa xabarlar ham shunday yuboriladi).
         await notifications.send_telegram_message(
-            drv.user_id,
-            f"⏰ '{order.cargo_name}' buyurtmasi uchun yo'lga chiqish vaqti keldi.\n"
-            f"Yuk ortish nuqtasi: {pickup_address or 'manzil ko‘rsatilmagan'}",
+            drv.user_id, templates.departure_due_text(order, pickup_address)
         )
 
     return len(orders)
@@ -368,31 +367,8 @@ async def _warn_unlocatable_drivers(db: AsyncSession, order: Order) -> None:
         if not await live_location.claim_notice_slot(f"dispatch_geo_warn:{driver.id}", WARN_THROTTLE_SEC):
             continue
 
-        await notifications.send_telegram_message(
-            driver.user_id,
-            "📍 Sizga mos yuk chiqdi, lekin joylashuvingiz aniqlanmadi — shuning uchun "
-            "taklif yuborilmadi.\n\n"
-            "Ilovada GPS'ni yoqing (bosh sahifadagi xarita) yoki \"Liniyaga chiqish\" "
-            "oynasida viloyatingizni ko'rsating — shundan keyin yuklar sizga ham taklif qilinadi.",
-        )
+        await notifications.send_telegram_message(driver.user_id, templates.NO_LOCATION_WARNING_TEXT)
         logger.info("Driver #%s joylashuvsiz — Telegram orqali ogohlantirildi", driver.id)
-
-
-def _offer_text(order: Order, attempt: DispatchAttempt) -> str:
-    origin = order.origin
-    destination = order.destination
-    origin_addr = origin.address if origin and origin.address else "?"
-    dest_addr = destination.address if destination and destination.address else "?"
-    distance_note = f"\n📍 Sizgacha: ~{attempt.distance_km} km" if attempt.distance_km is not None else ""
-    return (
-        f"🚚 Yangi buyurtma taklifi ({attempt.round_number}/{MAX_ROUNDS})\n"
-        f"Yuk: {order.cargo_name} ({order.weight}t)\n"
-        f"{origin_addr} → {dest_addr}\n"
-        f"Masofa: {order.total_distance_km} km\n"
-        f"💰 Narx: {order.price} {order.currency}"
-        f"{distance_note}\n\n"
-        f"⏱ 60 soniya ichida javob bering"
-    )
 
 
 async def _send_navigation_links(order: Order, chat_id: int) -> None:
@@ -401,30 +377,11 @@ async def _send_navigation_links(order: Order, chat_id: int) -> None:
     Marshrut bizning ilovada chizilmaydi — haydovchi tugmani bosib o'zi odatlangan
     ilovasida (Yandex/Google) ochadi. Koordinata yo'q bo'lsa tugma ko'rsatilmaydi.
     """
-    origin, destination = order.origin, order.destination
-    keyboard = notifications.url_keyboard(
-        [
-            [
-                ("🧭 Yuk olish joyiga (Yandex)", navigation.yandex_point_url(origin)),
-                ("🧭 Google", navigation.google_point_url(origin)),
-            ],
-            [
-                ("🗺 To'liq marshrut (Yandex)", navigation.yandex_route_url(origin, destination)),
-                ("🗺 Google", navigation.google_route_url(origin, destination)),
-            ],
-        ]
-    )
-    if keyboard is None:
+    message = templates.navigation_message(order)
+    if message is None:
         return
-
-    origin_addr = origin.address if origin and origin.address else "?"
-    dest_addr = destination.address if destination and destination.address else "?"
-    await notifications.send_telegram_message(
-        chat_id,
-        f"📍 Yuk olish: {origin_addr}\n🏁 Yetkazish: {dest_addr}\n\n"
-        "Marshrutni quyidagi tugmalar orqali o'zingizga qulay ilovada oching:",
-        reply_markup=keyboard,
-    )
+    text, keyboard = message
+    await notifications.send_telegram_message(chat_id, text, reply_markup=keyboard)
 
 
 async def _previously_attempted_driver_ids(db: AsyncSession, order_id: int) -> set[int]:
@@ -577,10 +534,11 @@ async def _run_dispatch_round(db: AsyncSession, order: Order) -> None:
     await db.refresh(order, attribute_names=["dispatch_round", "updated_at"])
 
     chat_id = driver.user_id
-    keyboard = notifications.inline_keyboard(
-        [[("✅ Qabul qilish", f"dispatch:accept:{attempt.id}"), ("❌ Rad etish", f"dispatch:reject:{attempt.id}")]]
+    message_id = await notifications.send_telegram_message(
+        chat_id,
+        templates.offer_text(order, attempt, max_rounds=MAX_ROUNDS),
+        reply_markup=templates.offer_keyboard(attempt.id),
     )
-    message_id = await notifications.send_telegram_message(chat_id, _offer_text(order, attempt), reply_markup=keyboard)
     if message_id:
         attempt.bot_chat_id = chat_id
         attempt.bot_message_id = message_id
@@ -654,7 +612,7 @@ async def expire_attempt(db: AsyncSession, attempt_id: int, *, continue_dispatch
 
     if row.bot_chat_id and row.bot_message_id:
         await notifications.edit_telegram_message(
-            row.bot_chat_id, row.bot_message_id, "⏱ Vaqt tugadi — buyurtma boshqa haydovchiga yuborildi"
+            row.bot_chat_id, row.bot_message_id, templates.OFFER_EXPIRED_TEXT
         )
 
     if not continue_dispatch:
@@ -846,7 +804,7 @@ async def accept_attempt(db: AsyncSession, attempt_id: int, *, acting_user_id: i
     await db.commit()
 
     if row.bot_chat_id and row.bot_message_id:
-        await notifications.edit_telegram_message(row.bot_chat_id, row.bot_message_id, "✅ Siz bu buyurtmani qabul qildingiz!")
+        await notifications.edit_telegram_message(row.bot_chat_id, row.bot_message_id, templates.OFFER_ACCEPTED_TEXT)
 
     await _send_navigation_links(order, driver.user_id)
     await _notify_sender_driver_found(db, order, driver)
@@ -883,10 +841,7 @@ async def assign_driver_manually(db: AsyncSession, order: Order, driver: Driver)
     )
     await db.commit()
 
-    await notifications.send_telegram_message(
-        driver.user_id,
-        f"📦 Sizga admin tomonidan '{order.cargo_name}' buyurtmasi biriktirildi.",
-    )
+    await notifications.send_telegram_message(driver.user_id, templates.manually_assigned_text(order))
     await _send_navigation_links(order, driver.user_id)
     await _notify_sender_driver_found(db, order, driver)
     return updated
@@ -914,7 +869,7 @@ async def reject_attempt(db: AsyncSession, attempt_id: int, *, acting_user_id: i
     await db.commit()
 
     if row.bot_chat_id and row.bot_message_id:
-        await notifications.edit_telegram_message(row.bot_chat_id, row.bot_message_id, "❌ Siz rad etdingiz")
+        await notifications.edit_telegram_message(row.bot_chat_id, row.bot_message_id, templates.OFFER_REJECTED_TEXT)
 
     order = await order_crud.get_order(db, row.order_id)
     if order:
@@ -979,29 +934,11 @@ async def notify_offer_cancelled(offer_ref: Optional[tuple[int, int]]) -> None:
     if offer_ref is None:
         return
     chat_id, message_id = offer_ref
-    await notifications.edit_telegram_message(chat_id, message_id, "Bu buyurtma bekor qilindi")
+    await notifications.edit_telegram_message(chat_id, message_id, templates.OFFER_CANCELLED_TEXT)
 
 
-def price_bump_keyboard(order: Order):
-    """"Haydovchi topilmadi" xabarining tugmalari: narxni oshirish yoki bekor qilish.
-
-    Alohida funksiya, chunki bot handleri (`handlers/dispatch.py`) bekor qilishdan
-    voz kechilganda shu klaviaturani qayta tiklaydi.
-
-    5 ta belgilangan variant (+100 000 ... +500 000 UZS) — WebApp'dagi narx tahrirlash
-    ekrani bilan aynan bir xil ro'yxat (`services/pricing.py`). Oxirgi qator — voz
-    kechish yo'li: narx oshirish yagona chiqish bo'lib qolmasligi kerak.
-    """
-    return notifications.inline_keyboard(
-        [
-            [(
-                f"+{option['increment']:,.0f} ({option['price']:,.0f} {order.currency})".replace(",", " "),
-                f"pricebump:{order.id}:{option['price']}",
-            )]
-            for option in pricing.quick_price_options(order.price)
-        ]
-        + [[("❌ Buyurtmani bekor qilish", f"ordercancel:{order.id}")]]
-    )
+# Bot handleri (`handlers/dispatch.py`) eski nom bilan import qiladi.
+price_bump_keyboard = templates.price_bump_keyboard
 
 
 async def _request_price_bump(db: AsyncSession, order: Order) -> None:
@@ -1012,20 +949,7 @@ async def _request_price_bump(db: AsyncSession, order: Order) -> None:
     # _dispatch_next dagi kabi: UPDATE'dan keyin `updated_at` expired qoladi.
     await db.refresh(order, attribute_names=["price_bump_requested_at", "updated_at"])
 
-    # Nomzod umuman topilmagan bo'lsa raund soni 0 bo'lishi mumkin — "0 ta haydovchi
-    # javob bermadi" degan g'alati matn chiqmasligi uchun ikki xil jumla.
-    if order.dispatch_round > 0:
-        reason_text = (
-            f"'{order.cargo_name}' buyurtmangiz uchun {order.dispatch_round} ta "
-            "haydovchidan hech biri javob bermadi."
-        )
-    else:
-        reason_text = f"'{order.cargo_name}' buyurtmangiz uchun mos haydovchi topilmadi."
-
-    text = (
-        f"😔 {reason_text}\n\nJoriy narx: {order.price} {order.currency}\n"
-        f"Narxni oshirib qidiruvni davom ettiramizmi?"
-    )
+    text = templates.price_bump_text(order)
     await notifications.send_telegram_message(
         order.customer_id, text, reply_markup=price_bump_keyboard(order)
     )
@@ -1217,5 +1141,4 @@ async def ensure_price_editable(db: AsyncSession, order: Order) -> None:
 
 
 async def _notify_sender_driver_found(db: AsyncSession, order: Order, driver: Driver) -> None:
-    text = f"✅ '{order.cargo_name}' buyurtmangiz uchun haydovchi topildi! ({driver.truck_number})"
-    await notifications.send_telegram_message(order.customer_id, text)
+    await notifications.send_telegram_message(order.customer_id, templates.driver_found_text(order, driver))
