@@ -36,3 +36,8 @@
 .assignBtn:hover {
   background: #C8F2D6;
 }
+
+.price {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { updateWaypoint } from '../../api/orders';
 import type { Order, OrderWaypoint, WaypointStatus } from '../../types/api';
+import { shortAddress } from '../../utils/format';
 import shared from '../shared.module.css';
 import styles from './OrderWaypointsPanel.module.css';
 
@@ -103,7 +104,7 @@ export function OrderWaypointsPanel({ order, onChanged }: Props) {
                 {isCurrent && <span className={styles.current}>joriy</span>}
               </div>
 
-              <div className={styles.address}>{wp.address ?? 'Manzil ko‘rsatilmagan'}</div>
+              <div className={styles.address}>{shortAddress(wp.address) || 'Manzil ko‘rsatilmagan'}</div>
 
               {(wp.arrived_at || wp.completed_at) && (
                 <div className={styles.meta}>

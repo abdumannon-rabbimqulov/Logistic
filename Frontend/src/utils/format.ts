@@ -55,3 +55,11 @@ export function unloadingLabel(
       return null;
   }
 }
+
+// Loyiha faqat O'zbekiston ichida — manzil boshidagi davlat nomi ortiqcha.
+const COUNTRY_PREFIX = /^\s*(o['‘’ʻʼ`]?zbekiston|uzbekistan|узбекистан|ўзбекистон)\s*,\s*/i;
+
+export function shortAddress(address: string | null | undefined): string {
+  if (!address) return '';
+  return address.replace(COUNTRY_PREFIX, '');
+}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { listAdminOrders } from '../../api/admin';
 import type { Order, OrderStatus } from '../../types/api';
-import { formatPrice } from '../../utils/format';
+import { formatPrice, shortAddress } from '../../utils/format';
 import { AssignDriverModal } from '../components/AssignDriverModal';
 import { DataTable, type Column } from '../components/DataTable';
 import { OrderEditModal } from '../components/OrderEditModal';
@@ -26,8 +26,8 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 function routeOf(order: Order): string {
   const wps = order.waypoints ?? [];
   if (wps.length === 0) return '—';
-  const from = wps[0]?.address ?? '?';
-  const to = wps[wps.length - 1]?.address ?? '?';
+  const from = shortAddress(wps[0]?.address) || '?';
+  const to = shortAddress(wps[wps.length - 1]?.address) || '?';
   return `${from} → ${to}`;
 }
 
@@ -51,7 +51,11 @@ export function AdminOrders() {
       key: 'price',
       header: 'Narx',
       align: 'right',
-      render: (o) => `${formatPrice(Number(o.price))} ${o.currency}`,
+      render: (o) => (
+        <span className={styles.price}>
+          {formatPrice(Number(o.price))} {o.currency}
+        </span>
+      ),
     },
     { key: 'status', header: 'Holat', render: (o) => <StatusBadge status={o.status as OrderStatus} /> },
     {
@@ -59,7 +63,8 @@ export function AdminOrders() {
       header: '',
       align: 'right',
       render: (o) => (
-        <div className={styles.actions}>
+        // Qator bosilsa detal ochiladi — tugmalar bu bosishni o'tkazmasin
+        <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
           {/* Yakunlangan/bekor qilingan buyurtmaga haydovchi biriktirilmaydi (backend 409) */}
           {o.driver_id == null && o.status !== 'COMPLETED' && o.status !== 'CANCELLED' && (
             <button className={styles.assignBtn} onClick={() => setAssignTarget(o)}>
@@ -125,6 +130,7 @@ export function AdminOrders() {
           loading={loading}
           error={error}
           emptyText="Buyurtma topilmadi"
+          onRowClick={setEditTarget}
         />
         <Pagination skip={skip} limit={PAGE_SIZE} count={rows.length} onChange={setSkip} />
       </div>
