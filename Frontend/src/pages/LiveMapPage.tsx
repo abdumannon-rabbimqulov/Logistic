@@ -12,7 +12,7 @@ import type {
   RegionItem,
   TruckType,
 } from '../types/api';
-import { formatPrice } from '../utils/format';
+import { formatPrice, shortAddress } from '../utils/format';
 import { loadYandexMaps, UZBEKISTAN_CENTER, UZBEKISTAN_DEFAULT_ZOOM, type YMap } from '../utils/yandexMaps';
 import styles from './LiveMapPage.module.css';
 
@@ -428,14 +428,14 @@ function SelectedCard({ item, onClose }: { item: LiveMapItem; onClose: () => voi
               <span className={styles.dotA}>A</span>
               <div>
                 <div className={styles.region}>{item.pickup_region ?? 'Yuk olish'}</div>
-                <div className={styles.address}>{item.pickup_address ?? '—'}</div>
+                <div className={styles.address}>{shortAddress(item.pickup_address) || '—'}</div>
               </div>
             </div>
             <div className={styles.routePoint}>
               <span className={styles.dotB}>B</span>
               <div>
                 <div className={styles.region}>{item.delivery_region ?? 'Yuk tushirish'}</div>
-                <div className={styles.address}>{item.delivery_address ?? '—'}</div>
+                <div className={styles.address}>{shortAddress(item.delivery_address) || '—'}</div>
               </div>
             </div>
           </div>

@@ -249,6 +249,40 @@ async def update_order(db: AsyncSession, order: Order, data: OrderUpdate) -> Ord
     return order
 
 
+async def publish_status_changed(
+    order: Order,
+    old_status: Optional[OrderStatus],
+    *,
+    actor_user_id: Optional[int] = None,
+    actor_role: Optional[str] = None,
+) -> None:
+    """`order.status_changed` hodisasini yuboradi — status o'zgaradigan BARCHA joylar
+    shu funksiyani chaqiradi (qabul qilish, biriktirish, bekor qilish, rejalashtirilgan
+    buyurtmani faollashtirish, nuqtalar orqali o'tish).
+
+    Ilgari hodisa faqat `update_order_status` dan chiqardi: haydovchi taklifni qabul
+    qilgani yoki buyurtma bekor qilingani haqida senderga ham, support va kelajakdagi
+    chat/tracking servislariga ham hech narsa bormasdi.
+
+    Hodisa commit'dan KEYIN yuboriladi: iste'molchi xabarni olgan zahoti bazaga qarasa,
+    o'zgarish allaqachon ko'rinishi kerak. `publish_event` o'zi istisnolarni yutadi.
+    """
+    if old_status == order.status:
+        return
+    await queue.publish_event(
+        queue.EVENT_ORDER_STATUS_CHANGED,
+        {
+            "order_id": order.id,
+            "customer_id": order.customer_id,
+            "driver_id": order.driver_id,
+            "old_status": old_status.value if old_status is not None else None,
+            "new_status": order.status.value,
+            "changed_by_user_id": actor_user_id,
+            "changed_by_role": actor_role,
+        },
+    )
+
+
 async def update_order_status(
     db: AsyncSession,
     order: Order,
@@ -280,21 +314,7 @@ async def update_order_status(
     await db.commit()
     await db.refresh(order, attribute_names=["status", "completed_at", "updated_at"])
 
-    # Hodisa commit'dan KEYIN yuboriladi: iste'molchi (support mikroservizi) xabarni
-    # olgan zahoti bazaga qarasa, o'zgarish allaqachon ko'rinishi kerak. `publish_event`
-    # o'zi istisnolarni yutadi — broker o'chgani buyurtma holatini bekor qilmaydi.
-    await queue.publish_event(
-        queue.EVENT_ORDER_STATUS_CHANGED,
-        {
-            "order_id": order.id,
-            "customer_id": order.customer_id,
-            "driver_id": order.driver_id,
-            "old_status": old_status.value,
-            "new_status": new_status.value,
-            "changed_by_user_id": actor_user_id,
-            "changed_by_role": actor_role,
-        },
-    )
+    await publish_status_changed(order, old_status, actor_user_id=actor_user_id, actor_role=actor_role)
 
     # Komissiya faqat PENDING/ACCEPTED/IN_PROGRESS -> COMPLETED o'tishida bir marta yechiladi
     # (allaqachon COMPLETED bo'lgan orderni qayta COMPLETED qilish qayta hisoblamaydi).
@@ -320,9 +340,17 @@ async def update_order_status(
     return order
 
 
-async def assign_driver(db: AsyncSession, order: Order, driver_id: int) -> Optional[Order]:
+async def assign_driver(
+    db: AsyncSession,
+    order: Order,
+    driver_id: int,
+    *,
+    actor_user_id: Optional[int] = None,
+    actor_role: Optional[str] = None,
+) -> Optional[Order]:
     """Haydovchini biriktiradi — atomik (`WHERE driver_id IS NULL`), shuning uchun bir
     vaqtda kelgan ikkinchi so'rov 0 qator yangilaydi va `None` qaytaradi (409 uchun)."""
+    old_status = order.status
     result = await db.execute(
         update(Order)
         .where(Order.id == order.id, Order.driver_id.is_(None))
@@ -333,6 +361,7 @@ async def assign_driver(db: AsyncSession, order: Order, driver_id: int) -> Optio
         return None
     await db.commit()
     await db.refresh(order, attribute_names=["driver_id", "status", "updated_at"])
+    await publish_status_changed(order, old_status, actor_user_id=actor_user_id, actor_role=actor_role)
     return order
 
 
@@ -359,6 +388,7 @@ async def cancel_order(
         return order
 
     order_flow.ensure_order_transition_allowed(order.status, OrderStatus.CANCELLED)
+    old_status = order.status
 
     await db.execute(
         update(DispatchAttempt)
@@ -378,6 +408,7 @@ async def cancel_order(
         order,
         attribute_names=["status", "cancelled_at", "cancelled_by_user_id", "cancel_reason", "updated_at"],
     )
+    await publish_status_changed(order, old_status, actor_user_id=cancelled_by_user_id)
     return order
 
 

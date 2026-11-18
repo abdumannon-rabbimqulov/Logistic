@@ -1,53 +1,56 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getOrder, listMyOrders } from '../api/orders';
+import { listMyOrders } from '../api/orders';
 import { listTruckTypes } from '../api/truckTypes';
 import { BottomNav } from '../components/BottomNav';
 import { ChevronRightIcon, HomeAddressIcon, InfoIcon, PinIcon, PlusIcon, ProfileIcon, WorkAddressIcon, truckIconFor } from '../components/icons';
 import { SupportBellButton } from '../components/SupportBellButton';
 import { useSavedAddresses } from '../hooks/useSavedAddresses';
-import type { OrderDetail, OrderListItem, TruckType } from '../types/api';
+import type { OrderListItem, TruckType } from '../types/api';
 import type { OrderPrefillState } from '../types/navigation';
-import { formatPrice, formatRelativeDate, routeLabel, statusLabel } from '../utils/format';
+import { formatPrice, formatRelativeDate, routeLabel } from '../utils/format';
+import { orderStatusMeta } from '../utils/orderStatus';
 import styles from './HomePage.module.css';
 
-const ACTIVE_STATUSES = new Set(['SCHEDULED', 'ACCEPTED', 'IN_PROGRESS']);
+// PENDING ham faol: ilgari "haydovchi qidirilmoqda" buyurtmasi bosh sahifada umuman
+// ko'rinmasdi va mijoz uni yo'qotib qo'ygandek his qilardi.
+const ACTIVE_STATUSES = new Set(['PENDING', 'SCHEDULED', 'ACCEPTED', 'IN_PROGRESS']);
 const PAST_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
 
 export function HomePage() {
   const navigate = useNavigate();
   const { addresses } = useSavedAddresses();
   const [truckTypes, setTruckTypes] = useState<TruckType[]>([]);
-  const [activeOrder, setActiveOrder] = useState<OrderDetail | null>(null);
-  const [recentOrders, setRecentOrders] = useState<OrderDetail[]>([]);
+  const [activeOrder, setActiveOrder] = useState<OrderListItem | null>(null);
+  const [activeCount, setActiveCount] = useState(0);
+  const [recentOrders, setRecentOrders] = useState<OrderListItem[]>([]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      try {
-        const [types, orders] = await Promise.all([listTruckTypes(), listMyOrders()]);
-        if (cancelled) return;
-        setTruckTypes(types);
-
-        const activeItem = orders.find((o: OrderListItem) => ACTIVE_STATUSES.has(o.status));
-        const recentItems = orders.filter((o: OrderListItem) => PAST_STATUSES.has(o.status)).slice(0, 3);
-
-        const [activeDetail, ...recentDetails] = await Promise.all([
-          activeItem ? getOrder(activeItem.id) : Promise.resolve(null),
-          ...recentItems.map((o: OrderListItem) => getOrder(o.id)),
-        ]);
-        if (cancelled) return;
-        setActiveOrder(activeDetail);
-        setRecentOrders(recentDetails);
-      } catch {
-        // Ro'yxatlar yuklanmasa ham asosiy CTA (yangi buyurtma) ishlashda davom etadi.
-      }
+      // Ro'yxat endi yo'nalishni o'zi qaytaradi — har buyurtma uchun alohida so'rov yo'q.
+      const [types, orders] = await Promise.all([
+        listTruckTypes().catch(() => [] as TruckType[]),
+        listMyOrders().catch(() => [] as OrderListItem[]),
+      ]);
+      if (cancelled) return;
+      setTruckTypes(types);
+      const active = orders.filter((o) => ACTIVE_STATUSES.has(o.status));
+      setActiveOrder(active[0] ?? null);
+      setActiveCount(active.length);
+      setRecentOrders(orders.filter((o) => PAST_STATUSES.has(o.status)).slice(0, 3));
     }
 
     void load();
+    // Ilovaga qaytilganda faol buyurtma holati yangilanadi.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 
@@ -92,8 +95,20 @@ export function HomePage() {
               <div className={styles.activeTop}>
                 <div className={styles.activeStatus}>
                   <span className={styles.activeDot} />
-                  <span>{statusLabel(activeOrder.status)}</span>
+                  <span>{orderStatusMeta(activeOrder.status).label}</span>
                 </div>
+                {activeCount > 1 && (
+                  <span
+                    className={styles.activeMore}
+                    role="link"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate('/orders');
+                    }}
+                  >
+                    yana {activeCount - 1} ta faol
+                  </span>
+                )}
               </div>
               <div className={styles.activeBody}>
                 <div className={styles.activeIconBox}>
@@ -192,7 +207,7 @@ export function HomePage() {
                       className={styles.repeatBtn}
                       onClick={() =>
                         goToOrderScreen({
-                          truckTypeId: order.required_truck_type_id,
+                          truckTypeId: order.required_truck_type_id ?? undefined,
                           origin: order.origin
                             ? { address: order.origin.address ?? '', latitude: Number(order.origin.latitude), longitude: Number(order.origin.longitude) }
                             : undefined,

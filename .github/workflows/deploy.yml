@@ -28,7 +28,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Testlar o'tmasa deploy umuman boshlanmaydi (ilgari CI yo'q edi — xato kod
+  # to'g'ridan-to'g'ri production'ga ketardi).
+  test:
+    uses: ./.github/workflows/ci.yml
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production

@@ -85,6 +85,7 @@ async def update_driver_location(
     truck_type_id: int,
     live_period: int = 1800,
     accuracy: Optional[float] = None,
+    fix_time: Optional[datetime] = None,
 ) -> None:
     """Haydovchining GPS kordinatasini yangilash.
 
@@ -95,7 +96,10 @@ async def update_driver_location(
     try:
         r = get_redis()
         key = f"driver_location:{driver_id}"
-        ts = _current_utc_iso()
+        # `ts` — GPS nuqtasi OLINGAN vaqt (qurilmadan), qabul qilingan vaqt emas.
+        # Ilgari server har xabarga "hozir" deb yozardi: GPS o'chgan telefon oxirgi
+        # nuqtani qayta yuborsa ham haydovchi "yangi joylashuvda" ko'rinib turardi.
+        ts = fix_time.isoformat() if fix_time is not None else _current_utc_iso()
         expires_at = _future_utc_iso(live_period)
         
         payload = {
@@ -115,11 +119,46 @@ async def update_driver_location(
         
         # Redisda saqlash (vaqti bilan o'chib ketadi)
         await r.set(key, data_str, ex=live_period)
+        # Yangi nuqta keldi — "joylashuv o'chgan" belgisi endi o'rinsiz.
+        await r.delete(GPS_LOST_KEY.format(driver_id=driver_id))
         
         # Obunachilarga (adminlarga/xaridorlarga) xabar yuborish
         await r.publish("driver_locations_channel", data_str)
     except Exception as e:
         logger.error(f"Error updating driver location for driver {driver_id}: {e}")
+
+GPS_LOST_KEY = "driver_gps_lost:{driver_id}"
+GPS_LOST_TTL_SEC = 6 * 3600
+
+
+async def mark_gps_lost(driver_id: int, reason: str) -> None:
+    """Haydovchi ilovasi "joylashuv o'chdi" deb xabar berdi (ruxsat rad etildi, GPS jim).
+
+    Kuzatuvchi (`services/location_watch.py`) bu belgini ko'rib, 3 daqiqa kutmasdan
+    haydovchini ogohlantiradi. Yangi (fresh) nuqta kelganda belgi o'chiriladi.
+    """
+    try:
+        r = get_redis()
+        payload = json.dumps({"reason": reason, "at": _current_utc_iso()})
+        # NX: birinchi yo'qolish vaqti saqlanadi, takroriy xabarlar uni surib yubormaydi.
+        await r.set(GPS_LOST_KEY.format(driver_id=driver_id), payload, ex=GPS_LOST_TTL_SEC, nx=True)
+    except Exception:
+        logger.exception("gps_lost belgisini yozib bo'lmadi (driver %s)", driver_id)
+
+
+async def get_gps_lost(driver_id: int) -> Optional[dict]:
+    try:
+        raw = await get_redis().get(GPS_LOST_KEY.format(driver_id=driver_id))
+    except Exception:
+        logger.exception("gps_lost belgisini o'qib bo'lmadi (driver %s)", driver_id)
+        return None
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+
 
 async def stop_driver_location(driver_id: int) -> None:
     """Haydovchining jonli lokatsiyasini to'xtatish."""

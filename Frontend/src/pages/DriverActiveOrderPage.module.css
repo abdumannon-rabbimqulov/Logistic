@@ -465,3 +465,40 @@
   font-weight: 600;
   font-size: 14px;
 }
+
+.gpsBanner {
+  margin: 0 16px 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--color-danger-tint);
+  border: 1px solid var(--color-danger);
+  color: var(--color-text-primary);
+}
+
+.gpsBannerTitle {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--color-danger);
+}
+
+.gpsBannerText {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.gpsBannerSteps {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.gpsBannerBtn {
+  margin-top: 10px;
+  width: 100%;
+  min-height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-danger);
+  color: #fff;
+  font-weight: 600;
+}

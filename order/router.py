@@ -22,7 +22,7 @@ from users.crud import get_user_by_id
 from order import crud, schemas
 from order.models import Order, OrderStatus, WaypointStatus
 from services import dispatch as dispatch_service
-from services import geofence, live_location, notifications, order_flow, osrm_client, pricing, public_map, regions, yandex_geocoder
+from services import geofence, live_location, notifications, order_eta, order_flow, osrm_client, pricing, public_map, regions, yandex_geocoder
 from services.problems import WaypointProblem
 from users.auth import get_current_active_user, get_current_sender, verify_token
 from users.models import User, UserRole
@@ -215,6 +215,36 @@ async def live_map(
     return await public_map.build_live_map(
         db, mode=mode, from_region=from_region, to_region=to_region, truck_type_id=truck_type_id
     )
+
+
+@router.get("/{order_id}/route", response_model=schemas.OrderRouteResponse,
+            summary="Buyurtmaning saqlangan marshrut chizig'i (xarita uchun)")
+async def get_order_route(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Marshrut buyurtma yaratilganda OSRM'dan olinib saqlangan — brauzer OSRM'ga
+    alohida bormaydi (ilgari haydovchi xaritasi Leaflet Routing Machine orqali
+    `/osrm` ga to'g'ridan-to'g'ri so'rov yuborardi)."""
+    await _require_order_access(db, order_id, current_user)
+    return schemas.OrderRouteResponse(geometry=await crud.get_order_route_geometry(db, order_id))
+
+
+@router.get("/{order_id}/eta", response_model=schemas.OrderEtaResponse,
+            summary="Haydovchi joylashuvi holati va keyingi nuqtagacha ETA")
+async def get_order_eta(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    order = await _require_order_access(db, order_id, current_user)
+    if order.driver_id is None or order.status not in (OrderStatus.ACCEPTED, OrderStatus.IN_PROGRESS):
+        return schemas.OrderEtaResponse()
+    driver = await get_driver(db, order.driver_id)
+    if driver is None:
+        return schemas.OrderEtaResponse()
+    return await order_eta.compute_eta(order, driver)
 
 
 @router.get("/{order_id}", response_model=schemas.OrderDetailResponse, summary="Buyurtma tafsilotlari")

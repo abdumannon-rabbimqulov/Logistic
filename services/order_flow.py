@@ -26,7 +26,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from order.models import Order, OrderStatus, OrderWaypoint, WaypointStatus, WaypointType
-from services import geofence
+from services import geofence, queue
 from services.problems import Violation, WaypointProblem
 
 logger = logging.getLogger(__name__)
@@ -371,11 +371,31 @@ async def apply_waypoint_progress(
     await db.commit()
     await db.refresh(order, attribute_names=["waypoints", "status", "updated_at"])
 
+    actor_role = "staff" if is_override else "driver"
+    # Sender kuzatish sahifasi, bildirishnomalar va kelajakdagi tracking servisi
+    # "yuk olishga yetib keldi / tushirildi" ni shu hodisadan biladi.
+    await queue.publish_event(
+        queue.EVENT_ORDER_WAYPOINT_CHANGED,
+        {
+            "order_id": order.id,
+            "customer_id": order.customer_id,
+            "driver_id": order.driver_id,
+            "waypoint_id": waypoint.id,
+            "waypoint_type": waypoint.type.value,
+            "sequence": waypoint.sequence,
+            "new_status": new_status.value,
+            "changed_by_user_id": override_by_user_id,
+            "changed_by_role": actor_role,
+        },
+    )
+
     # Nuqtalar o'zgargach buyurtma holati qayta hisoblanadi.
     target = next_order_status(order)
     if target is not None:
         from order import crud  # aylanma importni oldini olish uchun shu yerda
 
-        order = await crud.update_order_status(db, order, target)
+        order = await crud.update_order_status(
+            db, order, target, actor_user_id=override_by_user_id, actor_role=actor_role
+        )
 
     return order

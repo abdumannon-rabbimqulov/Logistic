@@ -3,15 +3,17 @@ import { searchAddress } from '../api/orders';
 import type { GeocodeSuggestion } from '../types/api';
 import { BottomSheetModal } from './BottomSheetModal';
 import styles from './AddressSearchSheet.module.css';
-import { SearchIcon } from './icons';
+import { PinIcon, SearchIcon } from './icons';
 
 interface Props {
   title: string;
   onSelect: (suggestion: GeocodeSuggestion) => void;
   onClose: () => void;
+  /** Berilsa — "Xaritadan tanlash" tugmasi ko'rsatiladi (markazdagi pin bilan tanlash). */
+  onPickOnMap?: () => void;
 }
 
-export function AddressSearchSheet({ title, onSelect, onClose }: Props) {
+export function AddressSearchSheet({ title, onSelect, onClose, onPickOnMap }: Props) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<GeocodeSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,6 +55,12 @@ export function AddressSearchSheet({ title, onSelect, onClose }: Props) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
+      {onPickOnMap && (
+        <button className={styles.pickOnMap} onClick={onPickOnMap}>
+          <PinIcon />
+          <span>Xaritadan tanlash</span>
+        </button>
+      )}
       {query.trim().length < 3 && <div className={styles.hint}>Kamida 3 ta harf kiriting</div>}
       {loading && <div className={styles.hint}>Qidirilmoqda...</div>}
       {!loading && query.trim().length >= 3 && results.length === 0 && (

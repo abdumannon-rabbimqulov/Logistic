@@ -7,6 +7,8 @@ export interface Column<T> {
   render?: (row: T) => ReactNode;
   align?: 'left' | 'right' | 'center';
   width?: string;
+  /** true bo'lsa, bu katakdagi bosish `onRowClick` ga o'tmaydi (masalan, tugmalar katagi). */
+  stopRowClick?: boolean;
 }
 
 interface Props<T> {
@@ -60,7 +62,11 @@ export function DataTable<T>({
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 {columns.map((col) => (
-                  <td key={col.key} style={{ textAlign: col.align ?? 'left' }}>
+                  <td
+                    key={col.key}
+                    style={{ textAlign: col.align ?? 'left' }}
+                    onClick={col.stopRowClick ? (e) => e.stopPropagation() : undefined}
+                  >
                     {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '—')}
                   </td>
                 ))}

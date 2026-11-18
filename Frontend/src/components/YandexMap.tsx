@@ -34,6 +34,8 @@ interface Props {
   /** Boshqa odam (masalan biriktirilgan haydovchi)ning jonli joylashuvi — `userLocation`dan
    *  farqli rang/hint bilan, sender kuzatuv sahifasida ishlatiladi. */
   driverLocation?: MapPoint | null;
+  /** Haydovchi joylashuvi eskirgan (2+ daqiqa yangilanmagan) — marker kulrang chiziladi. */
+  driverStale?: boolean;
   /** `userLocation` birinchi marta kelganda xarita o'sha nuqtaga markazlashsin
    *  (bosh sahifadagi xarita uchun; buyurtma sahifalarida marshrut ustuvor). */
   followUser?: boolean;
@@ -51,7 +53,7 @@ interface DraggablePlacemark {
 }
 
 export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
-  { origin, destination, route, userLocation, driverLocation, followUser = false, onOriginMove, onDestinationMove },
+  { origin, destination, route, userLocation, driverLocation, driverStale = false, followUser = false, onOriginMove, onDestinationMove },
   ref,
 ) {
   // Callback'lar ref'da saqlanadi: ular har render'da yangi funksiya bo'lishi mumkin,
@@ -202,8 +204,8 @@ export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
         map.geoObjects.add(
           new ymaps.Placemark(
             [driverLocation.latitude, driverLocation.longitude],
-            { hintContent: 'Haydovchi joylashuvi' },
-            { preset: 'islands#circleIcon', iconColor: '#F59E0B', zIndex: 999 },
+            { hintContent: driverStale ? 'Haydovchining oxirgi ma’lum joylashuvi' : 'Haydovchi joylashuvi' },
+            { preset: 'islands#circleIcon', iconColor: driverStale ? '#9CA3AF' : '#F59E0B', zIndex: 999 },
           ),
         );
       }
@@ -223,7 +225,7 @@ export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
     return () => {
       cancelled = true;
     };
-  }, [ready, origin, destination, route, userLocation, driverLocation, followUser, originDraggable, destinationDraggable]);
+  }, [ready, origin, destination, route, userLocation, driverLocation, driverStale, followUser, originDraggable, destinationDraggable]);
 
   return (
     <div className={styles.wrap}>

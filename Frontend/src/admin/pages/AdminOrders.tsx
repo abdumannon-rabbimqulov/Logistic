@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { listAdminOrders } from '../../api/admin';
 import type { Order, OrderStatus } from '../../types/api';
-import { formatPrice, shortAddress } from '../../utils/format';
+import { formatPrice, routeLabel } from '../../utils/format';
 import { AssignDriverModal } from '../components/AssignDriverModal';
 import { DataTable, type Column } from '../components/DataTable';
 import { OrderEditModal } from '../components/OrderEditModal';
@@ -23,12 +23,18 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'CANCELLED', label: 'Bekor qilindi' },
 ];
 
-function routeOf(order: Order): string {
+function RouteCell({ order }: { order: Order }) {
   const wps = order.waypoints ?? [];
-  if (wps.length === 0) return '—';
-  const from = shortAddress(wps[0]?.address) || '?';
-  const to = shortAddress(wps[wps.length - 1]?.address) || '?';
-  return `${from} → ${to}`;
+  if (wps.length === 0) return <>—</>;
+  const from = wps[0]?.address;
+  const to = wps[wps.length - 1]?.address;
+  // Ko'rinadigan matn qisqa, tooltip esa to'liq asl manzilni ko'rsatadi
+  return <span title={`${from ?? '?'} → ${to ?? '?'}`}>{routeLabel(from, to)}</span>;
+}
+
+/** Matn belgilanayotgan bo'lsa (nusxalash uchun) qator bosilishi hisoblanmaydi. */
+function hasTextSelection(): boolean {
+  return (window.getSelection()?.toString() ?? '').length > 0;
 }
 
 export function AdminOrders() {
@@ -44,7 +50,7 @@ export function AdminOrders() {
 
   const columns: Column<Order>[] = [
     { key: 'id', header: 'ID', width: '70px', render: (o) => `#${o.id}` },
-    { key: 'route', header: "Yo'nalish", render: (o) => <span title={routeOf(o)}>{routeOf(o)}</span> },
+    { key: 'route', header: "Yo'nalish", render: (o) => <RouteCell order={o} /> },
     { key: 'cargo_name', header: 'Yuk', render: (o) => o.cargo_name },
     { key: 'driver_id', header: 'Haydovchi', render: (o) => (o.driver_id ? `#${o.driver_id}` : '—') },
     {
@@ -62,9 +68,11 @@ export function AdminOrders() {
       key: 'actions',
       header: '',
       align: 'right',
+      // Qator bosilsa tahrirlash oynasi ochiladi — bu katakdagi bosishlar
+      // (tugmalar orasidagi bo'shliq ham) qatorga o'tmasin
+      stopRowClick: true,
       render: (o) => (
-        // Qator bosilsa detal ochiladi — tugmalar bu bosishni o'tkazmasin
-        <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.actions}>
           {/* Yakunlangan/bekor qilingan buyurtmaga haydovchi biriktirilmaydi (backend 409) */}
           {o.driver_id == null && o.status !== 'COMPLETED' && o.status !== 'CANCELLED' && (
             <button className={styles.assignBtn} onClick={() => setAssignTarget(o)}>
@@ -130,7 +138,9 @@ export function AdminOrders() {
           loading={loading}
           error={error}
           emptyText="Buyurtma topilmadi"
-          onRowClick={setEditTarget}
+          onRowClick={(o) => {
+            if (!hasTextSelection()) setEditTarget(o);
+          }}
         />
         <Pagination skip={skip} limit={PAGE_SIZE} count={rows.length} onChange={setSkip} />
       </div>

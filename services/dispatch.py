@@ -204,6 +204,7 @@ async def promote_due_scheduled(db: AsyncSession) -> int:
     await db.commit()
 
     for order in orders:
+        await order_crud.publish_status_changed(order, OrderStatus.SCHEDULED, actor_role="system")
         if order.driver_id is None:
             continue
         drv = await driver_crud.get_driver(db, order.driver_id)
@@ -840,6 +841,7 @@ async def accept_attempt(db: AsyncSession, attempt_id: int, *, acting_user_id: i
         await db.commit()
         raise DispatchError("Buyurtma allaqachon boshqa haydovchiga biriktirilgan", status_code=409)
 
+    old_status = order.status
     order.driver_id = driver.id
     # Yuklash vaqti hali uzoq bo'lsa buyurtma darhol ACCEPTED emas, SCHEDULED bo'ladi
     # va yo'lga chiqish vaqti (`departure_at`) hisoblanadi — vaqt yaqinlashganda
@@ -847,6 +849,9 @@ async def accept_attempt(db: AsyncSession, attempt_id: int, *, acting_user_id: i
     order.status, order.departure_at = await resolve_departure_plan(order, driver)
     await db.commit()
     await db.refresh(order, attribute_names=["driver_id", "status", "departure_at", "updated_at"])
+    await order_crud.publish_status_changed(
+        order, old_status, actor_user_id=acting_user_id, actor_role="driver"
+    )
 
     # Ehtiyot chorasi (odatda bo'sh): ketma-ket dispatch bo'lgani uchun shu order uchun
     # boshqa pending attempt bo'lmasligi kerak, lekin himoya qatlami sifatida yopib qo'yiladi.
@@ -882,7 +887,7 @@ async def assign_driver_manually(db: AsyncSession, order: Order, driver: Driver)
         raise DispatchError("Yakunlangan yoki bekor qilingan buyurtmaga haydovchi biriktirilmaydi", status_code=409)
 
     # Atomik: `WHERE driver_id IS NULL` — bir vaqtda kelgan ikkinchi so'rov None oladi.
-    updated = await order_crud.assign_driver(db, order, driver.id)
+    updated = await order_crud.assign_driver(db, order, driver.id, actor_role="staff")
     if updated is None:
         raise DispatchError("Buyurtmaga allaqachon haydovchi biriktirilgan", status_code=409)
 
@@ -1088,6 +1093,7 @@ async def apply_price_bump(db: AsyncSession, order: Order, new_price: Decimal) -
     # "Qidirilmoqda" holatiga qaytarish. Bump paytida order odatda allaqachon PENDING,
     # lekin buni aniq yozib qo'yish shart — WebApp aynan shu statusga qarab qidiruv
     # ko'rsatkichini chizadi va so'rovni davom ettiradi.
+    old_status = order.status
     order.status = OrderStatus.PENDING
     await db.execute(
         update(DispatchAttempt)
@@ -1112,6 +1118,7 @@ async def apply_price_bump(db: AsyncSession, order: Order, new_price: Decimal) -
             "updated_at",
         ],
     )
+    await order_crud.publish_status_changed(order, old_status, actor_role="sender")
 
     await _dispatch_next(db, order, reason="price_bump")
     return order

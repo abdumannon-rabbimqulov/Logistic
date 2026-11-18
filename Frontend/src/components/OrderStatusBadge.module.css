@@ -1,0 +1,58 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.search {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.planned {
+  color: var(--color-gray-700);
+  background: var(--color-gray-100);
+}
+
+.active {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.success {
+  color: var(--color-accent-pressed);
+  background: var(--color-accent-tint);
+}
+
+.danger {
+  color: var(--color-danger);
+  background: var(--color-danger-tint);
+}
+
+.search .dot {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search .dot {
+    animation: none;
+  }
+}

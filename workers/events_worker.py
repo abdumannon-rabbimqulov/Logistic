@@ -40,6 +40,7 @@ import users.models  # noqa: F401
 configure_mappers()
 
 from services import queue  # noqa: E402
+from services.order_notifications import handle_order_event  # noqa: E402
 from services.notifications import send_telegram_message  # noqa: E402
 from utils.admin_alerts import send_notice_to_admins  # noqa: E402
 
@@ -177,6 +178,22 @@ async def _handle_message(message: AbstractIncomingMessage) -> None:
             logger.exception("Adminlarga bildirishnoma yuborilmadi: %s", event)
 
 
+async def _handle_order_message(message: AbstractIncomingMessage) -> None:
+    """`order.*` hodisalari — senderga holat haqida Telegram xabari."""
+    async with message.process(requeue=False):
+        try:
+            envelope = json.loads(message.body)
+            event = str(envelope["event"])
+            data = envelope.get("data") or {}
+        except (ValueError, KeyError, TypeError):
+            logger.exception("Yaroqsiz buyurtma hodisasi tashlab yuborildi: %r", message.body[:200])
+            return
+        try:
+            await handle_order_event(event, data)
+        except Exception:
+            logger.exception("Buyurtma bildirishnomasi yuborilmadi: %s", event)
+
+
 async def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -193,6 +210,8 @@ async def main() -> None:
     events_queue = await channel.get_queue(queue.SUPPORT_NOTIFICATIONS_QUEUE)
 
     consumer_tag: Optional[str] = await events_queue.consume(_handle_message)
+    order_queue = await channel.get_queue(queue.ORDER_NOTIFICATIONS_QUEUE)
+    order_consumer_tag: Optional[str] = await order_queue.consume(_handle_order_message)
     logger.info(
         "Events worker ishga tushdi: '%s' navbati, prefetch=%s",
         queue.SUPPORT_NOTIFICATIONS_QUEUE,
@@ -205,6 +224,7 @@ async def main() -> None:
         logger.info("To'xtatilmoqda…")
         try:
             await events_queue.cancel(consumer_tag)
+            await order_queue.cancel(order_consumer_tag)
         except Exception:
             logger.exception("Consumer'ni to'xtatishda xato")
         await asyncio.sleep(1)

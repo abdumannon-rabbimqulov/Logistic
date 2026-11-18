@@ -33,7 +33,21 @@ export interface YMap {
   container: { fitToViewport(): void };
   setBounds(bounds: [[number, number], [number, number]], options?: Record<string, unknown>): unknown;
   setCenter(center: [number, number], zoom?: number, options?: Record<string, unknown>): unknown;
+  getCenter(): [number, number];
+  getZoom(): number;
+  panTo(center: [number, number], options?: Record<string, unknown>): unknown;
+  /** Xarita hodisalari: 'click', 'actionbegin', 'actionend' va h.k. */
+  events: {
+    add(type: string, handler: (event: YMapEvent) => void): unknown;
+    remove(type: string, handler: (event: YMapEvent) => void): unknown;
+  };
+  controls: { add(control: unknown, options?: Record<string, unknown>): unknown };
   destroy(): void;
+}
+
+export interface YMapEvent {
+  get(key: 'coords'): [number, number];
+  get(key: string): unknown;
 }
 
 export const UZBEKISTAN_CENTER: [number, number] = [41.377491, 64.585262];

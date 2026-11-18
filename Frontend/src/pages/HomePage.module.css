@@ -325,3 +325,11 @@
   color: var(--color-text-tertiary);
   padding: 4px 20px 0;
 }
+
+.activeMore {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+  text-decoration: underline;
+  cursor: pointer;
+}

@@ -365,14 +365,37 @@ class OrderResponse(OrderBase):
     dispatch_paused_at: Optional[datetime] = None
     overload_warning: Optional[str] = None
     completed_at: Optional[datetime] = None
+    # Mijozning bosqichlar ro'yxatida "Bekor qilindi" vaqti ko'rsatiladi.
+    cancelled_at: Optional[datetime] = None
+    cancel_reason: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     waypoints: list[OrderWaypointResponse] = []
 
 
+class OrderPointSummary(BaseModel):
+    """Ro'yxat kartasi uchun nuqta: faqat manzil va koordinata.
+
+    Kontakt (ism/telefon) ATAYLAB yo'q — `/orders/available/list` ni boshqa
+    haydovchilar ham ko'radi.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    address: Optional[str] = None
+    latitude: Optional[Decimal] = None
+    longitude: Optional[Decimal] = None
+    status: WaypointStatus
+
+
 class OrderListItem(BaseModel):
     """Ro'yxat (list) ko'rinishi uchun yengillashtirilgan sxema"""
     model_config = ConfigDict(from_attributes=True)
+
+    # Kartada yo'nalish va mashina turini ko'rsatish uchun. Ilgari bosh sahifa har
+    # buyurtma uchun alohida `GET /orders/{id}` qilardi (N+1 so'rov).
+    required_truck_type_id: Optional[int] = None
+    origin: Optional[OrderPointSummary] = None
+    destination: Optional[OrderPointSummary] = None
 
     id: int
     cargo_name: str
@@ -685,3 +708,23 @@ class LiveMapResponse(BaseModel):
     items: list[LiveMapItem]
     stats: LiveMapStats
     generated_at: datetime
+
+
+class OrderEtaResponse(BaseModel):
+    """Sender kuzatish sahifasi: haydovchi joylashuvining yangiligi va ETA."""
+
+    location_updated_at: Optional[datetime] = None
+    location_age_sec: Optional[int] = None
+    # True — joylashuv 2 daqiqadan beri yangilanmagan (haydovchi GPS'i o'chgan bo'lishi mumkin).
+    location_stale: bool = True
+    # Haydovchi ilovasi "joylashuv o'chdi" deb xabar bergan bo'lsa: denied/unavailable/timeout.
+    gps_lost_reason: Optional[str] = None
+    target_type: Optional[WaypointType] = None
+    distance_km: Optional[float] = None
+    duration_min: Optional[int] = None
+
+
+class OrderRouteResponse(BaseModel):
+    """Buyurtmaning saqlangan OSRM marshruti: [[latitude, longitude], ...]."""
+
+    geometry: list[tuple[float, float]] = []

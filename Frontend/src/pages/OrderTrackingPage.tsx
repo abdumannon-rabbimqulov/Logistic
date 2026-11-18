@@ -5,6 +5,7 @@ import {
   bumpPrice,
   cancelOrder,
   getOrder,
+  getOrderEta,
   getPriceOptions,
   pauseDispatch,
   resumeDispatch,
@@ -12,31 +13,30 @@ import {
 import { BottomSheet } from '../components/BottomSheet';
 import { CustomPriceSheet } from '../components/CustomPriceSheet';
 import { OrderEditSheet } from '../components/OrderEditSheet';
+import { OrderStatusBadge } from '../components/OrderStatusBadge';
+import { OrderStepper } from '../components/OrderStepper';
 import { BackIcon, PhoneIcon, SendIcon, StarIcon } from '../components/icons';
 import { YandexMap } from '../components/YandexMap';
 import { useOrderDriverLocation } from '../hooks/useOrderDriverLocation';
-import type { OrderDetail, QuickPriceOption, WaypointStatus, WaypointType } from '../types/api';
-import { formatPrice, routeLabel, statusLabel, unloadingLabel } from '../utils/format';
+import type { OrderDetail, OrderEta, QuickPriceOption } from '../types/api';
+import { formatEta, formatPrice, routeLabel, shortAddress, unloadingLabel } from '../utils/format';
+import {
+  FINAL_ORDER_STATUSES,
+  WAYPOINT_STATUS_LABEL,
+  WAYPOINT_TYPE_LABEL,
+  orderStatusMeta,
+} from '../utils/orderStatus';
 import { describePickupAt } from '../utils/pickupTime';
 import styles from './OrderTrackingPage.module.css';
 
 const MAX_ROUNDS = 5; // services/dispatch.py MAX_ROUNDS bilan mos
 const POLL_INTERVAL_MS = 5000;
+// Haydovchi biriktirilgan (ACCEPTED/IN_PROGRESS): nuqtalar va status o'zgarishi kuzatiladi.
+const ACTIVE_POLL_INTERVAL_MS = 10_000;
+const ETA_POLL_INTERVAL_MS = 30_000;
 // Qidiruv boshlanishini kutayotgan buyurtma uchun (holat soatlab o'zgarmaydi)
 const SCHEDULED_POLL_INTERVAL_MS = 60_000;
 
-const WAYPOINT_TYPE_LABEL: Record<WaypointType, string> = {
-  PICKUP: 'Yuk ortish',
-  DELIVERY: 'Yetkazish',
-  TRANSIT: 'Oraliq nuqta',
-};
-
-const WAYPOINT_STATUS_LABEL: Record<WaypointStatus, string> = {
-  PENDING: 'Kutilmoqda',
-  ARRIVED: 'Yetib keldi',
-  COMPLETED: 'Yakunlandi',
-  SKIPPED: 'O‘tkazib yuborildi',
-};
 
 /** ISO vaqtdan faqat soat:daqiqa (bosqichlar ro'yxati uchun). */
 function formatTime(iso: string): string {
@@ -109,20 +109,36 @@ export function OrderTrackingPage() {
   );
 
   useEffect(() => {
-    if (!order || order.status !== 'PENDING') {
+    if (!order || FINAL_ORDER_STATUSES.has(order.status)) {
       if (timerRef.current) clearTimeout(timerRef.current);
       return;
     }
-    // Qidiruv hali boshlanmagan (kelajakdagi yuk) yoki sender uni to'xtatgan bo'lsa —
-    // tez-tez so'rash bekor, holat o'z-o'zidan o'zgarmaydi. Qidiruv ketayotganda esa
-    // odatdagi tezlikka qaytadi.
-    const idle = order.dispatch_starts_at != null || order.dispatch_paused_at != null;
-    const interval = idle ? SCHEDULED_POLL_INTERVAL_MS : POLL_INTERVAL_MS;
+    // Ilgari so'rov faqat PENDING'da ishlardi: haydovchi qabul qilgach sahifa "qotib"
+    // qolar, yuk olingani/yo'lga chiqqani/yetkazilgani qayta yuklamaguncha ko'rinmasdi.
+    let interval: number;
+    if (order.status === 'PENDING') {
+      // Qidiruv hali boshlanmagan yoki to'xtatilgan bo'lsa — holat o'z-o'zidan o'zgarmaydi.
+      const idle = order.dispatch_starts_at != null || order.dispatch_paused_at != null;
+      interval = idle ? SCHEDULED_POLL_INTERVAL_MS : POLL_INTERVAL_MS;
+    } else if (order.status === 'SCHEDULED') {
+      interval = SCHEDULED_POLL_INTERVAL_MS;
+    } else {
+      interval = ACTIVE_POLL_INTERVAL_MS;
+    }
     timerRef.current = setTimeout(load, interval);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [order, load]);
+
+  // Ilova fondan qaytganda (Telegram yopilib-ochilganda) darhol yangilanadi.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [load]);
 
   // Taklif tushgach variantlarni backend'dan olamiz. Narxni frontend HISOBLAMAYDI:
   // aks holda web va bot turli summalarni ko'rsatardi va chegara tekshiruvi
@@ -191,6 +207,30 @@ export function OrderTrackingPage() {
     (order.status === 'SCHEDULED' || order.status === 'ACCEPTED' || order.status === 'IN_PROGRESS');
   const isTrackable = isFound && order?.driver_id != null;
   const driverPoint = useOrderDriverLocation(order?.id ?? null, isTrackable);
+
+  // ETA va joylashuv yangiligi — faqat haydovchi yo'lga chiqqan holatlarda (30 s da bir).
+  const etaEnabled =
+    order != null && order.driver_id != null && (order.status === 'ACCEPTED' || order.status === 'IN_PROGRESS');
+  const etaOrderId = order?.id ?? null;
+  const [eta, setEta] = useState<OrderEta | null>(null);
+  useEffect(() => {
+    if (!etaEnabled || etaOrderId == null) {
+      setEta(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchEta = () =>
+      getOrderEta(etaOrderId)
+        .then((data) => !cancelled && setEta(data))
+        .catch(() => undefined); // ETA ikkinchi darajali — xato bo'lsa jim qoladi
+    void fetchEta();
+    const timer = window.setInterval(fetchEta, ETA_POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+    // Status o'zgarsa (ACCEPTED -> IN_PROGRESS) maqsad nuqta ham o'zgaradi.
+  }, [etaEnabled, etaOrderId, order?.status]);
 
   if (!order) {
     return (
@@ -266,6 +306,7 @@ export function OrderTrackingPage() {
             origin={originPoint}
             destination={destinationPoint}
             driverLocation={driverLocation}
+            driverStale={eta?.location_stale ?? false}
           />
         ) : (
           <div className={styles.mapPlaceholder}>Marshrut xaritasi mavjud emas</div>
@@ -283,24 +324,39 @@ export function OrderTrackingPage() {
         initialSnap={isTrackable ? 'peek' : 'half'}
         header={
           <>
-            <span className={styles.sheetTitle}>{statusLabel(order.status)}</span>
+            <span className={styles.sheetTitle}>{orderStatusMeta(order.status).label}</span>
             <span className={styles.sheetPrice}>
               {formatPrice(order.price)} {order.currency}
             </span>
           </>
         }
       >
+      {/* Har qanday amal xatosi (bekor qilish, to'xtatish, narx) shu yerda ko'rinadi —
+          ilgari faqat narx oshirish oynasi ichida chiqardi, qolganlari jim yo'qolardi. */}
+      {error && (
+        <div className={styles.section} role="alert">
+          <div className={styles.errorText}>{error}</div>
+        </div>
+      )}
+
       <div className={styles.section}>
         <div className={styles.statusCard}>
-          <span className={styles.statusLabel}>{statusLabel(order.status)}</span>
+          <OrderStatusBadge status={order.status} />
           <div className={styles.statusHeadline}>
-            {isSearching && !awaitingBump && !scheduledStart && 'Haydovchi qidirilmoqda...'}
-            {scheduledStart && 'Buyurtma rejalashtirildi'}
-            {isFound && 'Haydovchi topildi!'}
-            {order.status === 'COMPLETED' && "Buyurtma yakunlandi"}
-            {order.status === 'CANCELLED' && 'Buyurtma bekor qilindi'}
-            {awaitingBump && "Hozircha haydovchi topilmadi"}
+            {/* Qidiruv kutilayotgan (PENDING + dispatch_starts_at) holat SCHEDULED dan
+                farqli: SCHEDULED da haydovchi allaqachon bor, bu yerda esa hali yo'q. */}
+            {scheduledStart
+              ? `Haydovchi qidiruvi ${describePickupAt(scheduledStart)} da boshlanadi`
+              : awaitingBump
+                ? 'Hozircha haydovchi topilmadi'
+                : dispatchPaused
+                  ? "Qidiruv to'xtatilgan"
+                  : order.status === 'CANCELLED' && order.cancel_reason
+                    ? `Bekor qilindi: ${order.cancel_reason}`
+                    : orderStatusMeta(order.status).hint}
           </div>
+
+          {eta && <EtaLine eta={eta} />}
 
           {/* Kelajakka rejalashtirilgan yuk: qidiruv hali boshlanmagan. Progress
               ko'rsatkichi bu yerda chalg'ituvchi bo'lardi ("0/5 haydovchi javob
@@ -308,8 +364,6 @@ export function OrderTrackingPage() {
           {scheduledStart && (
             <div className={styles.scheduledNote}>
               Yuk {describePickupAt(new Date(order.pickup_at))} ga rejalashtirilgan.
-              <br />
-              Haydovchi qidiruvi {describePickupAt(scheduledStart)} da boshlanadi.
             </div>
           )}
 
@@ -491,7 +545,7 @@ export function OrderTrackingPage() {
                         {WAYPOINT_STATUS_LABEL[wp.status]}
                       </span>
                     </div>
-                    <div className={styles.timelineAddress}>{wp.address ?? 'Manzil ko‘rsatilmagan'}</div>
+                    <div className={styles.timelineAddress}>{shortAddress(wp.address) || 'Manzil ko‘rsatilmagan'}</div>
                     {(wp.arrived_at || wp.completed_at) && (
                       <div className={styles.timelineTime}>
                         {wp.arrived_at && `Yetib keldi: ${formatTime(wp.arrived_at)}`}
@@ -517,6 +571,13 @@ export function OrderTrackingPage() {
         </div>
       )}
 
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>Buyurtma holati</div>
+        <div className={styles.card}>
+          <OrderStepper order={order} />
+        </div>
+      </div>
+
       {awaitingBump && (
         <div className={styles.section}>
           <div className={styles.bumpBox}>
@@ -538,7 +599,6 @@ export function OrderTrackingPage() {
                 </button>
               ))}
             </div>
-            {error && <div className={styles.errorText}>{error}</div>}
           </div>
         </div>
       )}
@@ -549,11 +609,11 @@ export function OrderTrackingPage() {
           <div className={styles.routeRow}>
             <div className={styles.routePoint}>
               <span className={styles.routeDotOrigin} />
-              <span>{order.origin?.address ?? routeLabel(null, null)}</span>
+              <span>{shortAddress(order.origin?.address) || routeLabel(null, null)}</span>
             </div>
             <div className={styles.routePoint}>
               <span className={styles.routeDotDest} />
-              <span>{order.destination?.address ?? '?'}</span>
+              <span>{shortAddress(order.destination?.address) || '?'}</span>
             </div>
           </div>
 
@@ -636,6 +696,31 @@ export function OrderTrackingPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/** Haydovchi qachon yetib kelishi va joylashuvi qanchalik yangi — status kartasida. */
+function EtaLine({ eta }: { eta: OrderEta }) {
+  if (eta.gps_lost_reason || eta.location_stale) {
+    const minutes = eta.location_age_sec != null ? Math.max(1, Math.round(eta.location_age_sec / 60)) : null;
+    return (
+      <div className={styles.etaStale} role="status">
+        {eta.gps_lost_reason
+          ? "Haydovchining joylashuvi o'chgan. U bilan bog'laning yoki biroz kuting."
+          : minutes != null
+            ? `Haydovchi joylashuvi ${minutes} daqiqa oldin yangilangan`
+            : "Haydovchi joylashuvi hali ma'lum emas"}
+      </div>
+    );
+  }
+  if (eta.duration_min == null) return null;
+  const target = eta.target_type === 'DELIVERY' ? 'Yetkazish manzilig' : 'Yuk olish joyig';
+  return (
+    <div className={styles.etaLine}>
+      {target}a ~{eta.duration_min} daqiqa
+      {eta.distance_km != null && ` · ${eta.distance_km} km`}
+      <span className={styles.etaClock}> · taxminan {formatEta(eta.duration_min)} da</span>
     </div>
   );
 }

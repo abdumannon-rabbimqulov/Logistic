@@ -23,6 +23,7 @@ EXPECTED_ROUTING_KEYS = {
     "support.ticket_created",
     "support.ticket_replied",
     "support.ticket_status_changed",
+    "order.waypoint_changed",
 }
 
 
@@ -34,6 +35,7 @@ def test_routing_keys_are_stable():
     actual = {
         queue.EVENT_ORDER_STATUS_CHANGED,
         queue.EVENT_ORDER_TRUCK_ASSIGNED,
+        queue.EVENT_ORDER_WAYPOINT_CHANGED,
         queue.EVENT_SUPPORT_TICKET_CREATED,
         queue.EVENT_SUPPORT_TICKET_REPLIED,
         queue.EVENT_SUPPORT_TICKET_STATUS_CHANGED,
@@ -57,6 +59,8 @@ def test_queue_bindings_match_routing_keys():
     assert queue.SUPPORT_NOTIFICATIONS_PATTERN == "support.*"
     assert queue.SUPPORT_EVENTS_QUEUE == "support.order_events"
     assert queue.SUPPORT_NOTIFICATIONS_QUEUE == "support.notifications"
+    assert queue.ORDER_NOTIFICATIONS_QUEUE == "notifications.order_events"
+    assert queue.ORDER_NOTIFICATIONS_PATTERN == "order.*"
 
 
 def test_dispatch_topology_untouched():

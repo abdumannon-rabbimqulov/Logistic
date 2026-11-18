@@ -569,3 +569,24 @@
 .supportBtn:active {
   background: var(--color-gray-50);
 }
+
+.etaLine {
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.etaClock {
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+.etaStale {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 13px;
+}

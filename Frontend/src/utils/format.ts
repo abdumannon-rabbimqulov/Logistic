@@ -1,3 +1,5 @@
+import { orderStatusMeta } from './orderStatus';
+
 export function formatPrice(value: number): string {
   return Math.round(value).toLocaleString('uz-UZ').replace(/,/g, ' ');
 }
@@ -21,20 +23,13 @@ export function formatRelativeDate(iso: string): string {
 }
 
 export function routeLabel(originAddress: string | null | undefined, destinationAddress: string | null | undefined): string {
-  return `${originAddress ?? '?'} → ${destinationAddress ?? '?'}`;
+  return `${shortAddress(originAddress) || '?'} → ${shortAddress(destinationAddress) || '?'}`;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  SCHEDULED: 'Rejalashtirilgan',
-  PENDING: 'Qidirilmoqda',
-  ACCEPTED: "Qabul qilindi",
-  IN_PROGRESS: "Yo'lda",
-  COMPLETED: 'Yakunlandi',
-  CANCELLED: 'Bekor qilindi',
-};
-
+/** Neytral qisqa status yorlig'i (haydovchi/admin). Mijoz ekranlari
+ *  `orderStatusMeta(status).label` ni ishlatadi. Manba — `utils/orderStatus.ts`. */
 export function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
+  return orderStatusMeta(status).short;
 }
 
 /** Manzilda yukni tushirish sharti (order/models.py `UnloadingMode`) — mijoz ham,
@@ -56,10 +51,15 @@ export function unloadingLabel(
   }
 }
 
-// Loyiha faqat O'zbekiston ichida — manzil boshidagi davlat nomi ortiqcha.
-const COUNTRY_PREFIX = /^\s*(o['‘’ʻʼ`]?zbekiston|uzbekistan|узбекистан|ўзбекистон)\s*,\s*/i;
+// Loyiha faqat O'zbekiston ichida — manzildagi davlat nomi ortiqcha.
+// Faqat vergul bilan ajratilgan alohida bo'lak olib tashlanadi: "Oʻzbekiston ko'chasi"
+// kabi ko'cha nomlariga tegilmaydi.
+const COUNTRY =
+  "(?:o['‘’ʻʼ`]?zbekiston|uzbekistan|узбекистан|ўзбекистон)(?:\\s+(?:respublikasi|республикаси|республика))?";
+const COUNTRY_PREFIX = new RegExp(`^\\s*${COUNTRY}\\s*(?:,\\s*|$)`, 'i');
+const COUNTRY_SUFFIX = new RegExp(`\\s*,\\s*${COUNTRY}\\s*$`, 'i');
 
 export function shortAddress(address: string | null | undefined): string {
   if (!address) return '';
-  return address.replace(COUNTRY_PREFIX, '');
+  return address.replace(COUNTRY_PREFIX, '').replace(COUNTRY_SUFFIX, '').trim();
 }

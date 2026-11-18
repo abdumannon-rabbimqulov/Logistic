@@ -162,8 +162,19 @@ export interface OrderWaypointInput {
 }
 
 // GET /orders va GET /orders/available/list shu yengil sxemani qaytaradi — manzillar/waypoint YO'Q.
+/** Ro'yxat kartasi uchun nuqta (kontaktlarsiz) — order/schemas.py OrderPointSummary. */
+export interface OrderPointSummary {
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  status: WaypointStatus;
+}
+
 export interface OrderListItem {
   id: number;
+  required_truck_type_id: number | null;
+  origin: OrderPointSummary | null;
+  destination: OrderPointSummary | null;
   cargo_name: string;
   weight: number;
   price: number;
@@ -208,6 +219,8 @@ export interface Order {
   dispatch_paused_at: string | null;
   overload_warning: string | null;
   completed_at: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
   created_at: string;
   updated_at: string;
   waypoints: OrderWaypoint[];
@@ -904,4 +917,15 @@ export interface LiveMapFilter {
   fromRegion: number | null;
   toRegion: number | null;
   truckTypeId: number | null;
+}
+
+/** GET /orders/{id}/eta — haydovchi joylashuvining yangiligi va keyingi nuqtagacha ETA. */
+export interface OrderEta {
+  location_updated_at: string | null;
+  location_age_sec: number | null;
+  location_stale: boolean;
+  gps_lost_reason: 'denied' | 'unavailable' | 'timeout' | string | null;
+  target_type: WaypointType | null;
+  distance_km: number | null;
+  duration_min: number | null;
 }

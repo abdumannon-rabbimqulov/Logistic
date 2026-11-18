@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { createOrder, estimatePrice, reverseGeocode } from '../api/orders';
 import { AddressSearchSheet } from '../components/AddressSearchSheet';
+import { MapPointPicker } from '../components/MapPointPicker';
 import { type CargoDetails, CargoDetailsSheet } from '../components/CargoDetailsSheet';
 import { YandexMap, type YandexMapHandle } from '../components/YandexMap';
 import {
@@ -43,6 +44,8 @@ export function OrderPage() {
   const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null);
   const [estimating, setEstimating] = useState(false);
   const [addressSheet, setAddressSheet] = useState<AddressSheetTarget>(null);
+  // Xaritadan (markazdagi pin bilan) nuqta tanlash oynasi.
+  const [pickerTarget, setPickerTarget] = useState<AddressSheetTarget>(null);
   const [cargoSheetOpen, setCargoSheetOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -334,6 +337,25 @@ export function OrderPage() {
           title={addressSheet === 'origin' ? "Qayerdan olib ketamiz?" : "Qayerga olib boramiz?"}
           onSelect={handleAddressSelected}
           onClose={() => setAddressSheet(null)}
+          onPickOnMap={() => {
+            setPickerTarget(addressSheet);
+            setAddressSheet(null);
+          }}
+        />
+      )}
+
+      {pickerTarget && (
+        <MapPointPicker
+          title={pickerTarget === 'origin' ? 'Yuk olish joyi' : 'Yetkazish manzili'}
+          tone={pickerTarget}
+          initial={pickerTarget === 'origin' ? origin : destination}
+          myLocation={geolocation.coords}
+          onClose={() => setPickerTarget(null)}
+          onConfirm={(point) => {
+            if (pickerTarget === 'origin') setOrigin(point);
+            else setDestination(point);
+            setPickerTarget(null);
+          }}
         />
       )}
 

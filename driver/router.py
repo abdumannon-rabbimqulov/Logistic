@@ -30,6 +30,7 @@ from Admin_panel.validation import is_admin
 from config.config import (
     LIVE_LOC_DB_THROTTLE_SEC,
     LIVE_LOC_DEFAULT_PERIOD_SEC,
+    LIVE_LOC_TTL_SEC,
     STATIC_PATH,
     UPLOAD_DIR,
     async_session,
@@ -282,6 +283,28 @@ async def _resolve_driver_ws_session(
         return user, driver
 
 
+def parse_fix_time(raw, now: datetime) -> Optional[datetime]:
+    """Mijoz yuborgan GPS vaqtini (epoch millisekund) UTC datetime'ga aylantiradi.
+
+    `None` — vaqt yuborilmagan (eski klient): server qabul vaqtini ishlatadi.
+    Kelajakdagi vaqt `now` ga tenglanadi (qurilma soati noto'g'ri bo'lishi mumkin).
+    """
+    if raw is None:
+        return None
+    try:
+        fix = datetime.fromtimestamp(float(raw) / 1000.0, tz=timezone.utc)
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
+    if fix > now:
+        return now
+    return fix
+
+
+def is_stale_fix(fix: Optional[datetime], now: datetime) -> bool:
+    """GPS nuqtasi `LIVE_LOC_TTL_SEC` dan eski bo'lsa — u "jonli" joylashuv emas."""
+    return fix is not None and (now - fix).total_seconds() > LIVE_LOC_TTL_SEC
+
+
 @router.websocket("/ws/location")
 async def websocket_driver_location(
     websocket: WebSocket,
@@ -290,7 +313,12 @@ async def websocket_driver_location(
     """
     Jonli GPS — faqat WebSocket.
     Token: query `?token=<access_jwt>` (Bearer prefiksi ixtiyoriy).
-    Xabarlar: { "latitude": float, "longitude": float } yoki { "event": "stop" }.
+    Xabarlar:
+      { "latitude", "longitude", "accuracy"?, "timestamp"? }  — `timestamp` GPS nuqtasi
+          olingan vaqt (epoch ms). Juda eski nuqta qabul qilinmaydi (`{"status": "stale"}`).
+      { "event": "gps_lost", "reason": "denied|unavailable|timeout" } — telefonda
+          joylashuv o'chdi; server buni darhol qayd qiladi (ogohlantirishlar uchun).
+      { "event": "stop" }
     """
     query_token = token or websocket.query_params.get("token")
     session = await _resolve_driver_ws_session(query_token)
@@ -313,6 +341,17 @@ async def websocket_driver_location(
                 if data.get("event") == "stop":
                     stop_requested = True
                     break
+                if data.get("event") == "gps_lost":
+                    await live_location.mark_gps_lost(driver_id, str(data.get("reason") or "unknown")[:32])
+                    await websocket.send_json({"status": "acknowledged"})
+                    continue
+
+                now = datetime.now(timezone.utc)
+                fix_time = parse_fix_time(data.get("timestamp"), now)
+                if is_stale_fix(fix_time, now):
+                    # Telefon eski (keshdagi) nuqtani yubormoqda — GPS amalda ishlamayapti.
+                    await websocket.send_json({"status": "stale"})
+                    continue
 
                 lat = float(data["latitude"])
                 lon = float(data["longitude"])
@@ -330,7 +369,10 @@ async def websocket_driver_location(
                     full_name=user.full_name,
                     truck_number=driver.truck_number,
                     truck_type_id=driver.truck_type_id,
-                    live_period=1800,
+                    # Qisqa umr: haydovchi ilovani yopsa yoki GPS o'chsa 2 daqiqada
+                    # "online" ro'yxatdan chiqadi (ilgari 30 daqiqa ko'rinib turardi).
+                    live_period=LIVE_LOC_TTL_SEC,
+                    fix_time=fix_time,
                 )
 
                 # Redis'dagi jonli yozuv qisqa umrli (LIVE_LOC_TTL_SEC). Haydovchi
@@ -346,7 +388,7 @@ async def websocket_driver_location(
                         .values(
                             last_latitude=lat,
                             last_longitude=lon,
-                            last_location_at=datetime.now(timezone.utc),
+                            last_location_at=fix_time or now,
                             is_live_location_active=True,
                             live_location_expires=datetime.now(timezone.utc)
                             + timedelta(seconds=LIVE_LOC_DEFAULT_PERIOD_SEC),

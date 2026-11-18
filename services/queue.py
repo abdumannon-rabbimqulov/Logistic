@@ -68,6 +68,8 @@ EVENTS_EXCHANGE = "logistika.events"
 # buzadi, shuning uchun `tests/test_event_contract.py` ularni qotirib qo'ygan.
 EVENT_ORDER_STATUS_CHANGED = "order.status_changed"
 EVENT_ORDER_TRUCK_ASSIGNED = "order.truck_assigned"
+# Nuqta (yuk olish/tushirish) holati o'zgardi: ARRIVED / COMPLETED / SKIPPED.
+EVENT_ORDER_WAYPOINT_CHANGED = "order.waypoint_changed"
 EVENT_SUPPORT_TICKET_CREATED = "support.ticket_created"
 EVENT_SUPPORT_TICKET_REPLIED = "support.ticket_replied"
 EVENT_SUPPORT_TICKET_STATUS_CHANGED = "support.ticket_status_changed"
@@ -80,6 +82,10 @@ SUPPORT_EVENTS_PATTERN = "order.*"
 # Asosiy ilova esa support hodisalarini tinglaydi (adminlarga bildirishnoma).
 SUPPORT_NOTIFICATIONS_QUEUE = "support.notifications"
 SUPPORT_NOTIFICATIONS_PATTERN = "support.*"
+
+# Buyurtma hodisalari bo'yicha mijozga Telegram xabarlari (`workers/events_worker.py`).
+ORDER_NOTIFICATIONS_QUEUE = "notifications.order_events"
+ORDER_NOTIFICATIONS_PATTERN = "order.*"
 
 _events_exchange: Optional[AbstractRobustExchange] = None
 
@@ -170,6 +176,9 @@ async def _declare_events(channel: AbstractRobustChannel) -> AbstractRobustExcha
 
     notifications = await channel.declare_queue(SUPPORT_NOTIFICATIONS_QUEUE, durable=True)
     await notifications.bind(exchange, SUPPORT_NOTIFICATIONS_PATTERN)
+
+    order_notifications = await channel.declare_queue(ORDER_NOTIFICATIONS_QUEUE, durable=True)
+    await order_notifications.bind(exchange, ORDER_NOTIFICATIONS_PATTERN)
 
     _events_exchange = exchange
     return exchange

@@ -7,6 +7,7 @@ import type {
   OrderCreateInput,
   OrderDetail,
   OrderDriverLocation,
+  OrderEta,
   OrderListItem,
   OrderPriceOptionsResponse,
   OrderUpdateInput,
@@ -27,6 +28,15 @@ export function listMyOrders(): Promise<OrderListItem[]> {
 
 export function getOrder(orderId: number): Promise<OrderDetail> {
   return api.get<OrderDetail>(`/orders/${orderId}`);
+}
+
+/** Buyurtmaning saqlangan OSRM marshruti — Yandex xaritada chiziq sifatida chiziladi. */
+export function getOrderRoute(orderId: number): Promise<{ geometry: [number, number][] }> {
+  return api.get<{ geometry: [number, number][] }>(`/orders/${orderId}/route`);
+}
+
+export function getOrderEta(orderId: number): Promise<OrderEta> {
+  return api.get<OrderEta>(`/orders/${orderId}/eta`);
 }
 
 export function searchAddress(query: string): Promise<GeocodeSuggestion[]> {

@@ -1,0 +1,175 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--color-bg-sunken);
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── Markazdagi pin ───────────────────────────────────────── */
+
+.pinWrap {
+  position: absolute;
+  left: 50%;
+  /* Pastki varaq xaritaning bir qismini yopadi — pin ko'rinadigan qism markazida. */
+  top: calc(50% - 80px);
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform 0.15s ease;
+  --pin-color: var(--color-accent);
+}
+
+.pinDestination {
+  --pin-color: var(--color-danger);
+}
+
+.pinLifted {
+  transform: translateY(-10px);
+}
+
+.pinHead {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--pin-color);
+  border: 8px solid #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+  box-sizing: border-box;
+}
+
+.pinStem {
+  width: 3px;
+  height: 14px;
+  background: var(--pin-color);
+  border-radius: 0 0 2px 2px;
+}
+
+.pinShadow {
+  width: 10px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 30%);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.pinShadowLifted {
+  transform: scale(1.6);
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pin,
+  .pinShadow {
+    transition: none;
+  }
+}
+
+/* ── Boshqaruvlar ─────────────────────────────────────────── */
+
+.topBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  pointer-events: none;
+}
+
+.topBar > * {
+  pointer-events: auto;
+}
+
+.roundBtn,
+.myLocationBtn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-md);
+}
+
+.title {
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-md);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.myLocationBtn {
+  position: absolute;
+  right: 16px;
+  bottom: 220px;
+}
+
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.addressLabel {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.address {
+  min-height: 44px;
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.skeleton {
+  display: block;
+  width: 70%;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  background: var(--color-gray-100);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.confirmBtn {
+  margin-top: 8px;
+  min-height: 50px;
+  border-radius: var(--radius-lg);
+  background: var(--color-gray-900);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.confirmBtn:disabled {
+  opacity: 0.5;
+}

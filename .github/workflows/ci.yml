@@ -1,0 +1,54 @@
+# Testlar va tekshiruvlar. Har PR'da va `main` dan tashqari branch'larga push'da
+# ishlaydi; `deploy.yml` ham uni chaqiradi — testlar o'tmasa deploy boshlanmaydi.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # Dockerfile bilan bir xil versiya.
+          python-version: "3.11"
+          cache: pip
+      - name: Bog'liqliklarni o'rnatish
+        run: pip install -r requirements.txt
+      - name: pytest
+        # Testlar DB/Redis/RabbitMQ'siz ishlaydi (Makefile `test` bilan bir xil).
+        env:
+          BOT_TOKEN: "000000:ci"
+          SECRET_KEY: "ci-secret-key-not-for-production"
+          # Ulanish testlarda ochilmaydi — faqat sozlama majburiy bo'lgani uchun.
+          DB_URL: "postgresql+asyncpg://ci:ci@localhost:5432/ci"
+        run: python -m pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+      - run: npm ci
+      - name: Lint (oxlint)
+        run: npm run lint
+      - name: Typecheck + build
+        run: npm run build

@@ -1,0 +1,98 @@
+.stepper {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.step {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+/* Bosqichlarni bog'lovchi vertikal chiziq */
+.step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 22px;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-gray-200);
+}
+
+.done:not(:last-child)::before {
+  background: var(--color-accent);
+}
+
+.marker {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--color-gray-300);
+  background: var(--color-bg);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.done .marker {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.current .marker {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-accent-tint);
+}
+
+.cancelled .marker {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 1px;
+}
+
+.label {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.done .label {
+  color: var(--color-text-primary);
+}
+
+.current .label {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.cancelled .label {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.time {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

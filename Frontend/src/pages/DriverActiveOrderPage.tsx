@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError, type ApiProblem } from '../api/client';
-import { getOrder, updateWaypoint } from '../api/orders';
+import { getOrder, getOrderRoute, updateWaypoint } from '../api/orders';
 import { BackIcon, ClockIcon, PhoneIcon, RouteIcon, SendIcon, WeightIcon } from '../components/icons';
-import { OrderRouteMap } from '../components/OrderRouteMap';
+import { YandexMap } from '../components/YandexMap';
 import { useLiveLocation } from '../hooks/useLiveLocation';
 import type { OrderDetail, OrderWaypoint, WaypointStatus, WaypointType } from '../types/api';
 import { getCurrentPositionOnce, PositionError } from '../utils/currentPosition';
 import { openTelegramLocationSettings } from '../utils/telegramLocation';
-import { formatPrice, statusLabel, unloadingLabel } from '../utils/format';
+import { formatPrice, shortAddress, statusLabel, unloadingLabel } from '../utils/format';
 import { describePickupAt } from '../utils/pickupTime';
 import { buildYandexPointUrl, buildYandexRouteUrl } from '../utils/yandexRoute';
 import styles from './DriverActiveOrderPage.module.css';
@@ -103,7 +103,21 @@ export function DriverActiveOrderPage() {
   // `coords` — haydovchining joriy joylashuvi. Ilgari hook'ning qaytargan qiymati
   // tashlab yuborilardi (faqat uzatish uchun chaqirilgan edi); endi u ikki joyda
   // ishlatiladi: xaritadagi "men" nuqtasi va "Yo'l ko'rsat" havolasining boshlanishi.
-  const { coords } = useLiveLocation({ broadcast: isTracking });
+  const { coords, gpsLost, error: locationError, canOpenSettings } = useLiveLocation({ broadcast: isTracking });
+
+  // Marshrut chizig'i buyurtma yaratilganda OSRM'dan olinib saqlangan — bir marta yuklanadi.
+  const routeOrderId = order?.id ?? null;
+  const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null);
+  useEffect(() => {
+    if (routeOrderId == null) return;
+    let cancelled = false;
+    getOrderRoute(routeOrderId)
+      .then((data) => !cancelled && setRouteGeometry(data.geometry.length >= 2 ? data.geometry : null))
+      .catch(() => !cancelled && setRouteGeometry(null)); // chiziqsiz ham A/B nuqtalar ko'rinadi
+    return () => {
+      cancelled = true;
+    };
+  }, [routeOrderId]);
 
   const load = useCallback(async () => {
     if (!orderId) return;
@@ -206,16 +220,39 @@ export function DriverActiveOrderPage() {
           <div className={styles.statusPill}>{statusLabel(order.status)}</div>
         </div>
 
+        {/* Joylashuv o'chdi — yopib bo'lmaydigan ogohlantirish. Sender yukni xaritada
+            kuzatadi; 3 daqiqadan keyin server haydovchiga, 10 daqiqadan keyin
+            adminlarga ham xabar yuboradi (services/location_watch.py). */}
+        {isTracking && gpsLost && (
+          <div className={styles.gpsBanner} role="alert">
+            <div className={styles.gpsBannerTitle}>Joylashuv o'chdi — yoqing</div>
+            <div className={styles.gpsBannerText}>
+              {locationError ?? "Joylashuv aniqlanmayapti."} Sender yukingizni xaritada kuzatib turibdi.
+            </div>
+            <ul className={styles.gpsBannerSteps}>
+              <li>Telefonda GPS (Joylashuv) yoqilganini tekshiring.</li>
+              <li>Telegram uchun joylashuv ruxsati "Har doim" yoki "Ilova ishlaganda" bo'lsin.</li>
+              <li>Ilovani yopmang — joylashuv faqat ilova ochiq paytda yuboriladi.</li>
+            </ul>
+            {canOpenSettings && (
+              <button className={styles.gpsBannerBtn} onClick={() => openTelegramLocationSettings()}>
+                Sozlamalarni ochish
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Marshrut xaritasi — ilgari haydovchi faqat manzil MATNINI ko'rardi.
             Sender sahifasidan farqli o'laroq bu yerda xarita fon emas: sahifa
             aylanadi, shuning uchun xarita belgilangan balandlikdagi blok
             (`.mapCard`) ichida. Koordinata bo'lmasa umuman ko'rsatilmaydi. */}
         {mapOrigin && (
           <div className={styles.mapCard}>
-            <OrderRouteMap
+            <YandexMap
               origin={mapOrigin}
               destination={mapDestination}
-              driverLocation={coords}
+              route={routeGeometry}
+              userLocation={coords}
             />
           </div>
         )}
@@ -294,7 +331,7 @@ export function DriverActiveOrderPage() {
                       <span className={styles.currentTag}>Joriy nuqta</span>
                     )}
                   </div>
-                  <div className={styles.checkpointAddress}>{wp.address ?? 'Manzil ko’rsatilmagan'}</div>
+                  <div className={styles.checkpointAddress}>{shortAddress(wp.address) || 'Manzil ko’rsatilmagan'}</div>
 
                   <div className={styles.checkpointActions}>
                     {wp.contact_phone && (
@@ -446,7 +483,7 @@ export function DriverActiveOrderPage() {
             {/* Qadam nuqtaga borib bosilishi kerakligi oldindan aytiladi — haydovchi
                 422 xatosini ko'rgandan keyin emas, oldin biladi. */}
             <div className={styles.stepHint}>
-              {currentWaypoint.address ?? 'Manzil ko’rsatilmagan'} — joylashuvingiz tekshiriladi
+              {shortAddress(currentWaypoint.address) || 'Manzil ko’rsatilmagan'} — joylashuvingiz tekshiriladi
             </div>
             <button className={styles.advanceBtn} onClick={handleAdvance} disabled={updating}>
               {updating ? 'Joylashuv tekshirilmoqda...' : step.label}

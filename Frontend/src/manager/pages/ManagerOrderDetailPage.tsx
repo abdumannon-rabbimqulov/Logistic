@@ -6,6 +6,7 @@ import { StatusBadge } from '../../admin/components/StatusBadge';
 import { useToast } from '../../admin/components/Toast';
 import shared from '../../admin/shared.module.css';
 import type { ManagerOrderDetail, OrderStatus } from '../../types/api';
+import { shortAddress } from '../../utils/format';
 import { AssignTruckModal } from '../components/AssignTruckModal';
 import styles from './ManagerOrderDetailPage.module.css';
 
@@ -207,7 +208,7 @@ export function ManagerOrderDetailPage() {
                       {WAYPOINT_STATUS_LABELS[wp.status] ?? wp.status}
                     </span>
                   </div>
-                  <div className={styles.wpAddress}>{wp.address ?? '—'}</div>
+                  <div className={styles.wpAddress}>{shortAddress(wp.address) || '—'}</div>
                   {(wp.contact_name || wp.contact_phone) && (
                     <div className={styles.wpContact}>
                       {wp.contact_name}
