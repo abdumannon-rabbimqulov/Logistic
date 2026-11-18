@@ -69,7 +69,7 @@ async def get_channel() -> Any:
             import aio_pika
 
             if _connection is None or _connection.is_closed:
-                _connection = await aio_pika.connect_robust(RABBITMQ_URL)
+                _connection = await _connect()
             _channel = await _connection.channel(publisher_confirms=True)
             await _channel.set_qos(prefetch_count=PREFETCH)
             _exchange = await _declare(_channel)
@@ -78,6 +78,22 @@ async def get_channel() -> Any:
             _exchange = None
             raise QueueUnavailable(f"RabbitMQ'ga ulanib bo'lmadi: {exc}") from exc
         return _channel
+
+
+async def _connect() -> Any:
+    """`connect_robust` ning o'zi, bitta farq bilan: birinchi ulanish muvaffaqiyatsiz
+    bo'lsa ulanish obyekti yopiladi. Aks holda aio-pika uni fonda abadiy qayta ulab
+    turadi va har qayta urinishimiz (main.py) yana bitta "yetim" ulanish qoldiradi."""
+    import aio_pika
+    from aio_pika.connection import make_url
+
+    connection = aio_pika.RobustConnection(make_url(RABBITMQ_URL))
+    try:
+        await connection.connect(timeout=10)
+    except Exception:
+        await connection.close()
+        raise
+    return connection
 
 
 async def _declare(channel: Any) -> Any:

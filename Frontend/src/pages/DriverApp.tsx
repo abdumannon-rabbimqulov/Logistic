@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { getMyDriverCabinetOrNull } from '../api/drivers';
+import { useChatDeepLink } from '../components/chat/useChatDeepLink';
 import type { DriverCabinet } from '../types/api';
 import { CabinetContext } from './DriverCabinetContext';
 import { DriverActiveOrderPage } from './DriverActiveOrderPage';
@@ -10,6 +11,7 @@ import { DriverOrdersPage } from './DriverOrdersPage';
 import { DriverProfilePage } from './DriverProfilePage';
 import { LiveMapPage } from './LiveMapPage';
 import { MessagesPage } from './MessagesPage';
+import { OrderChatPage } from './OrderChatPage';
 import { TicketPage } from './TicketPage';
 
 interface Props {
@@ -18,6 +20,8 @@ interface Props {
 
 export function DriverApp({ initialCabinet }: Props) {
   const [cabinet, setCabinet] = useState<DriverCabinet>(initialCabinet);
+  // Telegram'dagi "Chatni ochish" (`startapp=chat_<id>`) — chat sahifasiga o'tish.
+  useChatDeepLink();
 
   async function reloadCabinet() {
     const fresh = await getMyDriverCabinetOrNull();
@@ -29,6 +33,8 @@ export function DriverApp({ initialCabinet }: Props) {
       <Routes>
         <Route path="/" element={<DriverHomePage />} />
         <Route path="/active/:orderId" element={<DriverActiveOrderPage />} />
+        {/* Buyurtma chati — sender bilan bir xil yo'l (bildirishnoma havolasi ikkalasida ishlaydi). */}
+        <Route path="/orders/:orderId/chat" element={<OrderChatPage />} />
         <Route path="/orders" element={<DriverOrdersPage />} />
         <Route path="/earnings" element={<DriverEarningsPage />} />
         <Route path="/map" element={<LiveMapPage role="driver" />} />

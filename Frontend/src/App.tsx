@@ -2,12 +2,14 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminApp } from './admin/AdminApp';
 import styles from './App.module.css';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
+import { useChatDeepLink } from './components/chat/useChatDeepLink';
 import { DriverGate } from './pages/DriverGate';
 import { HomePage } from './pages/HomePage';
 import { LiveMapPage } from './pages/LiveMapPage';
 import { LocalLoginPage } from './pages/LocalLoginPage';
 import { ManagerApp } from './manager/ManagerApp';
 import { MessagesPage } from './pages/MessagesPage';
+import { OrderChatPage } from './pages/OrderChatPage';
 import { OrderPage } from './pages/OrderPage';
 import { TicketPage } from './pages/TicketPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
@@ -16,12 +18,15 @@ import { ProfilePage } from './pages/ProfilePage';
 import { RegisterPage } from './pages/RegisterPage';
 
 function SenderApp() {
+  // Telegram'dagi "Chatni ochish" (`startapp=chat_<id>`) — chat sahifasiga o'tish.
+  useChatDeepLink();
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/order/new" element={<OrderPage />} />
       <Route path="/orders" element={<OrdersListPage />} />
       <Route path="/orders/:orderId" element={<OrderTrackingPage />} />
+      <Route path="/orders/:orderId/chat" element={<OrderChatPage />} />
       <Route path="/map" element={<LiveMapPage role="sender" />} />
       <Route path="/messages" element={<MessagesPage />} />
       <Route path="/messages/:ticketId" element={<TicketPage />} />

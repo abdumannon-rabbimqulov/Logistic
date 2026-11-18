@@ -13,8 +13,10 @@ tasdiqlash (`access.py`).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from fastapi import FastAPI
 
@@ -30,18 +32,40 @@ logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)-8s %(name)
 logger = logging.getLogger("chat_service")
 
 
+CONSUME_RETRY_S = 10
+
+
+async def _consume_until_connected(state: dict[str, Optional[str]]) -> None:
+    """Broker tayyor bo'lgunicha qayta urinadi.
+
+    Support'da startda bir marta urinish bor edi — RabbitMQ chat'dan keyin ko'tarilsa
+    iste'molchi umuman ishga tushmasdi. Chat uchun bu yaroqsiz: `order.*` tinglanmasa
+    yangi buyurtmalarda chat OCHILMAYDI. Hodisalar navbatda (durable) kutib turadi,
+    ulanish tiklangach hammasi o'qiladi.
+    """
+    while True:
+        try:
+            state["tag"] = await queue.consume_order_events(handle_order_event)
+            return
+        except queue.QueueUnavailable:
+            # API ishlayversin: mavjud chatlar ishlaydi, faqat yangilari kechikadi.
+            logger.warning(
+                "RabbitMQ hozircha mavjud emas — %s s dan keyin qayta urinamiz", CONSUME_RETRY_S
+            )
+            await queue.close_queue()
+            await asyncio.sleep(CONSUME_RETRY_S)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    consumer_tag = None
-    try:
-        consumer_tag = await queue.consume_order_events(handle_order_event)
-    except queue.QueueUnavailable:
-        # Broker hali ko'tarilmagan bo'lsa ham API ishlayversin: mavjud chatlar
-        # ishlaydi, faqat yangi buyurtmalar uchun chat ochilishi kechikadi.
-        logger.warning("RabbitMQ hozircha mavjud emas — buyurtma hodisalari tinglanmayapti")
+    state: dict[str, Optional[str]] = {"tag": None}
+    consumer_task = asyncio.create_task(_consume_until_connected(state))
 
     yield
 
+    consumer_task.cancel()
+    await asyncio.gather(consumer_task, return_exceptions=True)
+    consumer_tag = state["tag"]
     if consumer_tag is not None:
         try:
             await queue.cancel_consumer(consumer_tag)

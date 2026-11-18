@@ -67,7 +67,13 @@ async def chat_ws(websocket: WebSocket, token: str = Query("")):
 
     await websocket.accept()
     pubsub = broadcaster.redis.pubsub()
-    await pubsub.subscribe(user_channel(principal.user_id))
+    try:
+        await pubsub.subscribe(user_channel(principal.user_id))
+    except Exception:
+        # Redis yo'q — mijoz 1013 ni ko'rib keyinroq qayta ulanadi; REST ishlayveradi.
+        logger.warning("Chat WS: Redis'ga obuna bo'lib bo'lmadi (user=%s)", principal.user_id, exc_info=True)
+        await websocket.close(code=1013)
+        return
     await broadcaster.mark_online(principal.user_id, +1)
 
     peers: dict[int, Optional[int]] = {}
