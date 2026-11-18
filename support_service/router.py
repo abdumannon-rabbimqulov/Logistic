@@ -168,7 +168,7 @@ async def _after_message(
         {
             "ticket_id": ticket.id,
             # Murojaat EGASI — javobni kimga yetkazishni iste'molchi shundan biladi
-            # (`workers/events_worker.py`). Muallif bilan aralashmasin.
+            # (`notification_service/handlers/support.py`). Muallif bilan aralashmasin.
             "ticket_user_id": ticket.user_id,
             "ticket_user_name": ticket.user_name,
             "assigned_to": ticket.assigned_to,
@@ -235,7 +235,7 @@ async def create_ticket(
     )
 
     await realtime.publish("ticket.created", {"ticket": _public_ticket(ticket)}, user_id=ticket.user_id)
-    # Hodisa: `workers/events_worker.py` buni olib xodimlarga Telegram xabari yuboradi.
+    # Hodisa: `notification_service` buni olib xodimlarga Telegram xabari yuboradi.
     await queue.publish_event(
         queue.EVENT_SUPPORT_TICKET_CREATED,
         {
