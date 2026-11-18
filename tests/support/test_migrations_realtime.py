@@ -131,6 +131,26 @@ def test_order_status_labels(old, new, expected):
     assert expected in text_
 
 
+def test_order_status_without_old_value():
+    text_ = support_main.order_event_text(
+        queue.EVENT_ORDER_STATUS_CHANGED, {"order_id": 5, "old_status": None, "new_status": "PENDING"}
+    )
+    assert text_ == "Buyurtma #5 holati: haydovchi qidirilmoqda"
+
+
+@pytest.mark.parametrize(
+    "event, data",
+    [
+        ("order.waypoint_changed", {"order_id": 5, "waypoint_id": 1}),
+        ("order.trip_started", {"order_id": 5}),
+        ("order.something_new", {"order_id": 5}),
+        (queue.EVENT_ORDER_STATUS_CHANGED, {"order_id": 5, "old_status": "ACCEPTED", "new_status": "ACCEPTED"}),
+    ],
+)
+def test_other_order_events_are_ignored(event, data):
+    assert support_main.order_event_text(event, data) is None
+
+
 async def test_order_event_adds_system_note_and_pushes_ws(client, actors):
     actors.order_access[9] = {OWNER}
     ticket = await new_ticket(client, OWNER, order_id=9)

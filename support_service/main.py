@@ -64,9 +64,13 @@ def status_label(value: Any) -> str:
 def order_event_text(event: str, data: dict[str, Any]) -> str | None:
     order_id = data.get("order_id")
     if event == queue.EVENT_ORDER_STATUS_CHANGED:
+        old, new = data.get("old_status"), data.get("new_status")
+        if not new or status_label(old) == status_label(new):
+            return None  # holat aslida o'zgarmagan — izoh shovqin bo'lardi
         body = (
-            f"Buyurtma #{order_id} holati o'zgardi: "
-            f"{status_label(data.get('old_status'))} → {status_label(data.get('new_status'))}"
+            f"Buyurtma #{order_id} holati o'zgardi: {status_label(old)} → {status_label(new)}"
+            if old
+            else f"Buyurtma #{order_id} holati: {status_label(new)}"
         )
         actor = data.get("changed_by_role")
         if actor:
@@ -75,6 +79,8 @@ def order_event_text(event: str, data: dict[str, Any]) -> str | None:
     if event == queue.EVENT_ORDER_TRUCK_ASSIGNED:
         truck = data.get("truck_number")
         return f"Buyurtma #{order_id} ga yuk mashinasi biriktirildi" + (f": {truck}" if truck else "")
+    # Qolgan `order.*` hodisalari (`order.waypoint_changed`, `order.trip_started`, ...)
+    # ATAYLAB e'tiborsiz: ular tez-tez chiqadi va murojaatni shovqinga to'ldirardi.
     return None
 
 
