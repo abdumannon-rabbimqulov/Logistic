@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from order.dispatch_models import DispatchAttemptStatus, DispatchMatchType
 from order.models import OrderStatus, UnloadingMode, WaypointStatus, WaypointType
+from services import dispatch_timing
 
 
 
@@ -443,9 +444,7 @@ class OrderDetailResponse(OrderResponse):
             and order.driver_id is None
             and order.last_dispatch_enqueued_at is None
         ):
-            from services import dispatch as dispatch_service  # aylanma importni oldini olish
-
-            starts_at = dispatch_service.dispatch_starts_at(order)
+            starts_at = dispatch_timing.dispatch_starts_at(order)
             if starts_at > datetime.now(timezone.utc):
                 base.dispatch_starts_at = starts_at
 

@@ -39,11 +39,11 @@ from sqlalchemy.orm import selectinload
 
 import driver.crud as driver_crud
 import order.crud as order_crud
-from config.config import APP_TIMEZONE, DISPATCH_LEAD_HOURS
+from config.config import APP_TIMEZONE
 from driver.models import Driver
 from order.dispatch_models import DispatchAttempt, DispatchAttemptStatus, DispatchMatchType
 from order.models import Order, OrderStatus
-from services import live_location, navigation, notifications, osrm_client, pricing, queue
+from services import dispatch_timing, live_location, navigation, notifications, osrm_client, pricing, queue
 from services.problems import Violation
 from utils.geo import calculate_distance_km
 
@@ -52,11 +52,11 @@ logger = logging.getLogger(__name__)
 MAX_ROUNDS = 5
 RESPONSE_TIMEOUT_SEC = 60
 
-# Rejalashtirilgan buyurtma uchun qidiruv yuklashdan shuncha oldin boshlanadi.
-# DIQQAT: bu quyidagi `SCHEDULED_LEAD_SEC` EMAS — u haydovchi allaqachon topilgandan
-# keyin SCHEDULED→ACCEPTED o'tishi uchun (30 daqiqa). Bu esa qidiruvning O'ZI qachon
-# boshlanishini belgilaydi.
-DISPATCH_START_LEAD_SEC = DISPATCH_LEAD_HOURS * 3600
+# Qidiruv boshlanish vaqti — `services/dispatch_timing.py` (sof funksiyalar, aylanma
+# importsiz). Bu yerda eski nomlar bilan qayta eksport qilinadi.
+DISPATCH_START_LEAD_SEC = dispatch_timing.DISPATCH_START_LEAD_SEC
+dispatch_starts_at = dispatch_timing.dispatch_starts_at
+is_dispatch_due = dispatch_timing.is_dispatch_due
 
 # Sender narxni ko'pi bilan shuncha marta oshira oladi. Cheklovsiz bo'lsa haydovchisi
 # yo'q yo'nalishda "oshir → topilmadi → yana oshir" sikli cheksiz aylanardi.
@@ -441,23 +441,6 @@ async def _previously_attempted_driver_ids(db: AsyncSession, order_id: int) -> s
         )
     )
     return set(result.scalars().all())
-
-
-def dispatch_starts_at(order: Order) -> datetime:
-    """Shu buyurtma uchun qidiruv boshlanishi kerak bo'lgan payt.
-
-    Yuklash vaqtidan `DISPATCH_START_LEAD_SEC` ayriladi. Yuklash yaqin bo'lsa
-    (yoki allaqachon o'tgan bo'lsa) natija o'tmishda bo'ladi — ya'ni "hoziroq".
-    """
-    pickup_at = order.pickup_at
-    if pickup_at.tzinfo is None:
-        pickup_at = pickup_at.replace(tzinfo=timezone.utc)
-    return pickup_at - timedelta(seconds=DISPATCH_START_LEAD_SEC)
-
-
-def is_dispatch_due(order: Order, *, now: Optional[datetime] = None) -> bool:
-    """Qidiruvni boshlash vaqti keldimi."""
-    return dispatch_starts_at(order) <= (now or datetime.now(timezone.utc))
 
 
 async def start_dispatch(db: AsyncSession, order: Order) -> None:

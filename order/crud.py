@@ -125,22 +125,7 @@ async def create_order(db: AsyncSession, data: OrderCreate, *, customer_id: int)
     db.add(order)
     await db.commit()
     await db.refresh(order, attribute_names=["waypoints", "route"])
-
-    # Avtomatik dispatch: eng yaqin/mos haydovchiga taklif yuborishni boshlaydi
-    # (docs/DISPATCH_SYSTEM_PLAN.md). Bu xatoga uchrasa ham order yaratilishi buzilmasin —
-    # order PENDING holatda qoladi, admin/keyingi sweep qayta urinib ko'radi.
-    from services import dispatch as dispatch_service
-
-    order_id = order.id
-    try:
-        await dispatch_service.start_dispatch(db, order)
-    except Exception:
-        logger.exception("Order #%s uchun dispatch boshlanmadi", order_id)
-        # rollback order obyektining BARCHA atributlarini expired qiladi — chaqiruvchi uni
-        # sinxron serializatsiya qilsa MissingGreenlet chiqadi. Shuning uchun qayta yuklanadi.
-        await db.rollback()
-        order = await get_order(db, order_id) or order
-
+    # Qidiruvni boshlash — `order/service.py: create_order` (crud dispatch'ni bilmaydi).
     return order
 
 
@@ -249,117 +234,11 @@ async def update_order(db: AsyncSession, order: Order, data: OrderUpdate) -> Ord
     return order
 
 
-def record_status_changed(
-    db: AsyncSession,
-    *,
-    order_id: int,
-    customer_id: int,
-    driver_id: Optional[int],
-    old_status: Optional[OrderStatus],
-    new_status: OrderStatus,
-    actor_user_id: Optional[int] = None,
-    actor_role: Optional[str] = None,
-) -> None:
-    """`order.status_changed` hodisasini outbox'ga yozadi — status o'zgaradigan BARCHA
-    joylar shu funksiyani COMMIT'DAN OLDIN chaqiradi (qabul qilish, biriktirish, bekor
-    qilish, rejalashtirilgan buyurtmani faollashtirish, nuqtalar orqali o'tish).
-
-    Hodisa biznes o'zgarishi bilan bitta tranzaksiyada saqlanadi va events-worker uni
-    RabbitMQ'ga yetkazadi (`services/outbox.py`). Ilgari commit'dan keyin to'g'ridan-
-    to'g'ri yuborilardi va broker o'chiq bo'lsa hodisa izsiz yo'qolardi.
-    """
-    if old_status == new_status:
-        return
-    outbox.enqueue(
-        db,
-        queue.EVENT_ORDER_STATUS_CHANGED,
-        {
-            "order_id": order_id,
-            "customer_id": customer_id,
-            "driver_id": driver_id,
-            "old_status": old_status.value if old_status is not None else None,
-            "new_status": new_status.value,
-            "changed_by_user_id": actor_user_id,
-            "changed_by_role": actor_role,
-        },
-    )
-
-
-def record_order_status_changed(
-    db: AsyncSession,
-    order: Order,
-    old_status: Optional[OrderStatus],
-    *,
-    actor_user_id: Optional[int] = None,
-    actor_role: Optional[str] = None,
-) -> None:
-    """`record_status_changed` — `order` obyektining joriy (yangi) holati bilan."""
-    record_status_changed(
-        db,
-        order_id=order.id,
-        customer_id=order.customer_id,
-        driver_id=order.driver_id,
-        old_status=old_status,
-        new_status=order.status,
-        actor_user_id=actor_user_id,
-        actor_role=actor_role,
-    )
-
-
-async def update_order_status(
-    db: AsyncSession,
-    order: Order,
-    new_status: OrderStatus,
-    *,
-    actor_user_id: Optional[int] = None,
-    actor_role: Optional[str] = None,
-) -> Order:
-    """`actor_*` — statusni kim o'zgartirgani (audit uchun hodisaga qo'shiladi).
-
-    Ixtiyoriy: haydovchi nuqtalari orqali avtomatik o'tishda hech kim "bosmagan"
-    bo'ladi, shuning uchun mavjud chaqiruvlar o'zgarishsiz ishlayveradi.
-    """
-    # O'tish qoidalari markazlashtirilgan joyda tekshiriladi — bu funksiya statusni
-    # o'zgartiradigan YAGONA yo'l (haydovchi nuqtalari, admin paneli, bekor qilish
-    # hammasi shu yerdan o'tadi). Ilgari tekshiruv umuman yo'q edi va
-    # COMPLETED -> PENDING -> COMPLETED qilib komissiyani takroran yechish mumkin edi.
-    order_flow.ensure_order_transition_allowed(order.status, new_status)
-    if order.status == new_status:
-        return order
-
-    was_completed = order.status == OrderStatus.COMPLETED
-    old_status = order.status
-    order.status = new_status
-    # Yakunlanish vaqti bir marta — birinchi COMPLETED o'tishida yoziladi (qayta COMPLETED
-    # qilish sanani surib yubormasligi uchun). Daromad hisoboti shu ustunga tayanadi.
-    if new_status == OrderStatus.COMPLETED and not was_completed:
-        order.completed_at = datetime.now(timezone.utc)
-    record_order_status_changed(db, order, old_status, actor_user_id=actor_user_id, actor_role=actor_role)
-    await db.commit()
-    await db.refresh(order, attribute_names=["status", "completed_at", "updated_at"])
-
-    # Komissiya faqat PENDING/ACCEPTED/IN_PROGRESS -> COMPLETED o'tishida bir marta yechiladi
-    # (allaqachon COMPLETED bo'lgan orderni qayta COMPLETED qilish qayta hisoblamaydi).
-    if new_status == OrderStatus.COMPLETED and not was_completed:
-        try:
-            await billing.charge_order_commission(db, order)
-        except Exception as exc:
-            logger.exception("Order #%s uchun komissiya yechishda xato", order.id)
-            # Xato jim qolmasin — komissiya yechilmasa tizim pul yo'qotadi, admin darhol
-            # Telegram orqali xabardor bo'lishi kerak (order baribir COMPLETED holatda qoladi).
-            from utils.admin_alerts import format_details_for_alert, send_error_to_admins
-
-            await send_error_to_admins(
-                title="Komissiya yechishda xato",
-                request_id="-",
-                method="INTERNAL",
-                path=f"order/{order.id}/complete",
-                client="-",
-                exc_type=type(exc).__name__,
-                details=format_details_for_alert(exc),
-            )
-
-    return order
+# Status o'zgartirish va uning hodisasi — holat mashinasi bilan birga
+# `services/order_flow.py` da. Bu yerda eski nomlar saqlanadi (chaqiruvchilar uchun).
+record_status_changed = order_flow.record_status_changed
+record_order_status_changed = order_flow.record_order_status_changed
+update_order_status = order_flow.change_order_status
 
 
 async def assign_driver(
@@ -530,18 +409,12 @@ async def set_custom_price(db: AsyncSession, order: Order, new_price: Decimal) -
     Narx faqat haydovchi biriktirilgunga qadar o'zgartiriladi: kelishilgan narxni
     yo'lda o'zgartirish haydovchi uchun bir tomonlama zarar bo'lardi.
 
-    Bundan tashqari qidiruv KETAYOTGAN paytda ham o'zgartirib bo'lmaydi — buni
-    `dispatch.ensure_price_editable` tekshiradi (u yerdagi izohga qarang).
+    Qidiruv KETAYOTGAN paytda o'zgartirib bo'lmasligini `order/service.py:
+    set_custom_price` tekshiradi (`dispatch.ensure_price_editable`) — bu funksiya
+    faqat ma'lumot qatlami.
     """
     if order.driver_id is not None or order.status != OrderStatus.PENDING:
         raise ValueError("Narxni faqat haydovchi biriktirilmagan (PENDING) buyurtmada o'zgartirish mumkin")
-
-    # Kech import: `services/dispatch.py` o'z navbatida shu modulni import qiladi
-    # (yuqoridagi `start_dispatch` chaqiruvidagi kabi) — modul boshida yozilsa
-    # aylanma import bo'lardi.
-    from services import dispatch as dispatch_service
-
-    await dispatch_service.ensure_price_editable(db, order)
 
     base_price = order_base_price(order)
     price = await pricing.validate_custom_price_for_db(db, new_price, base_price)

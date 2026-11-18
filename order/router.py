@@ -20,6 +20,7 @@ from config.config import async_session, get_db
 from driver.crud import get_driver, get_driver_by_user_id
 from users.crud import get_user_by_id
 from order import crud, schemas
+from order import service as order_service
 from order.models import Order, OrderStatus, WaypointStatus
 from services import dispatch as dispatch_service
 from services import geofence, live_location, notifications, order_eta, order_flow, osrm_client, pricing, public_map, regions, yandex_geocoder
@@ -110,7 +111,7 @@ async def create_order(
     current_user: User = Depends(get_current_sender),
 ):
     try:
-        order = await crud.create_order(db, data, customer_id=current_user.id)
+        order = await order_service.create_order(db, data, customer_id=current_user.id)
     except osrm_client.OSRMUnavailableError as exc:
         raise _routing_unavailable() from exc
     except ValueError as exc:
@@ -644,7 +645,7 @@ async def set_custom_price(
     (standart 15%) bilan chegaralangan — chegaradan past narx 400 qaytaradi."""
     order = await _require_own_order(db, order_id, current_user)
     try:
-        order = await crud.set_custom_price(db, order, data.price)
+        order = await order_service.set_custom_price(db, order, data.price)
     except pricing.PriceValidationError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except dispatch_service.DispatchError as exc:

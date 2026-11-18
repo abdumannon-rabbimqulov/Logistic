@@ -15,6 +15,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from typing import TYPE_CHECKING
 
 from config.base import Base
+from services.pricing import round_distance_km
 
 if TYPE_CHECKING:
     from users.models import User
@@ -70,8 +71,6 @@ class TruckType(Base):
         `weight_t` (tonna) berilmasa yoki `price_per_ton_km` 0 bo'lsa, og'irlik
         qismi qo'shilmaydi — eski (faqat masofaga bog'liq) narx saqlanadi.
         """
-        from services.pricing import round_distance_km
-
         billable_km = Decimal(round_distance_km(distance_km))
         price = self.base_price + self.price_per_km * billable_km
         per_ton_km = self.price_per_ton_km or Decimal(0)
