@@ -4,6 +4,7 @@ import styles from './App.module.css';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { DriverGate } from './pages/DriverGate';
 import { HomePage } from './pages/HomePage';
+import { LiveMapPage } from './pages/LiveMapPage';
 import { LocalLoginPage } from './pages/LocalLoginPage';
 import { ManagerApp } from './manager/ManagerApp';
 import { MessagesPage } from './pages/MessagesPage';
@@ -21,6 +22,7 @@ function SenderApp() {
       <Route path="/order/new" element={<OrderPage />} />
       <Route path="/orders" element={<OrdersListPage />} />
       <Route path="/orders/:orderId" element={<OrderTrackingPage />} />
+      <Route path="/map" element={<LiveMapPage role="sender" />} />
       <Route path="/messages" element={<MessagesPage />} />
       <Route path="/messages/:ticketId" element={<TicketPage />} />
       <Route path="/profile" element={<ProfilePage />} />

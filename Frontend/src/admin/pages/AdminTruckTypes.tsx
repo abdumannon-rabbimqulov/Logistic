@@ -84,6 +84,17 @@ export function AdminTruckTypes() {
     { key: 'base_price', header: "Boshlang'ich", align: 'right', render: (t) => formatPrice(Number(t.base_price)) },
     { key: 'price_per_km', header: '1 km', align: 'right', render: (t) => formatPrice(Number(t.price_per_km)) },
     {
+      key: 'price_per_ton_km',
+      header: '1 t·km',
+      align: 'right',
+      render: (t) =>
+        Number(t.price_per_ton_km) > 0 ? (
+          formatPrice(Number(t.price_per_ton_km))
+        ) : (
+          <span className={styles.unset} title="Og'irlik narxga ta'sir qilmayapti — tahrirlab to'ldiring">To'ldirilmagan</span>
+        ),
+    },
+    {
       key: 'min_price',
       header: 'Minimal',
       align: 'right',

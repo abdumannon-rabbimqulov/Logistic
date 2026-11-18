@@ -285,6 +285,15 @@ async def update_order_admin(db: AsyncSession, order: Order, data: AdminOrderUpd
     if not payload:
         return order
 
+    # Og'irlik o'zgarsa va admin narxni o'zi bermagan bo'lsa — narx yangi og'irlik bo'yicha
+    # qayta hisoblanadi (faqat PENDING; `order_crud.recalc_price_for_cargo`).
+    if "weight" in payload and "price" not in payload:
+        from order import crud as order_crud
+
+        repriced = await order_crud.recalc_price_for_cargo(db, order, weight=payload["weight"])
+        if repriced:
+            payload.update(repriced)
+
     for k, v in payload.items():
         setattr(order, k, v)
     await db.commit()

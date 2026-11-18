@@ -2,6 +2,8 @@ import { api, apiBaseUrl, getAccessToken } from './client';
 import type {
   DispatchAttemptResponse,
   GeocodeSuggestion,
+  LiveMapFilter,
+  LiveMapResponse,
   OrderCreateInput,
   OrderDetail,
   OrderDriverLocation,
@@ -10,6 +12,7 @@ import type {
   OrderUpdateInput,
   PriceEstimateLocation,
   PriceEstimateResponse,
+  RegionItem,
   ReverseGeocodeResponse,
   WaypointProgressInput,
 } from '../types/api';
@@ -44,8 +47,13 @@ export function listAvailableOrders(truckTypeId?: number): Promise<OrderListItem
 export function estimatePrice(
   origin: PriceEstimateLocation,
   destination: PriceEstimateLocation,
+  weight?: number | null,
 ): Promise<PriceEstimateResponse> {
-  return api.post<PriceEstimateResponse>('/orders/estimate-price', { origin, destination });
+  return api.post<PriceEstimateResponse>('/orders/estimate-price', {
+    origin,
+    destination,
+    ...(weight ? { weight } : {}),
+  });
 }
 
 /** Buyurtmani tahrirlash (faqat egasi). Sxemada ATAYLAB faqat yuk ma'lumotlari bor —
@@ -140,4 +148,17 @@ export function orderDriverLocationWsUrl(orderId: number): string {
   const wsBase = httpBase.replace(/^http/, 'ws');
   const token = getAccessToken() ?? '';
   return `${wsBase}/orders/${orderId}/ws/driver-location?token=${encodeURIComponent(token)}`;
+}
+
+export function listRegions(): Promise<RegionItem[]> {
+  return api.get<RegionItem[]>('/orders/regions');
+}
+
+export function getLiveMap(filter: LiveMapFilter): Promise<LiveMapResponse> {
+  return api.get<LiveMapResponse>('/orders/live-map', {
+    mode: filter.mode,
+    from_region: filter.fromRegion ?? undefined,
+    to_region: filter.toRegion ?? undefined,
+    truck_type_id: filter.truckTypeId ?? undefined,
+  });
 }

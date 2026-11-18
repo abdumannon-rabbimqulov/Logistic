@@ -500,6 +500,8 @@ class PriceEstimateRequest(BaseModel):
     """Pickup va delivery nuqtalari bo'yicha barcha mashina turlari uchun narx so'rovi."""
     origin: PriceEstimateLocation
     destination: PriceEstimateLocation
+    # Yuk og'irligi (tonna). Berilsa narxga `price_per_ton_km × tonna × km` qo'shiladi.
+    weight: Optional[Decimal] = Field(None, gt=0, le=1000)
 
 
 class QuickPriceOption(BaseModel):
@@ -621,3 +623,65 @@ class OrderPriceOptionsResponse(BaseModel):
     min_allowed_price: Decimal
     max_discount_percent: Decimal
     quick_price_options: list[QuickPriceOption] = []
+
+# ════════════════════════════════════════════════════════════
+# JONLI YUK XARITASI (sender + driver)
+# ════════════════════════════════════════════════════════════
+#
+# DIQQAT: bu sxemalar ATAYLAB tor. Xaritani har qanday sender/driver ko'radi, shuning
+# uchun bu yerda haydovchi ismi, davlat raqami, telefon, user/driver/order ID lari va
+# nuqta kontaktlari YO'Q. Yangi maydon qo'shishdan oldin shuni yodda tuting —
+# `tests/test_live_map.py` taqiqlangan kalitlar chiqib qolmasligini tekshiradi.
+
+
+class RegionItem(BaseModel):
+    id: int
+    name: str
+
+
+class LiveMapItem(BaseModel):
+    # driver_id dan HMAC qilingan barqaror token — so'rovlar orasida markerni
+    # kuzatish uchun, lekin haqiqiy ID ni oshkor qilmaydi.
+    marker_id: str
+    lat: float
+    lon: float
+    has_cargo: bool
+    truck_type_id: Optional[int] = None
+    truck_type_name: Optional[str] = None
+    truck_type_image_url: Optional[str] = None
+    truck_max_weight: Optional[Decimal] = None
+    current_region: Optional[str] = None
+
+    # Faqat yuk bo'lsa to'ldiriladi
+    cargo_name: Optional[str] = None
+    weight: Optional[Decimal] = None
+    load_percent: Optional[int] = None
+    pickup_address: Optional[str] = None
+    pickup_lat: Optional[float] = None
+    pickup_lon: Optional[float] = None
+    pickup_region: Optional[str] = None
+    delivery_address: Optional[str] = None
+    delivery_lat: Optional[float] = None
+    delivery_lon: Optional[float] = None
+    delivery_region: Optional[str] = None
+    distance_km: Optional[Decimal] = None
+    price: Optional[Decimal] = None
+    price_per_ton: Optional[Decimal] = None
+    currency: str = "UZS"
+
+
+class LiveMapStats(BaseModel):
+    """Filterga mos yuklar narxi: hozir yo'ldagilar + oxirgi `period_days` kunda yakunlanganlar."""
+    period_days: int
+    count: int
+    min_price: Optional[Decimal] = None
+    avg_price: Optional[Decimal] = None
+    max_price: Optional[Decimal] = None
+    avg_price_per_ton: Optional[Decimal] = None
+    avg_weight: Optional[Decimal] = None
+
+
+class LiveMapResponse(BaseModel):
+    items: list[LiveMapItem]
+    stats: LiveMapStats
+    generated_at: datetime

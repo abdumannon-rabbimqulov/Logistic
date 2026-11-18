@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import styles from './BottomNav.module.css';
-import { HomeNavIcon, OrdersNavIcon, ProfileIcon } from './icons';
+import { HomeNavIcon, MapNavIcon, OrdersNavIcon, ProfileIcon } from './icons';
 
 // Murojaatlar (`/messages`) ATAYLAB bu yerda yo'q: unga kirish yuqori o'ng
 // burchakdagi qo'ng'iroq tugmasi orqali beriladi (`TopBarActions`). Shu bilan
@@ -9,6 +9,7 @@ import { HomeNavIcon, OrdersNavIcon, ProfileIcon } from './icons';
 const ITEMS = [
   { to: '/', label: 'Bosh sahifa', Icon: HomeNavIcon, exact: true },
   { to: '/orders', label: 'Buyurtmalar', Icon: OrdersNavIcon, exact: false },
+  { to: '/map', label: 'Xarita', Icon: MapNavIcon, exact: false },
   { to: '/profile', label: 'Profil', Icon: ProfileIcon, exact: false },
 ];
 

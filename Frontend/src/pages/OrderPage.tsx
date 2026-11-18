@@ -46,6 +46,14 @@ export function OrderPage() {
   const [cargoSheetOpen, setCargoSheetOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Yuk og'irligi (tonna) — narx og'irlikka ham bog'liq (truck type'ning 1 tonna-km narxi).
+  // Kiritish paytida har harfda so'rov ketmasligi uchun 500 ms kechiktiriladi.
+  const [cargoWeightInput, setCargoWeightInput] = useState<number | null>(null);
+  const [cargoWeight, setCargoWeight] = useState<number | null>(null);
+  useEffect(() => {
+    const id = window.setTimeout(() => setCargoWeight(cargoWeightInput), 500);
+    return () => window.clearTimeout(id);
+  }, [cargoWeightInput]);
 
   // Joriy manzilni avtomatik aniqlash (faqat origin hali berilmagan bo'lsa)
   useEffect(() => {
@@ -75,6 +83,7 @@ export function OrderPage() {
     estimatePrice(
       { latitude: origin.latitude, longitude: origin.longitude },
       { latitude: destination.latitude, longitude: destination.longitude },
+      cargoWeight,
     )
       .then((res) => {
         if (cancelled) return;
@@ -95,7 +104,7 @@ export function OrderPage() {
     return () => {
       cancelled = true;
     };
-  }, [origin, destination]);
+  }, [origin, destination, cargoWeight]);
 
   function handleSwap() {
     setOrigin(destination);
@@ -334,6 +343,9 @@ export function OrderPage() {
           onClose={() => setCargoSheetOpen(false)}
           submitting={submitting}
           apiError={submitError}
+          onWeightChange={setCargoWeightInput}
+          price={cargoWeight != null ? selectedOption?.price ?? null : null}
+          priceLoading={estimating || cargoWeight !== cargoWeightInput}
         />
       )}
     </div>

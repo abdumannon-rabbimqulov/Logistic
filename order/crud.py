@@ -16,7 +16,7 @@ from driver.models import Driver, TruckType
 from order.dispatch_models import DispatchAttempt, DispatchAttemptStatus
 from order.models import Order, OrderRoutePostGIS, OrderStatus, OrderWaypoint
 from order.schemas import OrderCreate, PriceEstimateRequest, OrderUpdate, OrderWaypointCreate
-from services import billing, order_flow, osrm_client, pricing, queue, yandex_geocoder
+from services import billing, order_flow, osrm_client, pricing, queue, regions, yandex_geocoder
 from utils.geo import simplify_polyline
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ async def create_order(db: AsyncSession, data: OrderCreate, *, customer_id: int)
     # Narx 5 km qadamiga yaxlitlangan masofadan hisoblanadi (services/pricing.py),
     # `total_distance_km` esa OSRM bergan aniq masofa bo'lib qoladi.
     billable_distance_km = pricing.round_distance_km(distance_km)
-    price = truck_type.calculate_price(distance_km)
+    price = truck_type.calculate_price(distance_km, data.weight)
 
     order = Order(
         customer_id=customer_id,
@@ -114,6 +114,7 @@ async def create_order(db: AsyncSession, data: OrderCreate, *, customer_id: int)
                 address=address,
                 latitude=Decimal(str(lat)),
                 longitude=Decimal(str(lon)),
+                region_id=regions.region_for_point(lat, lon),
                 contact_name=wp.contact_name,
                 contact_phone=wp.contact_phone,
             )
@@ -202,8 +203,45 @@ async def list_available_orders(
     return result.scalars().all()
 
 
+async def recalc_price_for_cargo(
+    db: AsyncSession,
+    order: Order,
+    *,
+    weight: Optional[Decimal] = None,
+    truck_type_id: Optional[int] = None,
+) -> Optional[dict]:
+    """Og'irlik yoki mashina turi o'zgarganda narxni qayta hisoblaydi.
+
+    Faqat haydovchi hali biriktirilmagan (PENDING) buyurtmalar uchun: kelishilgan
+    narxni keyin jimgina o'zgartirib bo'lmaydi. Sender qo'shgan ustama
+    (`price - base_price`) saqlanadi — u narxni oshirgan bo'lsa, yangi og'irlik
+    bilan ham shuncha yuqori qoladi.
+
+    Qaytaradi: `{"price", "base_price"}` yoki o'zgartirish kerak bo'lmasa `None`.
+    """
+    if order.status != OrderStatus.PENDING or order.total_distance_km is None:
+        return None
+    tt = await db.get(TruckType, truck_type_id or order.required_truck_type_id)
+    if tt is None:
+        return None
+    new_base = tt.calculate_price(order.total_distance_km, weight if weight is not None else order.weight)
+    old_base = order_base_price(order)
+    markup = max(Decimal(0), (order.price or old_base) - old_base)
+    return {"base_price": new_base, "price": new_base + markup}
+
+
 async def update_order(db: AsyncSession, order: Order, data: OrderUpdate) -> Order:
     values = data.model_dump(exclude_unset=True)
+    if "weight" in values or "required_truck_type_id" in values:
+        if "required_truck_type_id" in values:
+            tt = await db.get(TruckType, values["required_truck_type_id"])
+            if not tt or not tt.is_active:
+                raise ValueError("Ko'rsatilgan mashina turi topilmadi yoki faol emas")
+        repriced = await recalc_price_for_cargo(
+            db, order, weight=values.get("weight"), truck_type_id=values.get("required_truck_type_id")
+        )
+        if repriced:
+            values.update(repriced)
     if values:
         await db.execute(update(Order).where(Order.id == order.id).values(**values))
         await db.commit()
@@ -366,7 +404,7 @@ async def estimate_price(db: AsyncSession, data: PriceEstimateRequest) -> dict:
     max_discount_percent = await pricing.get_sender_max_discount_percent(db)
 
     def _option(tt: TruckType) -> dict:
-        price = tt.calculate_price(distance_km)
+        price = tt.calculate_price(distance_km, data.weight)
         return {
             "truck_type_id": tt.id,
             "name": tt.name,

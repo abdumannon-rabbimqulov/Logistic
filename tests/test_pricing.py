@@ -85,6 +85,34 @@ def test_truck_type_price_respects_min_price():
     assert tt.calculate_price(Decimal("3")) == Decimal("80000")
 
 
+def test_truck_type_price_adds_weight_component():
+    """Og'irlik qismi: price_per_ton_km × tonna × yaxlitlangan km."""
+    from driver.models import TruckType
+
+    tt = TruckType(
+        base_price=Decimal("50000"),
+        price_per_km=Decimal("1000"),
+        price_per_ton_km=Decimal("100"),
+        min_price=None,
+    )
+    # 112 km -> 110 km: 50 000 + 110 000 + 100 × 5 × 110 = 215 000
+    assert tt.calculate_price(Decimal("112"), Decimal("5")) == Decimal("215000")
+    # Kasr tonna: 100 × 2.5 × 110 = 27 500
+    assert tt.calculate_price(Decimal("112"), Decimal("2.5")) == Decimal("187500")
+    # Og'irlik berilmasa — eski formula
+    assert tt.calculate_price(Decimal("112")) == Decimal("160000")
+
+
+def test_truck_type_price_ignores_weight_when_rate_not_set():
+    """price_per_ton_km to'ldirilmagan (0/None) mavjud turlar narxi o'zgarmaydi."""
+    from driver.models import TruckType
+
+    tt = TruckType(base_price=Decimal("50000"), price_per_km=Decimal("1000"), min_price=None)
+    assert tt.calculate_price(Decimal("112"), Decimal("10")) == Decimal("160000")
+    tt.price_per_ton_km = Decimal("0")
+    assert tt.calculate_price(Decimal("112"), Decimal("10")) == Decimal("160000")
+
+
 # ────────────────────────────────────────────────────────────
 #  2. 5 ta tayyor narx oshirish varianti
 # ────────────────────────────────────────────────────────────

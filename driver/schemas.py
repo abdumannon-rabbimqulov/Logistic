@@ -43,6 +43,7 @@ class TruckTypeCreate(BaseModel):
     base_price: Money = Field(Decimal("0"), description="Boshlang'ich narx, UZS")
     price_per_km: Money = Field(Decimal("0"), description="1 km uchun narx, UZS")
     min_price: Optional[Money] = Field(None, description="Minimal narx (pol), UZS")
+    price_per_ton_km: Money = Field(Decimal("0"), description="1 tonna-km narxi, UZS")
     image_url: Optional[str] = Field(None, max_length=512)
     description: Optional[str] = Field(None, max_length=200)
     is_active: bool = True
@@ -61,13 +62,14 @@ class TruckTypeUpdate(BaseModel):
     base_price: Optional[Money] = None
     price_per_km: Optional[Money] = None
     min_price: Optional[Money] = None
+    price_per_ton_km: Optional[Money] = None
     image_url: Optional[str] = Field(None, max_length=512)
     description: Optional[str] = Field(None, max_length=200)
     is_active: Optional[bool] = None
 
     # DB'da NOT NULL ustunlar: ularga ochiq `null` yuborilsa DB xatosi (IntegrityError)
     # o'rniga oddiy 422 qaytsin.
-    _NOT_NULL = ("name", "max_weight", "max_volume", "base_price", "price_per_km", "is_active")
+    _NOT_NULL = ("name", "max_weight", "max_volume", "base_price", "price_per_km", "price_per_ton_km", "is_active")
 
     @model_validator(mode="after")
     def _reject_null_for_required(self):
@@ -92,6 +94,7 @@ class TruckTypeResponse(BaseModel):
     base_price: Decimal
     price_per_km: Decimal
     min_price: Optional[Decimal] = None
+    price_per_ton_km: Decimal = Decimal("0")
     image_url: Optional[str] = None
     description: Optional[str] = None
     is_active: bool

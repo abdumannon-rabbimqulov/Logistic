@@ -88,3 +88,15 @@
   background: var(--color-gray-50);
   flex-shrink: 0;
 }
+
+/* price_per_ton_km kiritilmagan tur — admin tahrirlashi kerakligini ko'rsin */
+.unset {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #B54708;
+  background: #FEF0C7;
+  white-space: nowrap;
+}

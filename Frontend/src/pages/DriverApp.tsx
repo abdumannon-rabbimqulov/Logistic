@@ -8,6 +8,7 @@ import { DriverEarningsPage } from './DriverEarningsPage';
 import { DriverHomePage } from './DriverHomePage';
 import { DriverOrdersPage } from './DriverOrdersPage';
 import { DriverProfilePage } from './DriverProfilePage';
+import { LiveMapPage } from './LiveMapPage';
 import { MessagesPage } from './MessagesPage';
 import { TicketPage } from './TicketPage';
 
@@ -30,6 +31,7 @@ export function DriverApp({ initialCabinet }: Props) {
         <Route path="/active/:orderId" element={<DriverActiveOrderPage />} />
         <Route path="/orders" element={<DriverOrdersPage />} />
         <Route path="/earnings" element={<DriverEarningsPage />} />
+        <Route path="/map" element={<LiveMapPage role="driver" />} />
         {/* Murojaatlar haydovchi uchun ham ochiq — support har qanday autentifikatsiyalangan
             foydalanuvchini qabul qiladi (get_principal), rol farqi yo'q. */}
         <Route path="/messages" element={<MessagesPage />} />

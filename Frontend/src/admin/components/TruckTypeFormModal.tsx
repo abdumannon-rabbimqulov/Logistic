@@ -7,6 +7,7 @@ import {
   uploadTruckTypeImage,
 } from '../../api/truckTypes';
 import type { TruckType, TruckTypeInput } from '../../types/api';
+import { formatPrice } from '../../utils/format';
 import { Modal } from './Modal';
 import styles from './TruckTypeFormModal.module.css';
 
@@ -27,6 +28,7 @@ interface FormState {
   base_price: string;
   price_per_km: string;
   min_price: string;
+  price_per_ton_km: string;
   image_url: string;
   description: string;
   is_active: boolean;
@@ -45,6 +47,7 @@ function initialState(t: TruckType | null): FormState {
     base_price: num(t?.base_price),
     price_per_km: num(t?.price_per_km),
     min_price: num(t?.min_price),
+    price_per_ton_km: num(t?.price_per_ton_km),
     image_url: t?.image_url ?? '',
     description: t?.description ?? '',
     is_active: t?.is_active ?? true,
@@ -60,6 +63,17 @@ function toNumOrNull(v: string): number | null {
 
 export function TruckTypeFormModal({ editing, onClose, onSaved }: Props) {
   const [form, setForm] = useState(initialState(editing));
+
+  // Admin tarifni kiritayotganda natijani darhol ko'rsin: 100 km, mashina sig'imining
+  // to'liq og'irligi (backenddagi TruckType.calculate_price bilan bir xil formula).
+  const exampleKm = 100;
+  const exampleWeight = toNumOrNull(form.max_weight) ?? 1;
+  const examplePrice = Math.max(
+    (toNumOrNull(form.base_price) ?? 0) +
+      (toNumOrNull(form.price_per_km) ?? 0) * exampleKm +
+      (toNumOrNull(form.price_per_ton_km) ?? 0) * exampleWeight * exampleKm,
+    toNumOrNull(form.min_price) ?? 0,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
@@ -94,7 +108,8 @@ export function TruckTypeFormModal({ editing, onClose, onSaved }: Props) {
     if (maxVolume == null || maxVolume <= 0) return setError('Maksimal hajm 0 dan katta bo’lishi kerak');
     const basePrice = toNumOrNull(form.base_price) ?? 0;
     const pricePerKm = toNumOrNull(form.price_per_km) ?? 0;
-    if (basePrice < 0 || pricePerKm < 0) return setError('Narx manfiy bo’lishi mumkin emas');
+    const pricePerTonKm = toNumOrNull(form.price_per_ton_km) ?? 0;
+    if (basePrice < 0 || pricePerKm < 0 || pricePerTonKm < 0) return setError('Narx manfiy bo’lishi mumkin emas');
 
     const payload: TruckTypeInput = {
       name: form.name.trim(),
@@ -107,6 +122,7 @@ export function TruckTypeFormModal({ editing, onClose, onSaved }: Props) {
       base_price: basePrice,
       price_per_km: pricePerKm,
       min_price: toNumOrNull(form.min_price),
+      price_per_ton_km: pricePerTonKm,
       image_url: form.image_url.trim() || null,
       description: form.description.trim() || null,
       is_active: form.is_active,
@@ -174,7 +190,19 @@ export function TruckTypeFormModal({ editing, onClose, onSaved }: Props) {
             <input className={styles.input} type="number" inputMode="numeric" value={form.min_price} onChange={(e) => set('min_price', e.target.value)} />
           </div>
         </div>
-        <div className={styles.priceHint}>Narx = boshlang'ich + (1 km narxi × masofa), lekin minimaldan kam emas.</div>
+        <div className={styles.grid2}>
+          <div className={styles.field}>
+            <label className={styles.label}>1 tonna-km narxi</label>
+            <input className={styles.input} type="number" inputMode="numeric" min={0} value={form.price_per_ton_km} onChange={(e) => set('price_per_ton_km', e.target.value)} />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Misol: 100 km, {exampleWeight} t</label>
+            <div className={styles.input} aria-live="polite">{formatPrice(examplePrice)}</div>
+          </div>
+        </div>
+        <div className={styles.priceHint}>
+          Narx = boshlang'ich + (1 km narxi × masofa) + (1 tonna-km narxi × tonna × masofa), lekin minimaldan kam emas.
+        </div>
       </div>
 
       <div className={styles.grid3}>

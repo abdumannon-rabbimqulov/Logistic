@@ -22,7 +22,7 @@ from users.crud import get_user_by_id
 from order import crud, schemas
 from order.models import Order, OrderStatus, WaypointStatus
 from services import dispatch as dispatch_service
-from services import geofence, live_location, notifications, order_flow, osrm_client, pricing, yandex_geocoder
+from services import geofence, live_location, notifications, order_flow, osrm_client, pricing, public_map, regions, yandex_geocoder
 from services.problems import WaypointProblem
 from users.auth import get_current_active_user, get_current_sender, verify_token
 from users.models import User, UserRole
@@ -194,6 +194,29 @@ async def estimate_price(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
 
+@router.get("/regions", response_model=List[schemas.RegionItem], summary="Viloyatlar ro'yxati (xarita filteri uchun)")
+async def list_regions(_: User = Depends(get_current_active_user)):
+    return regions.list_regions()
+
+
+@router.get(
+    "/live-map",
+    response_model=schemas.LiveMapResponse,
+    summary="Jonli yuk xaritasi: yo'ldagi yuklar / bo'sh mashinalar (shaxsiy ma'lumotlarsiz)",
+)
+async def live_map(
+    mode: str = Query("in_transit", pattern="^(in_transit|empty|all)$"),
+    from_region: Optional[int] = Query(None, ge=1, le=99, description="Yuk olish viloyati"),
+    to_region: Optional[int] = Query(None, ge=1, le=99, description="Yuk tushirish viloyati"),
+    truck_type_id: Optional[int] = Query(None, ge=1),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_active_user),
+):
+    return await public_map.build_live_map(
+        db, mode=mode, from_region=from_region, to_region=to_region, truck_type_id=truck_type_id
+    )
+
+
 @router.get("/{order_id}", response_model=schemas.OrderDetailResponse, summary="Buyurtma tafsilotlari")
 async def get_order(
     order_id: int,
@@ -327,7 +350,10 @@ async def update_order(
     order = await _require_order_access(db, order_id, current_user)
     if not _is_admin(current_user) and order.customer_id != current_user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Faqat buyurtma egasi tahrirlay oladi")
-    order = await crud.update_order(db, order, data)
+    try:
+        order = await crud.update_order(db, order, data)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return schemas.OrderDetailResponse.from_order(order)
 
 

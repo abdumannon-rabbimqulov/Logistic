@@ -9,6 +9,7 @@ import {
   validatePickupAt,
 } from '../utils/pickupTime';
 import type { UnloadingMode } from '../types/api';
+import { formatPrice } from '../utils/format';
 import { BottomSheetModal } from './BottomSheetModal';
 import styles from './CargoDetailsSheet.module.css';
 
@@ -52,12 +53,17 @@ interface Props {
   onClose: () => void;
   submitting: boolean;
   apiError?: string | null;
+  /** Og'irlik o'zgarganda chaqiriladi — sahifa narxni shu og'irlik bilan qayta so'raydi. */
+  onWeightChange?: (weight: number | null) => void;
+  /** Tanlangan mashina uchun joriy (og'irlik hisobga olingan) narx. */
+  price?: number | null;
+  priceLoading?: boolean;
 }
 
 // Dizaynda yuk tafsilotlari uchun alohida ekran yo'q, lekin backend `OrderCreate` buni talab
 // qiladi (cargo_name, weight) — shuning uchun "Buyurtma berish" bosilganda shu kichik forma
 // so'raladi (minimal, dizayn tokenlariga mos).
-export function CargoDetailsSheet({ onSubmit, onClose, submitting, apiError }: Props) {
+export function CargoDetailsSheet({ onSubmit, onClose, submitting, apiError, onWeightChange, price, priceLoading }: Props) {
   const [cargoName, setCargoName] = useState('');
   const [weight, setWeight] = useState('');
   const [volume, setVolume] = useState('');
@@ -137,7 +143,11 @@ export function CargoDetailsSheet({ onSubmit, onClose, submitting, apiError }: P
             className={styles.input}
             inputMode="decimal"
             value={weight}
-            onChange={(e) => setWeight(e.target.value)}
+            onChange={(e) => {
+              setWeight(e.target.value);
+              const n = Number(e.target.value.replace(',', '.'));
+              onWeightChange?.(Number.isFinite(n) && n > 0 ? n : null);
+            }}
             placeholder="1.5"
           />
         </div>
@@ -152,6 +162,12 @@ export function CargoDetailsSheet({ onSubmit, onClose, submitting, apiError }: P
           />
         </div>
       </div>
+      {price != null && (
+        <div className={styles.pricePreview} aria-live="polite">
+          <span>Narx (og'irlik bilan)</span>
+          <strong className={priceLoading ? styles.pricePreviewLoading : undefined}>{formatPrice(price)} so'm</strong>
+        </div>
+      )}
       <div className={styles.field}>
         <label className={styles.label}>Yuk qachon tayyor bo'ladi?</label>
         <div className={styles.presets}>

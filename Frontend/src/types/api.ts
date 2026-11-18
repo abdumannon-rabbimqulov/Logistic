@@ -104,6 +104,8 @@ export interface TruckType {
   base_price: number;
   price_per_km: number;
   min_price: number | null;
+  /** 1 tonna-km narxi (UZS). 0 — og'irlik narxga ta'sir qilmaydi. */
+  price_per_ton_km: number;
   image_url: string | null;
   description: string | null;
   is_active: boolean;
@@ -509,6 +511,7 @@ export interface TruckTypeInput {
   base_price: number;
   price_per_km: number;
   min_price?: number | null;
+  price_per_ton_km?: number;
   image_url?: string | null;
   description?: string | null;
   is_active?: boolean;
@@ -840,4 +843,65 @@ export interface MonitoringOverview {
   status: HealthStatus;
   components: MonitoringComponents;
   requests: MonitoringRequests;
+}
+
+// ── Jonli yuk xaritasi (GET /orders/live-map) ─────────────────────────────
+// Shaxsiy ma'lumot (haydovchi ismi, davlat raqami, telefon, ID lar) backendda
+// ATAYLAB qaytarilmaydi.
+
+export type LiveMapMode = 'in_transit' | 'empty' | 'all';
+
+export interface RegionItem {
+  id: number;
+  name: string;
+}
+
+export interface LiveMapItem {
+  marker_id: string;
+  lat: number;
+  lon: number;
+  has_cargo: boolean;
+  truck_type_id: number | null;
+  truck_type_name: string | null;
+  truck_type_image_url: string | null;
+  truck_max_weight: number | null;
+  current_region: string | null;
+  cargo_name: string | null;
+  weight: number | null;
+  load_percent: number | null;
+  pickup_address: string | null;
+  pickup_lat: number | null;
+  pickup_lon: number | null;
+  pickup_region: string | null;
+  delivery_address: string | null;
+  delivery_lat: number | null;
+  delivery_lon: number | null;
+  delivery_region: string | null;
+  distance_km: number | null;
+  price: number | null;
+  price_per_ton: number | null;
+  currency: string;
+}
+
+export interface LiveMapStats {
+  period_days: number;
+  count: number;
+  min_price: number | null;
+  avg_price: number | null;
+  max_price: number | null;
+  avg_price_per_ton: number | null;
+  avg_weight: number | null;
+}
+
+export interface LiveMapResponse {
+  items: LiveMapItem[];
+  stats: LiveMapStats;
+  generated_at: string;
+}
+
+export interface LiveMapFilter {
+  mode: LiveMapMode;
+  fromRegion: number | null;
+  toRegion: number | null;
+  truckTypeId: number | null;
 }

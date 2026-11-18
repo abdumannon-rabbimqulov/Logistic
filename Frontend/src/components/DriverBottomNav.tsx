@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom';
 import styles from './BottomNav.module.css';
-import { EarningsNavIcon, HomeNavIcon, OrdersNavIcon, ProfileIcon } from './icons';
+import { EarningsNavIcon, HomeNavIcon, MapNavIcon, OrdersNavIcon, ProfileIcon } from './icons';
 
 const ITEMS = [
   { to: '/', label: 'Bosh sahifa', Icon: HomeNavIcon },
   { to: '/orders', label: 'Buyurtmalar', Icon: OrdersNavIcon },
+  { to: '/map', label: 'Xarita', Icon: MapNavIcon },
   { to: '/earnings', label: 'Daromad', Icon: EarningsNavIcon },
   { to: '/profile', label: 'Profil', Icon: ProfileIcon },
 ];

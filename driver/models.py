@@ -47,6 +47,8 @@ class TruckType(Base):
     base_price  : Mapped[Decimal]      = mapped_column(Numeric(12, 2), nullable=False, default=0)  # boshlang'ich narx (UZS)
     price_per_km: Mapped[Decimal]      = mapped_column(Numeric(12, 2), nullable=False, default=0)  # 1 km uchun narx (UZS)
     min_price   : Mapped[Decimal|None] = mapped_column(Numeric(12, 2), nullable=True)               # minimal narx (qisqa masofa uchun pol)
+    # 1 tonna yukni 1 km olib borish narxi (UZS). 0 bo'lsa og'irlik narxga ta'sir qilmaydi.
+    price_per_ton_km: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0, server_default="0")
 
     image_url   : Mapped[str|None]  = mapped_column(String(512), nullable=True)   # ikonka / rasm
     description : Mapped[str|None]  = mapped_column(String(200), nullable=True)
@@ -56,21 +58,28 @@ class TruckType(Base):
 
     drivers : Mapped[list["Driver"]] = relationship("Driver", back_populates="truck_type_obj")
 
-    def calculate_price(self, distance_km: Decimal) -> Decimal:
-        """Masofaga qarab narx: base_price + price_per_km * masofa, min_price dan past bo'lmaydi.
+    def calculate_price(self, distance_km: Decimal, weight_t: Decimal | None = None) -> Decimal:
+        """Narx = base_price + price_per_km × km + price_per_ton_km × tonna × km,
+        `min_price` dan past bo'lmaydi.
 
         Masofa avval eng yaqin 5 km ga yaxlitlanadi (112 km -> 110, 113 km -> 115):
         OSRM qaytargan "112.37 km" kabi aniq raqamdan chiqqan narx mijoz uchun
         tushunarsiz bo'ladi. Yaxlitlash shu yerda — barcha chaqiruvchilar bir xil
         narx olishi kafolatlanadi.
+
+        `weight_t` (tonna) berilmasa yoki `price_per_ton_km` 0 bo'lsa, og'irlik
+        qismi qo'shilmaydi — eski (faqat masofaga bog'liq) narx saqlanadi.
         """
         from services.pricing import round_distance_km
 
         billable_km = Decimal(round_distance_km(distance_km))
         price = self.base_price + self.price_per_km * billable_km
+        per_ton_km = self.price_per_ton_km or Decimal(0)
+        if weight_t is not None and per_ton_km > 0:
+            price += per_ton_km * Decimal(str(weight_t)) * billable_km
         if self.min_price is not None and price < self.min_price:
             price = self.min_price
-        return price
+        return price.quantize(Decimal("0.01"))
 
     def __repr__(self) -> str:
         return f"<TruckType(id={self.id}, name='{self.name}')>"

@@ -280,6 +280,9 @@ class OrderWaypoint(Base):
     address: Mapped[str | None] = mapped_column(String(300), nullable=True)
     latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
     longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
+    # Nuqta tushgan viloyat (`services/regions.py`, geojson `id`). Jonli xarita
+    # "qayerdan → qayerga" filteri shu ustun bo'yicha ishlaydi.
+    region_id: Mapped[int | None] = mapped_column(SmallInteger, nullable=True, index=True)
 
     # O'sha nuqtada yukni kim kutib oladi / kim topshiradi? (Kuryer/Haydovchi telefon qilishi uchun)
     contact_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
