@@ -283,6 +283,27 @@ async def _resolve_driver_ws_session(
         return user, driver
 
 
+@router.get("/me/tracking-identity", summary="Tracking servisi uchun: haydovchi identifikatsiyasi")
+async def driver_tracking_identity(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """`tracking_service` WebSocket ulanishida (bir marta) shu endpoint orqali tokenni
+    tekshiradi: bazaga u o'zi ulanmaydi. Bloklangan haydovchi 403 oladi."""
+    driver = await crud.get_driver_by_user_id(db, current_user.id)
+    if driver is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Haydovchi profili topilmadi")
+    if driver.is_blocked:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Haydovchi bloklangan")
+    return {
+        "driver_id": driver.id,
+        "user_id": current_user.id,
+        "full_name": current_user.full_name,
+        "truck_number": driver.truck_number,
+        "truck_type_id": driver.truck_type_id,
+    }
+
+
 def parse_fix_time(raw, now: datetime) -> Optional[datetime]:
     """Mijoz yuborgan GPS vaqtini (epoch millisekund) UTC datetime'ga aylantiradi.
 

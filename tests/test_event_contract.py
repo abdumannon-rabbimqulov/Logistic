@@ -140,3 +140,19 @@ def test_notification_service_does_not_import_core():
             if stripped.startswith(("import ", "from ")):
                 module = stripped.split()[1]
                 assert not module.startswith(core), f"{path}: {stripped}"
+
+
+def test_tracking_service_does_not_import_core_and_matches_keys():
+    import pathlib
+
+    from tracking_service import store
+
+    assert store.GLOBAL_CHANNEL == "driver_locations_channel"
+    assert store.location_key(5) == "driver_location:5"
+    assert store.gps_lost_key(5) == "driver_gps_lost:5"
+    core = ("config.", "order", "driver", "users", "services", "Admin_panel", "manager", "handlers.", "workers")
+    for path in pathlib.Path("tracking_service").rglob("*.py"):
+        for line in path.read_text().splitlines():
+            stripped = line.strip()
+            if stripped.startswith(("import ", "from ")):
+                assert not stripped.split()[1].startswith(core), f"{path}: {stripped}"

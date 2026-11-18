@@ -218,6 +218,18 @@ async def live_map(
     )
 
 
+@router.get("/{order_id}/tracking-access", summary="Tracking servisi uchun: kuzatish huquqi")
+async def order_tracking_access(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """`tracking_service` sender WebSocket'ini ochishdan oldin (bir marta) shu yerda
+    huquqni tekshiradi: egasi, biriktirilgan haydovchi yoki xodim. 403/404 — ruxsat yo'q."""
+    order = await _require_order_access(db, order_id, current_user)
+    return {"order_id": order.id, "driver_id": order.driver_id, "status": order.status.value}
+
+
 @router.get("/{order_id}/route", response_model=schemas.OrderRouteResponse,
             summary="Buyurtmaning saqlangan marshrut chizig'i (xarita uchun)")
 async def get_order_route(
