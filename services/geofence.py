@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Optional
 
 from config.config import (
@@ -40,6 +39,7 @@ from config.config import (
 from services import live_location
 from services.problems import Violation
 from utils.geo import calculate_distance_km
+from utils.time import age_seconds, parse_iso_utc
 
 logger = logging.getLogger(__name__)
 
@@ -130,16 +130,8 @@ async def try_resolve_driver_coords(
 
 def _is_fresh(ts_raw: Optional[str]) -> bool:
     """Redis'dagi `ts` (ISO UTC) hali eskirmaganini tekshiradi."""
-    if not ts_raw:
-        return False
-    try:
-        ts = datetime.fromisoformat(ts_raw)
-    except (TypeError, ValueError):
-        return False
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    age_sec = (datetime.now(timezone.utc) - ts).total_seconds()
-    return 0 <= age_sec <= GEOFENCE_LOCATION_MAX_AGE_SEC
+    age = age_seconds(parse_iso_utc(ts_raw))
+    return age is not None and 0 <= age <= GEOFENCE_LOCATION_MAX_AGE_SEC
 
 
 def evaluate_at_point(

@@ -25,6 +25,7 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from order.labels import ORDER_STATUS_LABEL, WAYPOINT_STATUS_LABEL
 from order.models import Order, OrderStatus, OrderWaypoint, WaypointStatus, WaypointType
 from services import billing, geofence, outbox, queue
 from services.problems import Violation, WaypointProblem
@@ -111,23 +112,9 @@ _ALLOWED_WAYPOINT_TRANSITIONS: dict[WaypointStatus, set[WaypointStatus]] = {
     WaypointStatus.SKIPPED: set(),
 }
 
-_ORDER_STATUS_LABEL = {
-    OrderStatus.SCHEDULED: "rejalashtirilgan",
-    OrderStatus.PENDING: "haydovchi qidirilmoqda",
-    OrderStatus.ACCEPTED: "qabul qilingan",
-    OrderStatus.IN_PROGRESS: "yo'lda",
-    OrderStatus.COMPLETED: "yakunlangan",
-    OrderStatus.CANCELLED: "bekor qilingan",
-}
-
-# Nuqta holatlarining o'zbekcha nomlari. Xato matnida xom enum qiymati
-# ("'PENDING' holatidan 'ARRIVED' holatiga") o'rniga ishlatiladi.
-_WAYPOINT_STATUS_LABEL = {
-    WaypointStatus.PENDING: "kutilmoqda",
-    WaypointStatus.ARRIVED: "yetib keldi",
-    WaypointStatus.COMPLETED: "yakunlandi",
-    WaypointStatus.SKIPPED: "o'tkazib yuborildi",
-}
+# Yorliqlar — `order/labels.py` (bitta joyda).
+_ORDER_STATUS_LABEL = ORDER_STATUS_LABEL
+_WAYPOINT_STATUS_LABEL = WAYPOINT_STATUS_LABEL
 
 
 def _waypoint_status_label(status: WaypointStatus) -> str:

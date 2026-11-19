@@ -15,6 +15,7 @@ from typing import Any, Optional
 
 from config.config import LIVE_LOC_TTL_SEC
 from services import live_location, osrm_client
+from utils.time import parse_iso_utc
 
 logger = logging.getLogger(__name__)
 
@@ -29,21 +30,11 @@ class DriverFix:
     source: str  # "live" (Redis) | "last_known" (Driver jadvali)
 
 
-def _parse_iso(value: Any) -> Optional[datetime]:
-    if not value:
-        return None
-    try:
-        dt = datetime.fromisoformat(str(value))
-    except ValueError:
-        return None
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-
-
 async def latest_driver_fix(driver) -> Optional[DriverFix]:
     """Haydovchining eng so'nggi ma'lum nuqtasi: avval Redis, bo'lmasa DB."""
     live = await live_location.get_driver_location(driver.id)
     if live and live.get("lat") is not None and live.get("lon") is not None:
-        return DriverFix(float(live["lat"]), float(live["lon"]), _parse_iso(live.get("ts")), "live")
+        return DriverFix(float(live["lat"]), float(live["lon"]), parse_iso_utc(live.get("ts")), "live")
     if driver.last_latitude is not None and driver.last_longitude is not None:
         at = driver.last_location_at
         if at is not None and at.tzinfo is None:

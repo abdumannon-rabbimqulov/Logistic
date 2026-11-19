@@ -28,10 +28,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from config.config import ADMIN_IDS, APP_TIMEZONE
+from config.config import APP_TIMEZONE
 from order.models import Order, OrderStatus
-from services import live_location, notifications
-from users.models import User, UserRole
+from services import live_location, notifications, staff
 from utils.admin_alerts import send_notice_to_admins
 
 logger = logging.getLogger(__name__)
@@ -94,13 +93,6 @@ def reminder_for(order_id: int, departure_at: datetime, now: datetime) -> Option
     return Reminder(f"late{slot}", text, notify_staff=late >= STAFF_LATE_AFTER)
 
 
-async def _staff_ids(db: AsyncSession) -> set[int]:
-    result = await db.execute(
-        select(User.id).where(User.role == UserRole.MANAGER, User.is_active.is_(True))
-    )
-    return set(ADMIN_IDS) | {int(uid) for uid in result.scalars().all()}
-
-
 async def send_due_reminders(db: AsyncSession, *, now: Optional[datetime] = None) -> int:
     """Start bosilmagan buyurtmalar bo'yicha eslatmalar. Qaytaradi: yuborilganlar soni."""
     now = now or datetime.now(timezone.utc)
@@ -134,7 +126,7 @@ async def send_due_reminders(db: AsyncSession, *, now: Optional[datetime] = None
         if reminder.notify_staff and await live_location.claim_notice_slot(
             f"start_remind:{order.id}:staff", SLOT_TTL_SEC
         ):
-            staff_ids = staff_ids if staff_ids is not None else await _staff_ids(db)
+            staff_ids = staff_ids if staff_ids is not None else await staff.staff_ids(db)
             await send_notice_to_admins(
                 title="Haydovchi yo'lga chiqmadi",
                 details=(

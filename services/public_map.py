@@ -33,7 +33,7 @@ from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from config.config import SECRET_KEY
+from config.config import LAST_KNOWN_LOCATION_MAX_AGE_SEC, SECRET_KEY
 from driver.models import Driver, TruckType
 from order.models import Order, OrderStatus, OrderWaypoint, WaypointType
 from order.schemas import LiveMapItem, LiveMapResponse, LiveMapStats
@@ -47,7 +47,7 @@ CACHE_TTL_SEC = 5
 STATS_PERIOD_DAYS = 30
 # Jonli translyatsiya bo'lmasa, yo'ldagi mashina uchun DB'dagi oxirgi nuqta shuncha
 # eskirmagan bo'lsa ko'rsatiladi (aks holda marker noto'g'ri joyda "qotib" turadi).
-LAST_KNOWN_MAX_AGE = timedelta(hours=6)
+LAST_KNOWN_MAX_AGE = timedelta(seconds=LAST_KNOWN_LOCATION_MAX_AGE_SEC)
 
 _ACTIVE_STATUSES = (OrderStatus.SCHEDULED, OrderStatus.ACCEPTED, OrderStatus.IN_PROGRESS)
 

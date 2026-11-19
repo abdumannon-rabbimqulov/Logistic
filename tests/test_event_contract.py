@@ -156,3 +156,23 @@ def test_tracking_service_does_not_import_core_and_matches_keys():
             stripped = line.strip()
             if stripped.startswith(("import ", "from ")):
                 assert not stripped.split()[1].startswith(core), f"{path}: {stripped}"
+
+
+def test_status_labels_cover_every_status():
+    """Yangi status qo'shilsa, core va support yorliqlari ham yangilanishi shart."""
+    from order.labels import ORDER_STATUS_LABEL, WAYPOINT_STATUS_LABEL
+    from order.models import OrderStatus, WaypointStatus
+
+    assert set(ORDER_STATUS_LABEL) == set(OrderStatus)
+    assert set(WAYPOINT_STATUS_LABEL) == set(WaypointStatus)
+
+    import ast
+    import pathlib
+
+    tree = ast.parse(pathlib.Path("support_service/main.py").read_text())
+    support_keys = next(
+        {k.value for k in node.value.keys}
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "_STATUS_LABEL"
+    )
+    assert support_keys == {s.value for s in OrderStatus}

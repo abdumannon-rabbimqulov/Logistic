@@ -12,8 +12,8 @@ core'ning eski WS endpointi ham parallel ishlayversa, ma'lumot orqaga ketmaydi.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import timedelta
+from typing import Any
 
 from sqlalchemy import or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,20 +21,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config.config import LIVE_LOC_DEFAULT_PERIOD_SEC
 from driver.models import Driver
 from services import live_location
+from utils.time import parse_iso_utc
 
 logger = logging.getLogger(__name__)
 
 SYNC_INTERVAL_SEC = 60
-
-
-def _parse_ts(value: Any) -> Optional[datetime]:
-    if not value:
-        return None
-    try:
-        dt = datetime.fromisoformat(str(value))
-    except ValueError:
-        return None
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def rows_to_sync(online: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -48,7 +39,7 @@ def rows_to_sync(online: list[dict[str, Any]]) -> list[dict[str, Any]]:
             lat, lon = float(item["lat"]), float(item["lon"])
         except (KeyError, TypeError, ValueError):
             continue
-        ts = _parse_ts(item.get("ts"))
+        ts = parse_iso_utc(item.get("ts"))
         if ts is None:
             continue
         rows.append({"driver_id": driver_id, "lat": lat, "lon": lon, "ts": ts})

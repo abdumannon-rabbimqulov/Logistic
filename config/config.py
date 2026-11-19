@@ -83,6 +83,10 @@ GEOFENCE_ACCURACY_ALLOWANCE_M = int(get_optional_env("GEOFENCE_ACCURACY_ALLOWANC
 GEOFENCE_MAX_ACCURACY_M = int(get_optional_env("GEOFENCE_MAX_ACCURACY_M", "500"))
 # Zaxira (Redis'dagi oxirgi ma'lum) koordinata shu muddatdan eski bo'lsa ishlatilmaydi.
 GEOFENCE_LOCATION_MAX_AGE_SEC = int(get_optional_env("GEOFENCE_LOCATION_MAX_AGE_SEC", "120"))
+# Jonli GPS bo'lmaganda haydovchining bazadagi OXIRGI ma'lum nuqtasi shuncha vaqt
+# ishonchli hisoblanadi (dispatch nomzodlari va jonli xaritada). Bitta joyda —
+# ilgari `services/dispatch.py` va `services/public_map.py` da alohida yozilgan edi.
+LAST_KNOWN_LOCATION_MAX_AGE_SEC = int(get_optional_env("LAST_KNOWN_LOCATION_MAX_AGE_SEC", str(6 * 3600)))
 
 
 ENVIRONMENT = get_optional_env('ENVIRONMENT', 'development')

@@ -25,10 +25,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from config.config import ADMIN_IDS
 from order.models import Order, OrderStatus
-from services import live_location, notifications, order_eta
-from users.models import User, UserRole
+from services import live_location, notifications, order_eta, staff
 from utils.admin_alerts import send_notice_to_admins
 
 logger = logging.getLogger(__name__)
@@ -61,14 +59,6 @@ def decide(age_sec: Optional[float], gps_lost: bool, *, was_warned: bool) -> Dec
 
 def _minutes(age_sec: Optional[float]) -> str:
     return "noma'lum vaqtdan" if age_sec is None else f"{int(age_sec // 60)} daqiqadan"
-
-
-async def _staff_ids(db: AsyncSession) -> set[int]:
-    """Adminlar (ADMIN_IDS) + faol menejerlar — ilgari faqat adminlar xabar olardi."""
-    result = await db.execute(
-        select(User.id).where(User.role == UserRole.MANAGER, User.is_active.is_(True))
-    )
-    return set(ADMIN_IDS) | {int(uid) for uid in result.scalars().all()}
 
 
 async def check_active_orders(db: AsyncSession, *, now: Optional[datetime] = None) -> int:
@@ -111,7 +101,7 @@ async def check_active_orders(db: AsyncSession, *, now: Optional[datetime] = Non
             )
             if await _flag_exists(f"locwatch:staff_warned:{order.id}"):
                 await _clear_flag(f"locwatch:staff_warned:{order.id}")
-                staff_ids = staff_ids if staff_ids is not None else await _staff_ids(db)
+                staff_ids = staff_ids if staff_ids is not None else await staff.staff_ids(db)
                 await send_notice_to_admins(
                     title="Haydovchi joylashuvi tiklandi",
                     details=f"Buyurtma #{order.id}, haydovchi #{driver.id}",
@@ -141,7 +131,7 @@ async def check_active_orders(db: AsyncSession, *, now: Optional[datetime] = Non
             f"locwatch:staff:{order.id}", STAFF_REMIND_EVERY_SEC
         ):
             await _set_flag(f"locwatch:staff_warned:{order.id}")
-            staff_ids = staff_ids if staff_ids is not None else await _staff_ids(db)
+            staff_ids = staff_ids if staff_ids is not None else await staff.staff_ids(db)
             await send_notice_to_admins(
                 title="Haydovchi joylashuvi o'chgan",
                 details=(

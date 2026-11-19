@@ -39,7 +39,7 @@ from sqlalchemy.orm import selectinload
 
 import driver.crud as driver_crud
 import order.crud as order_crud
-from config.config import APP_TIMEZONE
+from config.config import APP_TIMEZONE, LAST_KNOWN_LOCATION_MAX_AGE_SEC
 from driver.models import Driver
 from order.dispatch_models import DispatchAttempt, DispatchAttemptStatus, DispatchMatchType
 from order.models import Order, OrderStatus
@@ -69,7 +69,7 @@ DISPATCH_LOCK_TTL_SEC = 30
 
 # Jonli GPS o'chgan bo'lsa, DB'dagi oxirgi koordinata shu muddat ichida yozilgan bo'lsa
 # hali ham ishonchli deb qaraladi (haydovchi ilovani yopgan, lekin uzoqqa ketmagan).
-LAST_LOCATION_MAX_AGE_SEC = 6 * 60 * 60  # 6 soat
+LAST_LOCATION_MAX_AGE_SEC = LAST_KNOWN_LOCATION_MAX_AGE_SEC  # config: 6 soat
 
 # Joylashuvsiz haydovchiga ogohlantirish yuborish oralig'i (spam bo'lmasligi uchun).
 WARN_THROTTLE_SEC = 12 * 60 * 60  # 12 soat
