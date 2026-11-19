@@ -102,6 +102,21 @@ if ! "${COMPOSE[@]}" pull --quiet; then
     done
 fi
 
+# Mikroservislarning alohida bazalari (support_db, chat_db). Postgres init skriptlari
+# FAQAT bo'sh ma'lumot katalogida ishlaydi — mavjud prod bazasida yangi servis
+# (masalan chat) bazasi o'zi paydo bo'lmaydi. Skriptlar idempotent (WHERE NOT EXISTS),
+# shuning uchun har deploy'da xavfsiz qayta ishga tushiriladi.
+say "Servis bazalari tekshirilmoqda (support_db, chat_db)..."
+"${COMPOSE[@]}" up -d --no-build db
+for _ in $(seq 1 30); do
+    [ "$("${COMPOSE[@]}" ps --format '{{.Health}}' db 2>/dev/null)" = "healthy" ] && break
+    sleep 2
+done
+for init in 10-support-db.sh 11-chat-db.sh; do
+    "${COMPOSE[@]}" exec -T db bash "/docker-entrypoint-initdb.d/$init" \
+        || warn "$init bajarilmadi — bazani qo'lda yarating (skript izohiga qarang)"
+done
+
 say "Xizmatlar ishga tushirilmoqda..."
 # `--remove-orphans` — eski nomdagi konteynerlar (masalan avvalgi prod nomlari)
 # qolib ketmasin.

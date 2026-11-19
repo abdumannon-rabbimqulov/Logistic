@@ -23,6 +23,9 @@ EVENT_ORDER_TRIP_STARTED = "order.trip_started"
 # notification_service yuboradi.
 EVENT_ORDER_NOTICE = "order.notice"
 
+# ── Chat hodisalari (chat_service chiqaradi) ──────────────────────────────────
+EVENT_CHAT_MESSAGE_CREATED = "chat.message_created"
+
 # ── Support hodisalari (support_service chiqaradi) ───────────────────────────
 EVENT_SUPPORT_TICKET_CREATED = "support.ticket_created"
 EVENT_SUPPORT_TICKET_REPLIED = "support.ticket_replied"
@@ -37,6 +40,7 @@ ALL_EVENTS = frozenset({
     EVENT_SUPPORT_TICKET_CREATED,
     EVENT_SUPPORT_TICKET_REPLIED,
     EVENT_SUPPORT_TICKET_STATUS_CHANGED,
+    EVENT_CHAT_MESSAGE_CREATED,
 })
 
 # ── Navbatlar (topic exchange'ga bog'lanish) ─────────────────────────────────
@@ -49,6 +53,12 @@ SUPPORT_NOTIFICATIONS_PATTERN = "support.*"
 # Notification: buyurtma hodisalari bo'yicha Telegram xabarlari.
 ORDER_NOTIFICATIONS_QUEUE = "notifications.order_events"
 ORDER_NOTIFICATIONS_PATTERN = "order.*"
+# Chat: buyurtma hodisalaridan ishtirokchilarni oladi.
+CHAT_ORDER_EVENTS_QUEUE = "chat.order_events"
+CHAT_ORDER_EVENTS_PATTERN = "order.*"
+# Notification: chatdagi yangi xabar bo'yicha Telegram xabari.
+CHAT_NOTIFICATIONS_QUEUE = "chat.notifications"
+CHAT_NOTIFICATIONS_PATTERN = "chat.*"
 
 
 def build_envelope(event: str, payload: dict[str, Any]) -> dict[str, Any]:

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://logistic.org.uz/contracts/chat.message_created.json",
+  "title": "chat.message_created",
+  "description": "Buyurtma chatida yangi xabar (chat_service chiqaradi).",
+  "type": "object",
+  "required": [
+    "order_id",
+    "conversation_id",
+    "message_id",
+    "kind",
+    "sender_user_id"
+  ],
+  "properties": {
+    "order_id": {
+      "type": "integer"
+    },
+    "conversation_id": {
+      "type": "integer"
+    },
+    "message_id": {
+      "type": "integer"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "preview": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sender_user_id": {
+      "type": "integer"
+    },
+    "sender_role": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "recipient_user_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "recipient_driver_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "recipient_online": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

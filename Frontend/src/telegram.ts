@@ -67,7 +67,8 @@ interface TelegramLocationManager {
 
 interface TelegramWebApp {
   initData: string;
-  initDataUnsafe: { user?: TelegramWebAppUser };
+  /** `start_param` — `t.me/<bot>/<app>?startapp=...` havolasidan (masalan `chat_42`). */
+  initDataUnsafe: { user?: TelegramWebAppUser; start_param?: string };
   platform: string;
   colorScheme: 'light' | 'dark';
   version: string;

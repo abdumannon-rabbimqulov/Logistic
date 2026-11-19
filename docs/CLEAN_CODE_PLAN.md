@@ -54,7 +54,7 @@ Allaqachon olib tashlangan (`3ffb237`):
 | Sana/vaqt formati (`toLocaleString('uz-UZ', …)`) | ~29 joyda | `utils/format.ts: formatTime`, `formatDateTime` |
 
 ## 6. Mikroservis chegarasidagi "ataylab" takrorlar
-- **Qanday takrorlar:** `services/queue.py` va `support_service/queue.py` (RabbitMQ ulanishi); `notification_service/contracts.py` (event nomlari).
+- **Qanday takrorlar:** `services/queue.py` va `support_service/queue.py` (RabbitMQ ulanishi); `chat_service/queue.py` (RabbitMQ ulanishi); event nomlari — `contracts/events.py`.
 - **Nega ataylab:** servislar bir-birining kodini import qilmasligi kerak.
 - **Qilinadi:** kod nusxalari qoladi, lekin hammasi bitta `contracts/` paketidan olinadi (JSON Schema). Shu paket Go'ga o'tishda ham ishlatiladi.
 

@@ -14,7 +14,7 @@ COMPOSE_MON  := docker compose -f docker-compose.monitoring.yml
 
 .DEFAULT_GOAL := help
 .PHONY: help fe dev up down logs ps fe-logs fe-restart fe-rebuild fe-install fe-add fe-shell fe-build fe-lint prod-up prod-down \
-        worker-logs worker-restart worker-scale mq-ui support-logs support-ui support-db notification-logs migrate test \
+        worker-logs worker-restart worker-scale mq-ui support-logs support-ui support-db chat-logs chat-ui chat-db chat-db-create notification-logs migrate test \
         mon-up mon-down mon-restart mon-ps mon-logs mon-collectors mon-alert-test mon-tunnel \
         prod-local prod-smoke prod-logs prod-ps prod-migrate prod-shell deploy
 
@@ -69,6 +69,18 @@ notification-logs: ## Telegram bildirishnomalari servisi (notification) loglari
 
 support-db: ## Support bazasiga psql bilan kirish
 	$(COMPOSE) exec db psql -U postgres -d support_db
+
+chat-logs: ## Chat mikroservizi loglari
+	$(COMPOSE) logs -f chat
+
+chat-ui: ## Chat Swagger UI
+	open http://localhost:8030/docs
+
+chat-db: ## Chat bazasiga psql bilan kirish
+	$(COMPOSE) exec db psql -U postgres -d chat_db
+
+chat-db-create: ## Mavjud Postgres volume'ida chat_db ni yaratish (bir marta)
+	$(COMPOSE) exec db psql -U postgres -c "CREATE DATABASE chat_db"
 
 # ── Migratsiya va testlar ───────────────────────────────────────────────────
 

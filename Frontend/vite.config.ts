@@ -14,6 +14,10 @@ const SUPPORT_TARGET = process.env.VITE_DEV_SUPPORT_TARGET || 'http://localhost:
 // Tracking mikroservisi (jonli GPS WebSocket'lari) — docker-compose `tracking` (8020).
 const TRACKING_TARGET = process.env.VITE_DEV_TRACKING_TARGET || 'http://localhost:8020'
 
+// Chat — alohida mikroservis (chat_service/). Docker tarmog'ida "chat" nomi bilan
+// 8000-portda, host'dan esa 8030-portda ochiq (CHAT_SERVICE_PORT).
+const CHAT_TARGET = process.env.VITE_DEV_CHAT_TARGET || 'http://localhost:8030'
+
 // OSRM — marshrut hisoblash. Buyurtma sahifasidagi Leaflet xaritasi (Leaflet Routing
 // Machine) OSRM'ni BRAUZERDAN chaqiradi, shuning uchun unga nisbiy `/osrm` yo'li
 // kerak. Docker tarmog'ida "osrm" nomi bilan 5000-portda, host'dan esa 5001-portda
@@ -65,6 +69,15 @@ export default defineConfig({
       // `ws: true` — real vaqt oqimi `/support/ws` (yangi javob, holat o'zgarishi).
       '/support': {
         target: SUPPORT_TARGET,
+        changeOrigin: true,
+        ws: true,
+      },
+      // Chat mikroservisi: REST (`/chat/orders/...`), imzolangan media
+      // (`/chat/media/...`) va WebSocket (`/chat/ws`) — hammasi bitta prefiksda,
+      // shuning uchun `ws: true`. SPA'dagi chat sahifasi `/orders/:id/chat` — bu
+      // prefiksga tushmaydi, to'qnashuv yo'q.
+      '/chat': {
+        target: CHAT_TARGET,
         changeOrigin: true,
         ws: true,
       },

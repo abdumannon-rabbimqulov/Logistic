@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import pytest
 
+from contracts import events
 from services import queue
 
 EXPECTED_ROUTING_KEYS = {
@@ -26,6 +27,7 @@ EXPECTED_ROUTING_KEYS = {
     "order.waypoint_changed",
     "order.trip_started",
     "order.notice",
+    "chat.message_created",
 }
 
 
@@ -40,6 +42,7 @@ def test_routing_keys_are_stable():
         queue.EVENT_ORDER_WAYPOINT_CHANGED,
         queue.EVENT_ORDER_TRIP_STARTED,
         queue.EVENT_ORDER_NOTICE,
+        events.EVENT_CHAT_MESSAGE_CREATED,
         queue.EVENT_SUPPORT_TICKET_CREATED,
         queue.EVENT_SUPPORT_TICKET_REPLIED,
         queue.EVENT_SUPPORT_TICKET_STATUS_CHANGED,
@@ -57,7 +60,7 @@ def test_queue_bindings_match_routing_keys():
     for key in EXPECTED_ROUTING_KEYS:
         prefix, _, rest = key.partition(".")
         assert "." not in rest, f"'{key}' ikkitadan ortiq segmentga ega — naqshga tushmaydi"
-        assert prefix in {"order", "support"}
+        assert prefix in {"order", "support", "chat"}
 
     assert queue.SUPPORT_EVENTS_PATTERN == "order.*"
     assert queue.SUPPORT_NOTIFICATIONS_PATTERN == "support.*"

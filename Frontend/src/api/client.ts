@@ -13,6 +13,15 @@ const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/ap
 // (proxy'siz) murojaat qilish kerak bo'lsagina `VITE_SUPPORT_BASE_URL` beriladi.
 const SUPPORT_BASE_URL = (import.meta.env.VITE_SUPPORT_BASE_URL ?? '').replace(/\/$/, '');
 
+// Chat — ikkinchi alohida mikroservis (`chat_service/`, prefiks `/chat`). Support
+// bilan bir xil qoida: standart bo'sh satr — bir origin, proxy orqali.
+const CHAT_BASE_URL = (import.meta.env.VITE_CHAT_BASE_URL ?? '').replace(/\/$/, '');
+
+/** Chat xizmatining bazasi (multipart yuklash va WebSocket manzili uchun). */
+export function chatBaseUrl(): string {
+  return CHAT_BASE_URL;
+}
+
 const ACCESS_KEY = 'yuk_access_token';
 const REFRESH_KEY = 'yuk_refresh_token';
 // Tokenlarni qaysi Telegram foydalanuvchisi (initData user.id) olgani. Telegram WebView
@@ -217,6 +226,13 @@ async function tryRefresh(): Promise<boolean> {
   return result;
 }
 
+/** Access tokenni refresh token bilan yangilaydi (bir vaqtda bitta so'rov).
+ *  `api` wrapper'idan tashqaridagi chaqiruvlar uchun: XHR bilan fayl yuklash va
+ *  WebSocket (4401 bilan yopilganda). */
+export function refreshAccessToken(): Promise<boolean> {
+  return tryRefresh();
+}
+
 interface RequestOptions {
   method?: string;
   body?: unknown;
@@ -295,4 +311,15 @@ export const supportApi = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body, baseUrl: SUPPORT_BASE_URL }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE', baseUrl: SUPPORT_BASE_URL }),
+};
+
+/** Chat mikroservisiga so'rovlar — o'sha token va 401→refresh mantiqi, faqat boshqa baza. */
+export const chatApi = {
+  get: <T>(path: string, query?: RequestOptions['query']) =>
+    request<T>(path, { method: 'GET', query, baseUrl: CHAT_BASE_URL }),
+  post: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'POST', body, baseUrl: CHAT_BASE_URL }),
+  patch: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'PATCH', body, baseUrl: CHAT_BASE_URL }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE', baseUrl: CHAT_BASE_URL }),
 };

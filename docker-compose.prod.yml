@@ -203,6 +203,14 @@ services:
     image: ghcr.io/abdumannon-rabbimqulov/logistika-support:${IMAGE_TAG:-latest}
     container_name: logistika_support_prod
 
+  # Chat — tashqariga ochilmaydi, faqat frontend nginx `/chat`, `/chat/ws` orqali.
+  chat:
+    image: ghcr.io/abdumannon-rabbimqulov/logistika-chat:${IMAGE_TAG:-latest}
+    mem_limit: 256m
+    container_name: logistika_chat_prod
+    ports: !reset []
+    restart: always
+
   # Frontend — ishlab chiqarish rejimi: nginx + `npm run build` bergan statik `dist/`.
   # Bazaviy docker-compose.yml dagi SHU NOMLI dev xizmati (Vite, port 5173) ustiga
   # yoziladi.

@@ -5,6 +5,8 @@ Ishga tushirish:  `python -m notification_service.main`
 O'qiydigan navbatlar (`logistika.events` topic exchange):
   * `support.notifications`      — `support.*` (murojaatlar)
   * `notifications.order_events` — `order.*`   (buyurtma holati, Start, nuqtalar)
+  * `chat.notifications`         — `chat.*`    (buyurtma chatidagi yangi xabar,
+    1 daqiqada birlashtirib — `handlers/chat.py`)
 
 Bazaga ulanmaydi va asosiy kodni import qilmaydi — alohida image (`Dockerfile`).
 Xato bo'lgan xabar `requeue=False` bilan tashlanadi: bildirishnoma kritik bo'lmagan
@@ -24,10 +26,20 @@ from aio_pika.abc import AbstractIncomingMessage
 from contracts import events as c
 from notification_service import config, telegram
 from notification_service.handlers import route
+from notification_service.handlers.chat import ChatCoalescer
+from notification_service.messages import Outgoing
 
 logger = logging.getLogger("notification_service")
 
 PREFETCH = 10
+
+
+async def _send(item: Outgoing) -> None:
+    await telegram.send_message(item.chat_id, item.text, item.reply_markup)
+
+
+# Chat hodisalari holatli (birlashtirish oynasi) — shuning uchun sof `route()` dan tashqarida.
+chat_coalescer = ChatCoalescer(_send)
 
 
 async def handle_message(message: AbstractIncomingMessage) -> None:
@@ -38,6 +50,13 @@ async def handle_message(message: AbstractIncomingMessage) -> None:
             data = envelope.get("data") or {}
         except (ValueError, KeyError, TypeError):
             logger.exception("Yaroqsiz hodisa tashlab yuborildi: %r", message.body[:200])
+            return
+
+        if event == c.EVENT_CHAT_MESSAGE_CREATED:
+            try:
+                await chat_coalescer.handle(data)
+            except Exception:
+                logger.exception("Chat bildirishnomasi yuborilmadi (order #%s)", data.get("order_id"))
             return
 
         try:
@@ -69,6 +88,7 @@ async def main() -> None:
     for name, pattern in (
         (c.SUPPORT_NOTIFICATIONS_QUEUE, c.SUPPORT_NOTIFICATIONS_PATTERN),
         (c.ORDER_NOTIFICATIONS_QUEUE, c.ORDER_NOTIFICATIONS_PATTERN),
+        (c.CHAT_NOTIFICATIONS_QUEUE, c.CHAT_NOTIFICATIONS_PATTERN),
     ):
         q = await channel.declare_queue(name, durable=True)
         await q.bind(exchange, pattern)
@@ -83,6 +103,7 @@ async def main() -> None:
                 await q.cancel(tag)
             except Exception:
                 logger.exception("Consumer'ni to'xtatishda xato: %s", q.name)
+        chat_coalescer.cancel_all()
         await telegram.close()
         await connection.close()
         logger.info("Notification servisi to'xtadi")

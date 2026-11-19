@@ -35,3 +35,6 @@ STAFF_NOTIFY_IDS = _int_set(os.getenv("STAFF_NOTIFY_IDS"))
 WEBAPP_URL = os.getenv("WEBAPP_URL", "")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 TELEGRAM_API = os.getenv("TELEGRAM_API_URL", "https://api.telegram.org")
+# Ixtiyoriy: `https://t.me/<bot>/<app>` — chat bildirishnomasidagi tugma shu havolani
+# `?startapp=chat_<id>` bilan ochadi. Bo'lmasa WEBAPP_URL ga `web_app` tugmasi.
+TELEGRAM_MINIAPP_LINK = os.getenv("TELEGRAM_MINIAPP_LINK", "")
