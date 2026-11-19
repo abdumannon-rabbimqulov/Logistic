@@ -417,10 +417,9 @@ dublikati), `GET /drivers/truck-types/{pk}`, `GET /system/drivers/locations` (WS
 
 ### Sinov hisoblari
 
-```bash
-docker compose exec web python scripts/seed_test_users.py           # yaratish / tiklash
-docker compose exec web python scripts/seed_test_users.py --delete  # o'chirish
-```
+10 ta sinov hisobi bazada allaqachon yaratilgan va SAQLANADI. Ularni yaratgan
+skript (`scripts/seed_test_users.py`) olib tashlangan; kerak bo'lmay qolsa hisoblar
+admin panelidan o'chiriladi (yoki bloklanadi).
 
 Parol hammasida `1111`. Kirish: Mini App / brauzerda telefon + parol.
 
