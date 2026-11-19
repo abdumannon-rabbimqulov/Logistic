@@ -1,19 +1,31 @@
 """contracts.safe_logging: loglarga token va bot sirlari tushmasligi."""
 
+import base64
 import io
+import json
 import logging
 
 from contracts import safe_logging
 from contracts.safe_logging import RedactFilter, redact
 
-BOT = "bot123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw0"
-JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.sig-part_abc"
+
+def _b64(data: dict) -> str:
+    return base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip("=")
+
+
+# Soxta qiymatlar ATAYLAB ish vaqtida yig'iladi: manba kodida to'liq "token" yoki JWT
+# ko'rinishidagi matn bo'lmasin — aks holda sir skanerlari (GitGuardian) uni haqiqiy
+# deb belgilaydi. Bular hech qanday tizimga tegishli emas.
+BOT_SECRET = "Z" * 35
+BOT = f"bot{'1' * 9}:{BOT_SECRET}"
+JWT_SIGNATURE = "not-a-real-signature"
+JWT = ".".join([_b64({"alg": "none", "typ": "JWT"}), _b64({"sub": "0"}), JWT_SIGNATURE])
 
 
 def test_redacts_bot_token_in_telegram_url():
     text = f"HTTP Request: POST https://api.telegram.org/{BOT}/sendMessage \"HTTP/1.1 200 OK\""
     out = redact(text)
-    assert "AAHdq" not in out and "123456789" not in out
+    assert BOT_SECRET not in out and "111111111" not in out
     assert "https://api.telegram.org/bot***/sendMessage" in out
 
 
@@ -45,7 +57,7 @@ def test_filter_redacts_message_and_args():
     log.info("%s - \"WebSocket %s\" [accepted]", "1.2.3.4:5", f"/ws?token={JWT}")
     log.info(f"POST https://api.telegram.org/{BOT}/sendMessage")
     out = stream.getvalue()
-    assert JWT not in out and "AAHdq" not in out
+    assert JWT not in out and BOT_SECRET not in out
     assert "/ws?token=***" in out and "bot***" in out
 
 
