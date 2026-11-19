@@ -20,6 +20,9 @@ services:
       # ya'ni birinchi ishga tushishda bajariladi. Bazasi allaqachon bor bo'lsa:
       #   docker compose exec db psql -U postgres -c "CREATE DATABASE support_db"
       - ./scripts/init-support-db.sh:/docker-entrypoint-initdb.d/10-support-db.sh:ro
+      # Chat mikroservizi bazasi (`chat_db`) — xuddi shu qoida, mavjud volume'da:
+      #   docker compose exec db psql -U postgres -c "CREATE DATABASE chat_db"
+      - ./scripts/init-chat-db.sh:/docker-entrypoint-initdb.d/11-chat-db.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d logistika_db"]
       interval: 5s
@@ -194,6 +197,8 @@ services:
       # Support alohida mikroservis — compose tarmog'ida "support" nomi bilan 8000-portda
       # (host'ga ochilmaydi). Vite `/support` ni (WS bilan birga) shu manzilga uzatadi.
       - VITE_DEV_SUPPORT_TARGET=http://support:8000
+      # Chat ham alohida mikroservis (`/chat`, WebSocket `/chat/ws`) — 8030 tashqi port.
+      - VITE_DEV_CHAT_TARGET=http://chat:8000
       # Buyurtma sahifasidagi Leaflet xaritasi marshrutni brauzerdan so'raydi
       # (`/osrm/...`), Vite esa uni OSRM konteyneriga uzatadi. Konteyner ichida
       # port 5000 (tashqi 5001 emas).
@@ -376,8 +381,55 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  # 11. Chat mikroservizi → http://localhost:8030/docs
+  #
+  # Buyurtma bo'yicha yuk egasi ↔ haydovchi yozishmasi. Support kabi ALOHIDA: o'z
+  # image'i (`chat_service/Dockerfile`), o'z bazasi (`chat_db`, jadvallarni startda
+  # alembic yaratadi), o'z media volume'i (`chat_media`). Asosiy tizim bilan:
+  #   1. `SECRET_KEY` — JWT mahalliy tekshiriladi
+  #   2. RabbitMQ — `order.*` ni tinglaydi (chat ochish/yopish), `chat.message_created`
+  #      chiqaradi (`notification` xizmati Telegram'ga yuboradi)
+  #   3. Redis (alohida DB raqami 3) — WebSocket hodisalari pub/sub
+  #   4. ixtiyoriy `CORE_API_URL` — hodisada haydovchining user_id si bo'lmasa,
+  #      haydovchining O'Z tokeni bilan `GET /drivers/me` (chat_service/access.py)
+  chat:
+    build:
+      context: .
+      dockerfile: chat_service/Dockerfile
+    container_name: logistika_chat
+    ports:
+      - "${CHAT_SERVICE_PORT:-8030}:8000"
+    environment:
+      - CHAT_DB_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/${CHAT_DB_NAME:-chat_db}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=${ALGORITHM:-HS256}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      - CHAT_REDIS_URL=redis://logistika-redis:6379/3
+      - CORE_API_URL=http://web:8000
+      - CHAT_MEDIA_ROOT=/app/uploads/chat
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - TZ=Asia/Tashkent
+    volumes:
+      - chat_media:/app/uploads/chat
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      logistika-redis:
+        condition: service_started
+
 # Barcha volume'lar bitta joyda jamlandi
 volumes:
   postgres_data:
   redis_data:
   rabbitmq_data:
+  # Chat rasmlari/video/ovozlari — konteyner qayta yaratilsa ham saqlanadi.
+  chat_media:

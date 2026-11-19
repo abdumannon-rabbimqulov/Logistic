@@ -185,6 +185,13 @@ services:
   support:
     container_name: logistika_support_prod
 
+  # Chat — tashqariga ochilmaydi, faqat frontend nginx `/chat`, `/chat/ws` orqali.
+  chat:
+    image: logistika_chat:latest
+    container_name: logistika_chat_prod
+    ports: !reset []
+    restart: always
+
   # Frontend — ishlab chiqarish rejimi: nginx + `npm run build` bergan statik `dist/`.
   # Bazaviy docker-compose.yml dagi SHU NOMLI dev xizmati (Vite, port 5173) ustiga
   # yoziladi.
