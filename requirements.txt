@@ -7,7 +7,9 @@ pydantic[email]>=2.0.0
 fastapi>=0.100.0
 bcrypt>=4.0.0
 python-jose[cryptography]>=3.3.0
-uvicorn>=0.23.0
+# [standard]: websockets + uvloop + httptools. Usiz uvicorn WebSocket so'rovini tanimaydi
+# va oddiy HTTP deb 404 qaytaradi (admin jonli xaritasi `/system/drivers/locations/stream`).
+uvicorn[standard]>=0.23.0
 alembic==1.13.1
 python-multipart>=0.0.12
 redis==5.0.4
