@@ -90,10 +90,6 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
-class TelegramWebAppLoginRequest(BaseModel):
-    init_data: str = Field(..., min_length=1)
-
-
 class RoleSelectRequest(BaseModel):
     """Ro'yxatdan o'tishda GUEST o'z rolini birinchi marta tanlaydi (Mini App uchun).
 

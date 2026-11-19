@@ -76,7 +76,7 @@ flowchart LR
 | `services/` | `live_location.py` (Redis GPS), `notifications.py` (Telegram push), `datetime_utils.py` |
 | `config/` | `config.py` (env/engine/AI sozlamalari), `main.py` (FastAPI app), `base.py`/`registry.py` (SQLAlchemy `Base`) |
 | `utils/` | `geo.py`, `security.py`, `validation.py`, `db_types.py`, `admin_alerts.py` |
-| `migrations/`, `scripts/` | Alembic skeleti (bo'sh), geo-seed skriptlari (`seed_uzbekistan_geo.py`) |
+| `migrations/`, `scripts/` | Alembic skeleti (bo'sh), viloyatlar: `services/regions.py` + `services/uz_regions.geojson` |
 
 ---
 

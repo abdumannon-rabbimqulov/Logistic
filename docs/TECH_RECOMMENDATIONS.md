@@ -56,7 +56,7 @@ Ustuvorlik: 🔴 Kritik (production'ga xavf) · 🟡 Muhim (yaqin muddatda kerak
 
 **Muammo:** `Driver.current_region`/`current_city` — erkin matn (`String`). "Toshkent" va "Toshkent shahri" SQL `WHERE`da mos kelmaydi, region-fallback matching (dispatch uchun ham, hozirgi qidiruv uchun ham) noaniq.
 
-**Tavsiya:** `regions`/`districts` ma'lumotnoma jadvallari (`scripts/seed_uzbekistan_geo.py` allaqachon shunga o'xshash seed skripti — shu asosda kengaytirish), `Driver.current_region_id`/`current_district_id` FK, profil formada dropdown (erkin matn input emas). Bu `DISPATCH_SYSTEM_PLAN.md` 3.4-bo'limida ham qayd etilgan.
+**Tavsiya:** `regions`/`districts` ma'lumotnoma jadvallari (viloyat aniqlash allaqachon `services/regions.py` da — shu asosda kengaytirish), `Driver.current_region_id`/`current_district_id` FK, profil formada dropdown (erkin matn input emas). Bu `DISPATCH_SYSTEM_PLAN.md` 3.4-bo'limida ham qayd etilgan.
 
 ---
 

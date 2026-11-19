@@ -273,11 +273,6 @@ class OrderUpdate(BaseModel):
         return validate_pickup_time(value) if value is not None else None
 
 
-class OrderStatusUpdate(BaseModel):
-    """Faqat statusni o'zgartirish uchun qisqartirilgan sxema"""
-    status: OrderStatus
-
-
 class OrderAssignDriver(BaseModel):
     """Haydovchini buyurtmaga biriktirish"""
     driver_id: int = Field(..., gt=0)
