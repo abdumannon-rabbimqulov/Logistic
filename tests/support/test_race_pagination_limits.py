@@ -1,4 +1,4 @@
-"""Javob/yopish poygasi, sahifalash va rate-limit."""
+"""Birinchi xabar poygasi, sahifalash va rate-limit."""
 
 from __future__ import annotations
 
@@ -6,41 +6,28 @@ import asyncio
 
 from sqlalchemy import func, select
 
-from support_service import crud
 from support_service.db import async_session
-from support_service.models import SupportMessage, TicketStatus
+from support_service.models import SupportMessage, SupportTicket
 
 from .conftest import MANAGER, OWNER, STRANGER, auth, new_ticket
 
 
-async def test_reply_waits_for_close_lock_and_is_rejected(client, actors):
-    """Yopish tranzaksiyasi qulfni ushlab turganda javob kutadi va keyin 409 oladi.
-
-    Qulfsiz versiyada javob "ochiq" holatni ko'rib INSERT qilib ulgurardi va
-    yopilgan murojaatda yangi xabar paydo bo'lardi.
-    """
-    ticket = await new_ticket(client)
-    tid = ticket["id"]
-
-    async with async_session() as closer:
-        locked = await crud.get_ticket(closer, tid, for_update=True)
-        locked.status = TicketStatus.CLOSED
-        await closer.flush()  # hali COMMIT yo'q — qator qulflangan
-
-        reply = asyncio.create_task(
-            client.post(f"/support/tickets/{tid}/messages", json={"body": "Kech qoldim"}, headers=auth(OWNER))
-        )
-        await asyncio.sleep(0.3)
-        assert not reply.done(), "javob qulfni kutishi kerak edi"
-
-        await closer.commit()
-
-    resp = await asyncio.wait_for(reply, timeout=5)
-    assert resp.status_code == 409
+async def test_concurrent_first_messages_create_one_chat(client, actors):
+    """Bir vaqtda kelgan birinchi xabarlar ikkita chat yaratmaydi (`user_id` yagona,
+    `INSERT ... ON CONFLICT DO NOTHING` + qulf)."""
+    results = await asyncio.gather(
+        *[
+            client.post("/support/conversation/messages", json={"body": f"#{i}"}, headers=auth(OWNER))
+            for i in range(5)
+        ]
+    )
+    assert [r.status_code for r in results] == [201] * 5
+    assert len({r.json()["ticket_id"] for r in results}) == 1
 
     async with async_session() as db:
-        count = await db.scalar(select(func.count(SupportMessage.id)).where(SupportMessage.ticket_id == tid))
-    assert count == 0
+        chats = await db.scalar(select(func.count(SupportTicket.id)).where(SupportTicket.user_id == OWNER))
+        messages = await db.scalar(select(func.count(SupportMessage.id)))
+    assert chats == 1 and messages == 5
 
 
 async def test_concurrent_replies_all_land(client, actors):
@@ -54,23 +41,29 @@ async def test_concurrent_replies_all_land(client, actors):
     )
     assert [r.status_code for r in results] == [201] * 5
     detail = (await client.get(f"/support/tickets/{tid}", headers=auth(OWNER))).json()
-    assert len(detail["messages"]) == 5
+    # + birinchi savol (murojaat matni ham chatdagi xabar).
+    assert len(detail["messages"]) == 6
 
 
 # ─── Sahifalash ──────────────────────────────────────────────────────────────
 
 
 async def test_ticket_list_has_total(client, actors):
+    # Har foydalanuvchiga bitta chat: bir odam ko'p yozsa ham ro'yxatda bitta.
     for _ in range(3):
         await new_ticket(client, OWNER)
     await new_ticket(client, STRANGER)
+    actors.user(1003, "driver", "Haydovchi")
+    await new_ticket(client, 1003)
 
-    page = (await client.get("/support/tickets?limit=2", headers=auth(OWNER))).json()
+    own = (await client.get("/support/tickets", headers=auth(OWNER))).json()
+    assert own["total"] == 1
+
+    page = (await client.get("/support/tickets?limit=2", headers=auth(MANAGER))).json()
     assert page["total"] == 3
     assert len(page["items"]) == 2
-    page2 = (await client.get("/support/tickets?limit=2&offset=2", headers=auth(OWNER))).json()
+    page2 = (await client.get("/support/tickets?limit=2&offset=2", headers=auth(MANAGER))).json()
     assert len(page2["items"]) == 1
-    assert (await client.get("/support/tickets", headers=auth(MANAGER))).json()["total"] == 4
 
 
 async def test_messages_are_paginated(client, actors):
@@ -100,7 +93,8 @@ async def test_messages_are_paginated(client, actors):
             headers=auth(OWNER),
         )
     ).json()
-    assert [m["body"] for m in oldest["items"]] == ["m0"]
+    # Eng boshida — chatdagi birinchi savol.
+    assert [m["body"] for m in oldest["items"]] == ["📌 Haydovchi kelmadi\nSoat 10 da kelishi kerak edi", "m0"]
     assert oldest["has_more"] is False
 
 

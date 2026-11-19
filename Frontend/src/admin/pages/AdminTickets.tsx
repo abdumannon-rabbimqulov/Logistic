@@ -1,19 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import {
+  ACTIVE_TICKET_STATUSES,
   SUPPORT_ROLE_LABELS,
-  TICKET_PRIORITY_LABELS,
   TICKET_STATUS_LABELS,
   assignTicketToMe,
   formatFileSize,
   getTicket,
-  isTicketClosed,
   listTicketMessages,
   listTickets,
   markTicketRead,
   mergeTicket,
   previewText,
-  replyToTicket,
+  sendSupportMessage,
   supportUrl,
   unassignTicket,
   updateTicketStatus,
@@ -29,15 +28,15 @@ import shared from '../shared.module.css';
 import styles from './AdminTickets.module.css';
 import { formatDateTime } from '../../utils/format';
 
-// Foydalanuvchilarning murojaatlari — support MIKROSERVISIDAN keladi (`/support/...`,
-// `/api` ostida emas). Xodim (admin/manager) hamma murojaatni ko'radi, o'ziga oladi va
-// holatini `allowed_statuses` doirasida o'zgartiradi (support_service/rules.py).
-// Ro'yxat va ochiq murojaat `/support/ws` orqali jonli yangilanadi.
+// Yordam chatlari — support MIKROSERVISIDAN (`/support/...`, `/api` ostida emas).
+// Har foydalanuvchiga BITTA chat: uning barcha savollari shu yerda, tarix bilan.
+// Xodim (admin/manager) hamma chatni ko'radi, o'ziga oladi va holatini (yangi /
+// ko'rib chiqilmoqda / hal qilindi) o'zgartiradi — chat yopilmaydi; foydalanuvchi
+// hal qilingan chatga yozsa u o'zi qayta ochiladi (support_service/rules.py).
+// Ro'yxat va ochiq chat `/support/ws` orqali jonli; javob ham WS orqali yuboriladi.
 
 const PAGE_SIZE = 50;
 const REPLY_MAX_HEIGHT = 200;
-
-const STATUSES: TicketStatus[] = ['open', 'in_progress', 'resolved', 'closed'];
 
 type AssignedFilter = '' | 'me' | 'none';
 
@@ -82,7 +81,7 @@ export function AdminTickets() {
       setRows(result.items);
       setTotal(result.total);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Murojaatlar yuklanmadi');
+      setError(err instanceof ApiError ? err.message : 'Chatlar yuklanmadi');
     } finally {
       setLoading(false);
     }
@@ -122,7 +121,7 @@ export function AdminTickets() {
       // Ochildi — o'qilgan (server `getTicket` da belgiladi).
       patchRow({ ...detail, unread_count: 0 });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Murojaat ochilmadi');
+      toast.error(err instanceof ApiError ? err.message : 'Chat ochilmadi');
     } finally {
       setDetailLoading(false);
     }
@@ -203,7 +202,7 @@ export function AdminTickets() {
     if (!active || !reply.trim() || busy) return;
     setBusy(true);
     try {
-      const { ticket: summary, ...message } = await replyToTicket(active.id, reply.trim());
+      const { ticket: summary, ...message } = await sendSupportMessage({ ticketId: active.id, body: reply.trim() });
       // Server javobdan keyin holatni o'zi o'zgartiradi (OPEN → IN_PROGRESS, mas'ul) —
       // javobdagi `ticket` bilan modal ham, jadval ham darhol yangilanadi.
       setActive((prev) => (prev ? { ...prev, ...summary, messages: appendUnique(prev.messages, message) } : prev));
@@ -212,7 +211,6 @@ export function AdminTickets() {
       toast.success('Javob yuborildi');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Javob yuborilmadi');
-      if (err instanceof ApiError && err.status === 409) void refreshActive(active.id);
     } finally {
       setBusy(false);
     }
@@ -220,7 +218,6 @@ export function AdminTickets() {
 
   async function changeStatus(status: TicketStatus) {
     if (!active || busy || status === active.status) return;
-    if (status === 'closed' && !window.confirm("Murojaat yopilsinmi? Yopilgan murojaat qayta ochilmaydi.")) return;
     setBusy(true);
     try {
       const summary = await updateTicketStatus(active.id, status);
@@ -252,12 +249,14 @@ export function AdminTickets() {
   const columns: Column<TicketListItem>[] = [
     { key: 'id', header: 'ID', width: '70px', render: (r) => `#${r.id}` },
     {
-      key: 'subject',
-      header: 'Mavzu',
+      key: 'user',
+      header: 'Foydalanuvchi',
       render: (r) => (
         <div className={styles.subjectCell}>
           <div className={styles.subjectLine}>
-            <span className={r.unread_count > 0 ? styles.subjectUnread : undefined}>{r.subject}</span>
+            <span className={r.unread_count > 0 ? styles.subjectUnread : undefined}>
+              {r.user_name ?? `#${r.user_id}`} ({roleLabel(r.user_role)})
+            </span>
             {r.unread_count > 0 && (
               <span className={styles.unreadBadge} title="O'qilmagan xabarlar">
                 {r.unread_count}
@@ -269,19 +268,9 @@ export function AdminTickets() {
       ),
     },
     {
-      key: 'user',
-      header: 'Foydalanuvchi',
-      render: (r) => `${r.user_name ?? `#${r.user_id}`} (${roleLabel(r.user_role)})`,
-    },
-    {
       key: 'order_id',
-      header: 'Buyurtma',
+      header: 'Oxirgi buyurtma',
       render: (r) => (r.order_id != null ? `#${r.order_id}` : '—'),
-    },
-    {
-      key: 'priority',
-      header: 'Muhimlik',
-      render: (r) => TICKET_PRIORITY_LABELS[r.priority] ?? r.priority,
     },
     {
       key: 'status',
@@ -313,9 +302,9 @@ export function AdminTickets() {
     <div className={shared.page}>
       <div className={shared.pageHead}>
         <div>
-          <h1 className={shared.pageTitle}>Murojaatlar</h1>
+          <h1 className={shared.pageTitle}>Yordam chatlari</h1>
           <div className={shared.pageSub}>
-            Foydalanuvchilardan kelgan savol va shikoyatlar (support xizmati)
+            Har foydalanuvchiga bitta chat — uning barcha savol va shikoyatlari shu yerda
           </div>
         </div>
       </div>
@@ -331,7 +320,7 @@ export function AdminTickets() {
           }}
         >
           <option value="">Barcha holatlar</option>
-          {STATUSES.map((s) => (
+          {ACTIVE_TICKET_STATUSES.map((s) => (
             <option key={s} value={s}>
               {TICKET_STATUS_LABELS[s]}
             </option>
@@ -347,7 +336,7 @@ export function AdminTickets() {
             setPage(0);
           }}
         >
-          <option value="">Hamma murojaatlar</option>
+          <option value="">Hamma chatlar</option>
           <option value="me">Menga biriktirilgan</option>
           <option value="none">Hech kimga biriktirilmagan</option>
         </select>
@@ -377,13 +366,13 @@ export function AdminTickets() {
         rowKey={(r) => r.id}
         loading={loading}
         error={error}
-        emptyText="Murojaat yo'q"
+        emptyText="Chat yo'q"
         onRowClick={openTicket}
       />
 
       {(active || detailLoading) && (
         <Modal
-          title={active ? `#${active.id} — ${active.subject}` : 'Yuklanmoqda...'}
+          title={active ? `${active.user_name ?? `Foydalanuvchi #${active.user_id}`} — chat #${active.id}` : 'Yuklanmoqda...'}
           onClose={() => setActive(null)}
           footer={
             active && (
@@ -393,7 +382,7 @@ export function AdminTickets() {
                     className={shared.select}
                     value={active.status}
                     disabled={busy || active.allowed_statuses.length === 0}
-                    aria-label="Murojaat holati"
+                    aria-label="Chat holati"
                     onChange={(e) => void changeStatus(e.target.value as TicketStatus)}
                   >
                     {[active.status, ...active.allowed_statuses].map((s) => (
@@ -402,11 +391,9 @@ export function AdminTickets() {
                       </option>
                     ))}
                   </select>
-                  {active.status !== 'closed' && (
-                    <button className={shared.ghostBtn} disabled={busy} onClick={toggleAssign}>
-                      {active.assigned_to === userId ? "Bo'shatish" : "O'zimga olish"}
-                    </button>
-                  )}
+                  <button className={shared.ghostBtn} disabled={busy} onClick={toggleAssign}>
+                    {active.assigned_to === userId ? "Bo'shatish" : "O'zimga olish"}
+                  </button>
                 </div>
                 <button className={shared.ghostBtn} onClick={() => setActive(null)}>
                   Yopish
@@ -421,23 +408,17 @@ export function AdminTickets() {
             <div className={styles.detail}>
               <div className={styles.detailMeta}>
                 {active.user_name ?? `Foydalanuvchi #${active.user_id}`} ({roleLabel(active.user_role)}, id{' '}
-                {active.user_id}) · {TICKET_PRIORITY_LABELS[active.priority]}
-                {active.order_id != null && ` · Buyurtma #${active.order_id}`} ·{' '}
+                {active.user_id})
+                {active.order_id != null && ` · Oxirgi buyurtma #${active.order_id}`} · Chat ochilgan:{' '}
                 {formatDateTime(active.created_at)}
                 {' · '}Mas'ul: {active.assigned_name ?? (active.assigned_to != null ? `#${active.assigned_to}` : '—')}
               </div>
 
               <div className={styles.thread} role="log" aria-live="polite" aria-label="Yozishma">
-                {active.has_more_messages ? (
+                {active.has_more_messages && (
                   <button className={styles.olderBtn} onClick={loadOlder} disabled={loadingOlder}>
                     {loadingOlder ? 'Yuklanmoqda...' : 'Oldingi xabarlar'}
                   </button>
-                ) : (
-                  <div className={styles.userMsg}>
-                    <div className={styles.msgAuthor}>{active.user_name ?? 'Foydalanuvchi'}</div>
-                    <div className={styles.msgBody}>{active.body}</div>
-                    <div className={styles.msgTime}>{formatDateTime(active.created_at)}</div>
-                  </div>
                 )}
 
                 {active.messages.map((m) =>
@@ -450,7 +431,10 @@ export function AdminTickets() {
                       key={m.id}
                       className={m.author_user_id === active.user_id ? styles.userMsg : styles.staffMsg}
                     >
-                      <div className={styles.msgAuthor}>{authorLabel(m, active)}</div>
+                      <div className={styles.msgAuthor}>
+                        {authorLabel(m, active)}
+                        {m.order_id != null && ` · Buyurtma #${m.order_id}`}
+                      </div>
                       {m.body && <div className={styles.msgBody}>{m.body}</div>}
                       {m.attachments.map((att) => {
                         const url = supportUrl(att.url);
@@ -473,39 +457,36 @@ export function AdminTickets() {
                 <div ref={threadEndRef} />
               </div>
 
-              {isTicketClosed(active.status) ? (
+              {(active.status === 'resolved' || active.status === 'closed') && (
                 <div className={styles.closedNote}>
-                  {active.status === 'closed'
-                    ? "Murojaat yopilgan — unga yozib bo'lmaydi va qayta ochilmaydi."
-                    : 'Murojaat hal qilingan — javob yozish uchun holatini "Ko’rib chiqilmoqda" ga qaytaring.'}
-                </div>
-              ) : (
-                <div className={styles.replyBox}>
-                  <textarea
-                    ref={replyRef}
-                    className={styles.replyInput}
-                    rows={2}
-                    maxLength={5000}
-                    value={reply}
-                    placeholder="Javob yozing... (Ctrl+Enter — yuborish)"
-                    aria-label="Javob matni"
-                    onChange={(e) => setReply(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                        e.preventDefault();
-                        void sendReply();
-                      }
-                    }}
-                  />
-                  <button
-                    className={shared.primaryBtn}
-                    disabled={!reply.trim() || busy}
-                    onClick={sendReply}
-                  >
-                    {busy ? 'Yuborilmoqda...' : 'Javob yuborish'}
-                  </button>
+                  Chat hal qilingan deb belgilangan. Foydalanuvchi yana yozsa — o'zi qayta ochiladi.
                 </div>
               )}
+              <div className={styles.replyBox}>
+                <textarea
+                  ref={replyRef}
+                  className={styles.replyInput}
+                  rows={2}
+                  maxLength={5000}
+                  value={reply}
+                  placeholder="Javob yozing... (Ctrl+Enter — yuborish)"
+                  aria-label="Javob matni"
+                  onChange={(e) => setReply(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                      e.preventDefault();
+                      void sendReply();
+                    }
+                  }}
+                />
+                <button
+                  className={shared.primaryBtn}
+                  disabled={!reply.trim() || busy}
+                  onClick={sendReply}
+                >
+                  {busy ? 'Yuborilmoqda...' : 'Javob yuborish'}
+                </button>
+              </div>
             </div>
           )}
         </Modal>

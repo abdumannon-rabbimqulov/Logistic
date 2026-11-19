@@ -307,9 +307,19 @@ xizmat birinchi ko'tarilishidan qat'i nazar xabar yo'qolmaydi.
 - Mustaqil FastAPI ilovasi, o'z `Dockerfile` va **o'z bazasi** (`support_db`).
 - Asosiy loyiha kodini ham, bazasini ham **import qilmaydi**. Bog'lovchi faqat:
   umumiy `SECRET_KEY` (JWT tekshirish) va RabbitMQ `logistika.events`.
-- Telegram'ga o'zi yozmaydi — "ticket yaratildi" hodisasini e'lon qiladi,
+- **Har foydalanuvchiga bitta yordam chati** (`support_tickets.user_id` yagona):
+  alohida "murojaat" ochilmaydi, barcha savollar shu chatda. Chat birinchi xabar
+  bilan yaratiladi va yopilmaydi; holat (yangi / ko'rib chiqilmoqda / hal qilindi)
+  faqat xodimlarning ish navbati uchun — foydalanuvchi hal qilingan chatga yozsa,
+  chat o'zi qayta ochiladi. Eski murojaatlar `0003_one_chat_per_user` migratsiyasida
+  birlashtirilgan (mavzu + matn → chatdagi xabar).
+- Foydalanuvchi: `/support/conversation...`; xodim: `/support/tickets/...` (barcha chatlar).
+- Real vaqt — `/support/ws`: hodisalar va matnli xabar yuborish (`message.send` →
+  `message.ack`). WS javobi kelmasa mijoz o'sha `client_id` bilan REST orqali yuboradi —
+  server takrorni yozmaydi.
+- Telegram'ga o'zi yozmaydi — "chat yaratildi" / "yangi xabar" hodisalarini e'lon qiladi,
   bildirishnomani `notification` yuboradi.
-- Sxema startda `create_all` bilan yaratiladi.
+- Sxema — o'z alembic zanjiri (`support_service/migrations`), konteyner startida `upgrade head`.
 
 ---
 

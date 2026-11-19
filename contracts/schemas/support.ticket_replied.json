@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://logistic.org.uz/contracts/support.ticket_replied.json",
   "title": "support.ticket_replied",
-  "description": "Murojaatga yangi xabar.",
+  "description": "Yordam chatiga yangi xabar (birinchi xabar — support.ticket_created).",
   "type": "object",
   "required": [
     "ticket_id",
@@ -72,6 +72,10 @@
         "integer",
         "null"
       ]
+    },
+    "reopened": {
+      "type": "boolean",
+      "description": "Egasi hal qilingan chatga yozdi va chat qayta ochildi."
     }
   },
   "additionalProperties": true

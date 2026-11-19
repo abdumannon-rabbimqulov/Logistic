@@ -3,45 +3,68 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Iterable, Optional, Sequence
 
-from sqlalchemy import and_, func, select, update
+from sqlalchemy import and_, func, select, tuple_, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from support_service.models import (
-    CLOSED_STATUSES,
+    CHAT_SUBJECT,
+    DONE_STATUSES,
     SupportAttachment,
     SupportMessage,
     SupportTicket,
     TicketStatus,
 )
-from support_service.schemas import TicketCreate
 
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
-async def create_ticket(
+async def get_conversation(
+    db: AsyncSession, user_id: int, *, for_update: bool = False
+) -> Optional[SupportTicket]:
+    """Foydalanuvchining yagona chati (hali yozmagan bo'lsa — None)."""
+    stmt = select(SupportTicket).where(SupportTicket.user_id == user_id)
+    if for_update:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def ensure_conversation(
     db: AsyncSession,
-    data: TicketCreate,
     *,
     user_id: int,
     user_role: Optional[str],
     user_name: Optional[str],
-) -> SupportTicket:
-    ticket = SupportTicket(
-        user_id=user_id,
-        user_role=user_role,
-        user_name=user_name,
-        order_id=data.order_id,
-        subject=data.subject,
-        body=data.body,
-        priority=data.priority,
-        status=TicketStatus.OPEN,
-        # Muallif o'z murojaatini "o'qigan" — undan oldingi hech narsa o'qilmagan emas.
-        user_last_read_at=func.now(),
+) -> tuple[SupportTicket, bool]:
+    """Chatni qulf bilan qaytaradi; yo'q bo'lsa yaratadi. (chat, yangi_yaratildimi).
+
+    `INSERT ... ON CONFLICT DO NOTHING` — bir vaqtda kelgan ikki birinchi xabar
+    ikkita chat yaratmaydi (`user_id` yagona), ikkinchisi mavjudini oladi.
+    """
+    inserted = await db.execute(
+        pg_insert(SupportTicket)
+        .values(
+            user_id=user_id,
+            user_role=user_role,
+            user_name=user_name,
+            subject=CHAT_SUBJECT,
+            body="",
+            status=TicketStatus.OPEN,
+            # Egasi o'z chatini "o'qigan" — undan oldingi hech narsa o'qilmagan emas.
+            user_last_read_at=func.now(),
+        )
+        .on_conflict_do_nothing(index_elements=[SupportTicket.user_id])
+        .returning(SupportTicket.id)
     )
-    db.add(ticket)
-    await db.commit()
-    await db.refresh(ticket)
-    return ticket
+    created = inserted.scalar_one_or_none() is not None
+    ticket = await get_conversation(db, user_id, for_update=True)
+    assert ticket is not None
+    # Ism/rol o'zgargan bo'lsa — xodim ro'yxatida dolzarb ko'rinsin.
+    if user_name and ticket.user_name != user_name:
+        ticket.user_name = user_name
+    if user_role and ticket.user_role != user_role:
+        ticket.user_role = user_role
+    return ticket, created
 
 
 async def get_ticket(
@@ -144,17 +167,9 @@ async def unread_counts(
         )
         .group_by(SupportMessage.ticket_id)
     )
-    counts = {tid: int(n) for tid, n in result.all()}
-    if staff:
-        # Xodim hali hech ochmagan murojaatning asosiy matni ham o'qilmagan.
-        never_read = await db.execute(
-            select(SupportTicket.id).where(
-                SupportTicket.id.in_(ids), SupportTicket.staff_last_read_at.is_(None)
-            )
-        )
-        for (tid,) in never_read.all():
-            counts[tid] = counts.get(tid, 0) + 1
-    return counts
+    # Chatda alohida "asosiy matn" yo'q — birinchi savol ham oddiy xabar, shuning uchun
+    # hisob faqat xabarlardan (ilgari ochilmagan murojaatga +1 qo'shilardi).
+    return {tid: int(n) for tid, n in result.all()}
 
 
 async def unread_summary(
@@ -162,10 +177,11 @@ async def unread_summary(
 ) -> tuple[int, int]:
     """(o'qilmagan xabari bor murojaatlar soni, o'qilmagan xabarlar soni).
 
-    Xodim uchun yopilgan murojaatlar hisobga olinmaydi — ular ish navbatida emas.
+    Xodim uchun hal qilingan chatlar hisobga olinmaydi — ular ish navbatida emas
+    (foydalanuvchi yana yozsa chat qayta ochiladi va hisobga tushadi).
     """
     if staff:
-        scope = [SupportTicket.status.notin_(list(CLOSED_STATUSES))]
+        scope = [SupportTicket.status.notin_(list(DONE_STATUSES))]
     else:
         scope = [SupportTicket.user_id == user_id]
 
@@ -176,12 +192,6 @@ async def unread_summary(
         .group_by(SupportMessage.ticket_id)
     )
     counts = {tid: int(n) for tid, n in msg_rows.all()}
-    if staff:
-        never_read = await db.execute(
-            select(SupportTicket.id).where(*scope, SupportTicket.staff_last_read_at.is_(None))
-        )
-        for (tid,) in never_read.all():
-            counts[tid] = counts.get(tid, 0) + 1
     return len(counts), sum(counts.values())
 
 
@@ -189,13 +199,13 @@ async def last_messages(db: AsyncSession, ticket_ids: Iterable[int]) -> dict[int
     ids = list(ticket_ids)
     if not ids:
         return {}
-    latest = (
-        select(func.max(SupportMessage.id).label("id"))
+    # Vaqt bo'yicha eng oxirgisi (birlashtirilgan eski xabarlarning id'si yangi bo'lishi mumkin).
+    result = await db.execute(
+        select(SupportMessage)
         .where(SupportMessage.ticket_id.in_(ids))
-        .group_by(SupportMessage.ticket_id)
-        .subquery()
+        .distinct(SupportMessage.ticket_id)
+        .order_by(SupportMessage.ticket_id, SupportMessage.created_at.desc(), SupportMessage.id.desc())
     )
-    result = await db.execute(select(SupportMessage).join(latest, SupportMessage.id == latest.c.id))
     return {m.ticket_id: m for m in result.scalars().all()}
 
 
@@ -206,11 +216,22 @@ async def list_messages(
     before_id: Optional[int] = None,
     limit: int = 50,
 ) -> tuple[list[SupportMessage], bool]:
-    """Oxirgi `limit` ta xabar (yoki `before_id` dan oldingilari), o'sish tartibida."""
+    """Oxirgi `limit` ta xabar (yoki `before_id` xabaridan oldingilari), vaqt bo'yicha o'sish tartibida.
+
+    Tartib — `(created_at, id)`: chatga birlashtirilgan eski murojaatlarning matni
+    yangi id bilan, lekin asl vaqti bilan yozilgan (migratsiya 0003).
+    """
     stmt = select(SupportMessage).where(SupportMessage.ticket_id == ticket_id)
     if before_id is not None:
-        stmt = stmt.where(SupportMessage.id < before_id)
-    result = await db.execute(stmt.order_by(SupportMessage.id.desc()).limit(limit + 1))
+        anchor = (
+            select(SupportMessage.created_at)
+            .where(SupportMessage.id == before_id, SupportMessage.ticket_id == ticket_id)
+            .scalar_subquery()
+        )
+        stmt = stmt.where(tuple_(SupportMessage.created_at, SupportMessage.id) < tuple_(anchor, before_id))
+    result = await db.execute(
+        stmt.order_by(SupportMessage.created_at.desc(), SupportMessage.id.desc()).limit(limit + 1)
+    )
     rows = list(result.scalars().all())
     has_more = len(rows) > limit
     rows = rows[:limit]
@@ -229,9 +250,14 @@ async def add_message(
     is_system: bool = False,
     is_staff: bool = False,
     attachments: Sequence[SupportAttachment] = (),
+    order_id: Optional[int] = None,
     commit: bool = True,
 ) -> SupportMessage:
-    """Xabar qo'shadi. Chaqiruvchi `get_ticket(for_update=True)` bilan qulf olgan bo'lishi kerak."""
+    """Xabar qo'shadi. Chaqiruvchi chatni qulf bilan (`for_update=True`) olgan bo'lishi kerak.
+
+    Egasi "hal qilingan" chatga yozsa — chat qayta ochiladi (OPEN): chat yopilmaydi,
+    yangi savol xodimlarning ish navbatiga qaytadi.
+    """
     message = SupportMessage(
         ticket_id=ticket.id,
         author_user_id=author_user_id,
@@ -239,12 +265,16 @@ async def add_message(
         author_name=author_name,
         is_system=is_system,
         body=body,
+        order_id=order_id,
         attachments=list(attachments),
     )
     db.add(message)
 
     now = func.now()
     ticket.last_message_at = now  # `updated_at` ham onupdate orqali yangilanadi
+    if order_id is not None:
+        # Shu buyurtmaning holat hodisalari endi shu chatga tizim izohi bo'lib tushadi.
+        ticket.order_id = order_id
     if not is_system:
         if is_staff:
             ticket.staff_last_read_at = now
@@ -257,6 +287,8 @@ async def add_message(
                 ticket.assigned_name = author_name
         elif author_user_id == ticket.user_id:
             ticket.user_last_read_at = now
+            if ticket.status in DONE_STATUSES:
+                ticket.status = TicketStatus.OPEN
 
     if commit:
         await db.commit()
@@ -295,13 +327,11 @@ async def assign(
 
 
 async def list_open_tickets_for_order(db: AsyncSession, order_id: int) -> Sequence[SupportTicket]:
-    """Buyurtma hodisasi kelganda tizim izohi qo'shiladigan murojaatlar (qulf bilan)."""
+    """Buyurtma hodisasi kelganda tizim izohi qo'shiladigan chatlar (qulf bilan):
+    oxirgi marta shu buyurtma haqida yozilgan chatlar. Tizim izohi chatni qayta ochmaydi."""
     result = await db.execute(
         select(SupportTicket)
-        .where(
-            SupportTicket.order_id == order_id,
-            SupportTicket.status.notin_(list(CLOSED_STATUSES)),
-        )
+        .where(SupportTicket.order_id == order_id)
         .order_by(SupportTicket.id)
         .with_for_update()
     )

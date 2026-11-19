@@ -10,9 +10,8 @@ import { DriverHomePage } from './DriverHomePage';
 import { DriverOrdersPage } from './DriverOrdersPage';
 import { DriverProfilePage } from './DriverProfilePage';
 import { LiveMapPage } from './LiveMapPage';
-import { MessagesPage } from './MessagesPage';
 import { OrderChatPage } from './OrderChatPage';
-import { TicketPage } from './TicketPage';
+import { SupportChatPage } from './SupportChatPage';
 
 interface Props {
   initialCabinet: DriverCabinet;
@@ -38,10 +37,10 @@ export function DriverApp({ initialCabinet }: Props) {
         <Route path="/orders" element={<DriverOrdersPage />} />
         <Route path="/earnings" element={<DriverEarningsPage />} />
         <Route path="/map" element={<LiveMapPage role="driver" />} />
-        {/* Murojaatlar haydovchi uchun ham ochiq — support har qanday autentifikatsiyalangan
+        {/* Yordam chati haydovchi uchun ham ochiq — support har qanday autentifikatsiyalangan
             foydalanuvchini qabul qiladi (get_principal), rol farqi yo'q. */}
-        <Route path="/messages" element={<MessagesPage />} />
-        <Route path="/messages/:ticketId" element={<TicketPage />} />
+        <Route path="/messages" element={<SupportChatPage />} />
+        <Route path="/messages/:ticketId" element={<Navigate to="/messages" replace />} />
         <Route path="/profile" element={<DriverProfilePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

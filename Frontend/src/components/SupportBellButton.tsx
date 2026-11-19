@@ -4,12 +4,12 @@ import { getUnreadSummary, useSupportEvents } from '../api/support';
 import { BellIcon } from './icons';
 import styles from './SupportBellButton.module.css';
 
-// Murojaatlar (support) bo'limiga yagona kirish nuqtasi — ekranning yuqori o'ng
+// Yordam chatiga (support) yagona kirish nuqtasi — ekranning yuqori o'ng
 // burchagidagi qo'ng'iroq tugmasi. Pastki menyuda "Xabarlar" bandi yo'q
 // (`BottomNav.tsx`), shuning uchun sender ko'radigan har bir asosiy ekranda shu
 // tugma turishi kerak — aks holda bo'lim faqat bosh sahifadan ochilardi.
 //
-// Badge — javobi o'qilmagan murojaatlar soni (`GET /support/unread`). Support WS
+// Badge — yordam chatidagi o'qilmagan javoblar soni (`GET /support/unread`). Support WS
 // hodisasi kelganda qayta so'raladi (bir nechta hodisa ketma-ket kelsa — bitta so'rov).
 
 export function SupportBellButton() {
@@ -35,7 +35,7 @@ export function SupportBellButton() {
     }
   });
 
-  const label = unread > 0 ? `Murojaatlar, ${unread} ta o'qilmagan javob` : 'Murojaatlar';
+  const label = unread > 0 ? `Yordam xizmati, ${unread} ta o'qilmagan javob` : 'Yordam xizmati';
 
   return (
     <button className={styles.iconCircle} onClick={() => navigate('/messages')} aria-label={label}>

@@ -1,13 +1,15 @@
-"""Murojaat holati o'tish qoidalari — bitta joyda, router va testlar uchun.
+"""Chat holati o'tish qoidalari — bitta joyda, router va testlar uchun.
 
-    open ──► in_progress ──► resolved ──► closed
-      │           ▲  │           │ ▲
-      │           └──┼───────────┘ │   (xodim hal qilinganini qayta ochishi mumkin)
-      └──────────────┴─────────────┴──► closed   (yakuniy, qayta ochilmaydi)
+Har foydalanuvchiga bitta chat (`models.SupportTicket`). Holat — xodimlarning
+ish navbati uchun, chat hech qachon yopilmaydi:
 
-- CLOSED — yakuniy holat: hech kim qayta ocholmaydi (yangi murojaat ochiladi).
-- Foydalanuvchi (murojaat egasi) faqat o'z murojaatini YOPA oladi.
-- Xodim yuqoridagi strelkalar bo'yicha istalgan o'tishni qila oladi.
+    open ◄──► in_progress ◄──► resolved ──► (foydalanuvchi yozsa) ──► open
+
+- Holatni faqat xodim o'zgartiradi (uchala holat orasida erkin).
+- Foydalanuvchi holatni o'zgartirmaydi: "hal qilingan" chatga yozsa, chat
+  avtomatik qayta ochiladi (`crud.add_message`).
+- CLOSED — eski qiymat (migratsiya 0003 gacha). Unga o'tib bo'lmaydi; shu
+  holatda qolgan yozuvni xodim istalgan holatga o'tkaza oladi.
 """
 
 from __future__ import annotations
@@ -16,24 +18,15 @@ from support_service.models import TicketStatus
 
 S = TicketStatus
 
-STAFF_TRANSITIONS: dict[TicketStatus, frozenset[TicketStatus]] = {
-    S.OPEN: frozenset({S.IN_PROGRESS, S.RESOLVED, S.CLOSED}),
-    S.IN_PROGRESS: frozenset({S.OPEN, S.RESOLVED, S.CLOSED}),
-    S.RESOLVED: frozenset({S.IN_PROGRESS, S.CLOSED}),
-    S.CLOSED: frozenset(),
-}
+_ACTIVE = (S.OPEN, S.IN_PROGRESS, S.RESOLVED)
 
-OWNER_TRANSITIONS: dict[TicketStatus, frozenset[TicketStatus]] = {
-    S.OPEN: frozenset({S.CLOSED}),
-    S.IN_PROGRESS: frozenset({S.CLOSED}),
-    S.RESOLVED: frozenset({S.CLOSED}),
-    S.CLOSED: frozenset(),
+STAFF_TRANSITIONS: dict[TicketStatus, frozenset[TicketStatus]] = {
+    status: frozenset(s for s in _ACTIVE if s != status) for status in S
 }
 
 
 def allowed_transitions(current: TicketStatus, *, is_staff: bool) -> frozenset[TicketStatus]:
-    table = STAFF_TRANSITIONS if is_staff else OWNER_TRANSITIONS
-    return table[current]
+    return STAFF_TRANSITIONS[current] if is_staff else frozenset()
 
 
 def can_transition(current: TicketStatus, new: TicketStatus, *, is_staff: bool) -> bool:

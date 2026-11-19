@@ -591,11 +591,13 @@ export interface PriceEstimateResponse {
   options: PriceEstimateOption[];
 }
 
-// ─── Support mikroservisi (murojaatlar) ──────────────────────────────────────
+// ─── Support mikroservisi (yordam chati) ─────────────────────────────────────
 // Manba: support_service/schemas.py va support_service/models.py.
+// Har foydalanuvchiga BITTA chat (tarixiy nomi "ticket"): barcha savollar shu yerda.
 // DIQQAT: bu xizmat asosiy app'dan alohida — yo'llari `/api` ostida emas, `/support`
 // prefiksida va u faqat `SECRET_KEY` hamda RabbitMQ orqali bog'langan.
 
+/** `closed` — eski qiymat (birlashtirishdan oldingi), endi o'rnatilmaydi. */
 export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type AttachmentKind = 'image' | 'video' | 'document';
@@ -620,6 +622,8 @@ export interface TicketMessage {
   author_name: string | null;
   is_system: boolean;
   body: string;
+  /** Xabar qaysi buyurtma haqida (buyurtma sahifasidan yozilganda). */
+  order_id: number | null;
   created_at: string;
   attachments: TicketAttachment[];
 }
@@ -687,19 +691,20 @@ export interface SupportUnreadSummary {
 /** WS orqali keladigan murojaat ko'rinishi — ko'ruvchiga bog'liq maydonlarsiz. */
 export type TicketPublic = Omit<TicketListItem, 'unread_count' | 'allowed_statuses'>;
 
+/** `GET /support/conversation` — o'z chatim; hali yozmagan bo'lsam `null`. */
+export interface SupportConversationResponse {
+  conversation: TicketDetail | null;
+}
+
 export type SupportSocketEvent =
   | { type: 'hello'; user_id: number }
   | { type: 'ping' }
   | { type: 'message.created'; ticket_id: number; message: TicketMessage; ticket: TicketPublic }
   | { type: 'ticket.created'; ticket: TicketPublic }
-  | { type: 'ticket.updated'; ticket: TicketPublic };
-
-export interface TicketCreateInput {
-  subject: string;
-  body: string;
-  order_id?: number;
-  priority?: TicketPriority;
-}
+  | { type: 'ticket.updated'; ticket: TicketPublic }
+  // WS orqali yuborilgan xabarga javob (`client_id` — yuboruvchining o'z belgisi).
+  | { type: 'message.ack'; client_id: string; message: TicketMessageCreated }
+  | { type: 'message.error'; client_id: string; status: number; detail: unknown };
 
 // ─── Menejer paneli ──────────────────────────────────────────────────────────
 // Manba: manager/schemas.py. DIQQAT: bu sxemalarda NARX MAYDONLARI ATAYLAB YO'Q —

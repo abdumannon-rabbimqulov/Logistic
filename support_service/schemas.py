@@ -17,6 +17,9 @@ from support_service.models import (
 
 
 class TicketCreate(BaseModel):
+    """ESKI ilova versiyalari uchun: endi alohida murojaat ochilmaydi — mavzu va matn
+    foydalanuvchining yagona chatiga xabar bo'lib tushadi (`POST /support/tickets`)."""
+
     subject: str = Field(..., min_length=3, max_length=200)
     body: str = Field(..., min_length=5, max_length=5000)
     order_id: Optional[int] = Field(
@@ -27,6 +30,11 @@ class TicketCreate(BaseModel):
 
 class MessageCreate(BaseModel):
     body: str = Field(..., min_length=1, max_length=5000)
+    # Xabar qaysi buyurtma haqida (buyurtma sahifasidan kelinganda). Egalik core'da tekshiriladi.
+    order_id: Optional[int] = Field(None, gt=0)
+    # Mijoz belgisi: WS'da javob kelmay REST bilan qayta yuborilganda xabar ikki marta
+    # yozilmasin (`router._post_message`, 10 daqiqa eslab qolinadi).
+    client_id: Optional[str] = Field(None, max_length=64)
 
 
 class TicketStatusUpdate(BaseModel):
@@ -51,6 +59,7 @@ class MessageResponse(BaseModel):
     author_name: Optional[str] = None
     is_system: bool
     body: str
+    order_id: Optional[int] = None
     created_at: datetime
     attachments: list[AttachmentResponse] = []
 
@@ -114,6 +123,13 @@ class MessageCreated(MessageResponse):
     ticket: TicketListItem
 
 
+class ConversationResponse(BaseModel):
+    """`GET /support/conversation`: foydalanuvchining yagona chati; hali yozmagan bo'lsa — null
+    (chat birinchi xabar bilan yaratiladi)."""
+
+    conversation: Optional[TicketDetail] = None
+
+
 class UnreadSummary(BaseModel):
     tickets: int
     messages: int
@@ -146,6 +162,7 @@ def message_out(msg: SupportMessage) -> MessageResponse:
         author_name=msg.author_name,
         is_system=msg.is_system,
         body=msg.body,
+        order_id=msg.order_id,
         created_at=msg.created_at,
         attachments=[attachment_out(a) for a in msg.attachments],
     )

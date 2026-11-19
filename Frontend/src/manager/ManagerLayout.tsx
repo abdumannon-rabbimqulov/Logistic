@@ -6,7 +6,7 @@ import styles from '../admin/AdminLayout.module.css';
 
 const NAV = [
   { to: '/manager/orders', label: 'Buyurtmalar', Icon: OrdersIcon, end: false },
-  { to: '/manager/tickets', label: 'Murojaatlar', Icon: TicketsIcon, end: false },
+  { to: '/manager/tickets', label: 'Yordam chatlari', Icon: TicketsIcon, end: false },
   { to: '/manager/profile', label: 'Profil', Icon: ProfileIconAdmin, end: false },
 ];
 

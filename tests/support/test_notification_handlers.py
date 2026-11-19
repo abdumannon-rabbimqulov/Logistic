@@ -79,4 +79,6 @@ def test_status_change_by_owner_is_silent():
     base = {"ticket_id": 5, "ticket_user_id": OWNER, "new_status": "closed", "subject": "S"}
     assert h.handle("support.ticket_status_changed", {**base, "changed_by_user_id": OWNER}) == []
     out = h.handle("support.ticket_status_changed", {**base, "changed_by_user_id": MANAGER})
-    assert _ids(out) == [OWNER] and "yopildi" in out[0].text
+    assert _ids(out) == [OWNER] and "hal qilindi" in out[0].text
+    # "Ochiq" ga qaytarish — foydalanuvchiga shovqin emas.
+    assert h.handle("support.ticket_status_changed", {**base, "new_status": "open", "changed_by_user_id": MANAGER}) == []

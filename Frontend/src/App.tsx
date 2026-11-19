@@ -8,10 +8,9 @@ import { HomePage } from './pages/HomePage';
 import { LiveMapPage } from './pages/LiveMapPage';
 import { LocalLoginPage } from './pages/LocalLoginPage';
 import { ManagerApp } from './manager/ManagerApp';
-import { MessagesPage } from './pages/MessagesPage';
 import { OrderChatPage } from './pages/OrderChatPage';
 import { OrderPage } from './pages/OrderPage';
-import { TicketPage } from './pages/TicketPage';
+import { SupportChatPage } from './pages/SupportChatPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
 import { OrdersListPage } from './pages/OrdersListPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -28,8 +27,9 @@ function SenderApp() {
       <Route path="/orders/:orderId" element={<OrderTrackingPage />} />
       <Route path="/orders/:orderId/chat" element={<OrderChatPage />} />
       <Route path="/map" element={<LiveMapPage role="sender" />} />
-      <Route path="/messages" element={<MessagesPage />} />
-      <Route path="/messages/:ticketId" element={<TicketPage />} />
+      {/* Yordam xizmati — har foydalanuvchiga bitta chat. Eski `/messages/:id` havolalari ham shu yerga. */}
+      <Route path="/messages" element={<SupportChatPage />} />
+      <Route path="/messages/:ticketId" element={<Navigate to="/messages" replace />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

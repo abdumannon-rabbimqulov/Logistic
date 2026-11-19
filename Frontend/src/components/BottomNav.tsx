@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import styles from './BottomNav.module.css';
 import { HomeNavIcon, MapNavIcon, OrdersNavIcon, ProfileIcon } from './icons';
 
-// Murojaatlar (`/messages`) ATAYLAB bu yerda yo'q: unga kirish yuqori o'ng
+// Yordam chati (`/messages`) ATAYLAB bu yerda yo'q: unga kirish yuqori o'ng
 // burchakdagi qo'ng'iroq tugmasi orqali beriladi (`TopBarActions`). Shu bilan
 // haydovchi menyusi bilan ham bir xil bo'ladi — u yerda ham pastda "Xabarlar"
 // yo'q (`DriverBottomNav.tsx`), murojaatlar profil ichidan ochiladi.

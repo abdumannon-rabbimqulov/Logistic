@@ -163,15 +163,15 @@ export function ProfilePage() {
         )}
         {saved && <div className={styles.savedHint}>Saqlandi</div>}
 
-        {/* Murojaatlar — haydovchi profilidagi bilan bir xil band
+        {/* Yordam chati — haydovchi profilidagi bilan bir xil band
             (`DriverProfilePage.tsx`). Asosiy kirish yuqoridagi qo'ng'iroq tugmasi,
             bu esa profildan izlaydiganlar uchun ikkinchi yo'l. */}
         <div className={styles.rows}>
           <button className={styles.editRow} onClick={() => navigate('/messages')}>
             <span className={styles.rowIcon}><MessagesNavIcon size={20} /></span>
             <span className={styles.rowText}>
-              <span className={styles.rowTitle}>Murojaatlar</span>
-              <span className={styles.rowSub}>Yordam xizmatiga savol yoki shikoyat</span>
+              <span className={styles.rowTitle}>Yordam xizmati</span>
+              <span className={styles.rowSub}>Savol yoki muammo — operator bilan chat</span>
             </span>
             <ChevronRightIcon />
           </button>

@@ -1,4 +1,4 @@
-"""Holat o'tish qoidalari, o'qilmaganlar, biriktirish va ro'yxat tartibi."""
+"""Bitta foydalanuvchi — bitta chat: holatlar, qayta ochilish, o'qilmaganlar, biriktirish."""
 
 from __future__ import annotations
 
@@ -13,22 +13,79 @@ from .conftest import ADMIN, MANAGER, OWNER, STRANGER, auth, new_ticket
 # ─── Qoidalar matritsasi ─────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("target", list(S))
-def test_closed_is_terminal(target):
-    assert not rules.can_transition(S.CLOSED, target, is_staff=True)
-    assert not rules.can_transition(S.CLOSED, target, is_staff=False)
+@pytest.mark.parametrize("current", list(S))
+def test_owner_cannot_change_status(current):
+    assert rules.allowed_transitions(current, is_staff=False) == frozenset()
 
 
-@pytest.mark.parametrize("current", [S.OPEN, S.IN_PROGRESS, S.RESOLVED])
-def test_owner_can_only_close(current):
-    assert rules.allowed_transitions(current, is_staff=False) == {S.CLOSED}
+@pytest.mark.parametrize("current", list(S))
+def test_staff_moves_freely_but_never_to_closed(current):
+    allowed = rules.allowed_transitions(current, is_staff=True)
+    assert S.CLOSED not in allowed
+    assert current not in allowed
+    assert allowed == {S.OPEN, S.IN_PROGRESS, S.RESOLVED} - {current}
 
 
-def test_staff_can_reopen_resolved():
-    assert rules.can_transition(S.RESOLVED, S.IN_PROGRESS, is_staff=True)
+# ─── Bitta chat ──────────────────────────────────────────────────────────────
 
 
-# ─── HTTP orqali ─────────────────────────────────────────────────────────────
+async def _say(client, text, user=OWNER, **extra):
+    resp = await client.post(
+        "/support/conversation/messages", json={"body": text, **extra}, headers=auth(user)
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def test_conversation_is_null_until_first_message(client, actors):
+    resp = await client.get("/support/conversation", headers=auth(OWNER))
+    assert resp.status_code == 200
+    assert resp.json() == {"conversation": None}
+    assert (await client.get("/support/conversation/messages", headers=auth(OWNER))).json() == {
+        "items": [],
+        "has_more": False,
+    }
+
+
+async def test_first_message_creates_chat_once(client, actors, events):
+    first = await _say(client, "Salom, savolim bor")
+    second = await _say(client, "Yana bir savol")
+    assert first["ticket_id"] == second["ticket_id"]
+
+    # Hodisalar: birinchi xabar — "chat yaratildi" (xodimlarga), keyingisi — "javob".
+    names = [e for e, _ in events]
+    assert names == ["support.ticket_created", "support.ticket_replied"]
+    assert events[0][1]["body"] == "Salom, savolim bor"
+
+    conv = (await client.get("/support/conversation", headers=auth(OWNER))).json()["conversation"]
+    assert conv["id"] == first["ticket_id"]
+    assert [m["body"] for m in conv["messages"]] == ["Salom, savolim bor", "Yana bir savol"]
+    assert conv["allowed_statuses"] == []
+
+    listing = (await client.get("/support/tickets", headers=auth(ADMIN))).json()
+    assert listing["total"] == 1
+
+
+async def test_legacy_ticket_create_appends_to_same_chat(client, actors):
+    first = await new_ticket(client)
+    second = await new_ticket(client, subject="Yuk shikastlandi", body="Qutisi ezilgan holda keldi")
+    assert first["id"] == second["id"]
+    bodies = [m["body"] for m in second["messages"]]
+    assert bodies == [
+        "📌 Haydovchi kelmadi\nSoat 10 da kelishi kerak edi",
+        "📌 Yuk shikastlandi\nQutisi ezilgan holda keldi",
+    ]
+
+
+async def test_each_user_has_own_chat(client, actors):
+    mine = await _say(client, "Men")
+    theirs = await _say(client, "Men ham", user=STRANGER)
+    assert mine["ticket_id"] != theirs["ticket_id"]
+    own = (await client.get("/support/conversation", headers=auth(STRANGER))).json()["conversation"]
+    assert [m["body"] for m in own["messages"]] == ["Men ham"]
+
+
+# ─── Holatlar ────────────────────────────────────────────────────────────────
 
 
 async def _set_status(client, ticket_id, status, user):
@@ -37,48 +94,42 @@ async def _set_status(client, ticket_id, status, user):
     )
 
 
-async def test_owner_closes_own_ticket(client, actors, events):
+async def test_owner_cannot_set_status(client, actors):
     ticket = await new_ticket(client)
-    assert ticket["allowed_statuses"] == ["closed"]
+    for target in ("resolved", "closed", "in_progress"):
+        assert (await _set_status(client, ticket["id"], target, OWNER)).status_code == 409
 
-    resp = await _set_status(client, ticket["id"], "closed", OWNER)
+
+async def test_stranger_gets_404(client, actors):
+    ticket = await new_ticket(client)
+    assert (await _set_status(client, ticket["id"], "resolved", STRANGER)).status_code == 404
+
+
+async def test_staff_cannot_close(client, actors):
+    ticket = await new_ticket(client)
+    assert (await _set_status(client, ticket["id"], "closed", MANAGER)).status_code == 409
+
+
+async def test_owner_message_reopens_resolved_chat(client, actors, events):
+    ticket = await new_ticket(client)
+    resp = await _set_status(client, ticket["id"], "resolved", MANAGER)
     assert resp.status_code == 200
-    assert resp.json()["status"] == "closed"
-    assert resp.json()["allowed_statuses"] == []
     assert events[-1][0] == "support.ticket_status_changed"
-    assert events[-1][1]["changed_by_user_id"] == OWNER
+
+    data = await _say(client, "Muammo yana takrorlandi")
+    assert data["ticket"]["status"] == "open"
+    assert events[-1][0] == "support.ticket_replied"
+    assert events[-1][1]["reopened"] is True
 
 
-async def test_owner_cannot_set_other_statuses(client, actors):
+async def test_staff_message_keeps_resolved_chat_resolved(client, actors):
     ticket = await new_ticket(client)
-    resp = await _set_status(client, ticket["id"], "resolved", OWNER)
-    assert resp.status_code == 409
-
-
-async def test_stranger_cannot_close(client, actors):
-    ticket = await new_ticket(client)
-    assert (await _set_status(client, ticket["id"], "closed", STRANGER)).status_code == 404
-
-
-async def test_closed_cannot_be_reopened(client, actors):
-    ticket = await new_ticket(client)
-    await _set_status(client, ticket["id"], "closed", MANAGER)
-    resp = await _set_status(client, ticket["id"], "open", ADMIN)
-    assert resp.status_code == 409
-    msg = await client.post(
-        f"/support/tickets/{ticket['id']}/messages", json={"body": "yana"}, headers=auth(OWNER)
+    await _set_status(client, ticket["id"], "resolved", MANAGER)
+    resp = await client.post(
+        f"/support/tickets/{ticket['id']}/messages", json={"body": "Yana nima kerak?"}, headers=auth(MANAGER)
     )
-    assert msg.status_code == 409
-
-
-async def test_resolved_blocks_messages_until_reopened(client, actors):
-    ticket = await new_ticket(client)
-    assert (await _set_status(client, ticket["id"], "resolved", MANAGER)).status_code == 200
-    path = f"/support/tickets/{ticket['id']}/messages"
-    assert (await client.post(path, json={"body": "hal bo'lmadi"}, headers=auth(OWNER))).status_code == 409
-
-    assert (await _set_status(client, ticket["id"], "in_progress", MANAGER)).status_code == 200
-    assert (await client.post(path, json={"body": "hal bo'lmadi"}, headers=auth(OWNER))).status_code == 201
+    assert resp.status_code == 201
+    assert resp.json()["ticket"]["status"] == "resolved"
 
 
 async def test_same_status_is_noop_without_event(client, actors, events):
@@ -89,9 +140,6 @@ async def test_same_status_is_noop_without_event(client, actors, events):
     assert len(events) == before
 
 
-# ─── Javobdan keyingi server o'zgarishlari ───────────────────────────────────
-
-
 async def test_staff_reply_moves_to_in_progress_and_assigns(client, actors):
     ticket = await new_ticket(client)
     resp = await client.post(
@@ -99,24 +147,22 @@ async def test_staff_reply_moves_to_in_progress_and_assigns(client, actors):
     )
     assert resp.status_code == 201
     data = resp.json()
-    # Javob tanasida murojaatning YANGI holati — UI uni darhol ko'rsatadi.
+    # Javob tanasida chatning YANGI holati — UI uni darhol ko'rsatadi.
     assert data["ticket"]["status"] == "in_progress"
     assert data["ticket"]["assigned_to"] == MANAGER
     assert data["ticket"]["assigned_name"] == "Menejer Madina"
     assert data["author_name"] == "Menejer Madina"
 
 
-async def test_message_bumps_last_message_at_and_order(client, actors):
+async def test_message_bumps_chat_in_staff_list(client, actors):
     first = await new_ticket(client)
-    second = await new_ticket(client)
+    second = await new_ticket(client, user_id=STRANGER)
 
-    listing = (await client.get("/support/tickets", headers=auth(OWNER))).json()
+    listing = (await client.get("/support/tickets", headers=auth(ADMIN))).json()
     assert [t["id"] for t in listing["items"]] == [second["id"], first["id"]]
 
-    await client.post(
-        f"/support/tickets/{first['id']}/messages", json={"body": "Hali javob yo'q"}, headers=auth(OWNER)
-    )
-    listing = (await client.get("/support/tickets", headers=auth(OWNER))).json()
+    await _say(client, "Hali javob yo'q")
+    listing = (await client.get("/support/tickets", headers=auth(ADMIN))).json()
     assert [t["id"] for t in listing["items"]] == [first["id"], second["id"]]
     top = listing["items"][0]
     assert top["last_message"]["body"] == "Hali javob yo'q"
@@ -136,26 +182,28 @@ async def test_unread_for_owner(client, actors):
         await client.post(f"/support/tickets/{tid}/messages", json={"body": text}, headers=auth(MANAGER))
 
     assert (await client.get("/support/unread", headers=auth(OWNER))).json() == {"tickets": 1, "messages": 2}
-    item = (await client.get("/support/tickets", headers=auth(OWNER))).json()["items"][0]
-    assert item["unread_count"] == 2
 
-    # Ochish — o'qildi.
-    await client.get(f"/support/tickets/{tid}", headers=auth(OWNER))
+    # O'z chatini ochish — o'qildi.
+    await client.get("/support/conversation", headers=auth(OWNER))
     assert (await client.get("/support/unread", headers=auth(OWNER))).json() == {"tickets": 0, "messages": 0}
+
+    await client.post(f"/support/tickets/{tid}/messages", json={"body": "Yana"}, headers=auth(MANAGER))
+    assert (await client.post("/support/conversation/read", headers=auth(OWNER))).status_code == 204
+    assert (await client.get("/support/unread", headers=auth(OWNER))).json()["messages"] == 0
 
 
 async def test_unread_for_staff(client, actors):
     ticket = await new_ticket(client)
     tid = ticket["id"]
 
-    # Yangi murojaat — xodim uchun o'qilmagan (asosiy matn).
+    # Yangi chat — birinchi xabar xodim uchun o'qilmagan.
     staff_unread = (await client.get("/support/unread?as_staff=true", headers=auth(MANAGER))).json()
     assert staff_unread == {"tickets": 1, "messages": 1}
 
     await client.get(f"/support/tickets/{tid}", headers=auth(MANAGER))
     assert (await client.get("/support/unread?as_staff=true", headers=auth(MANAGER))).json()["messages"] == 0
 
-    await client.post(f"/support/tickets/{tid}/messages", json={"body": "Yana savol"}, headers=auth(OWNER))
+    await _say(client, "Yana savol")
     item = (await client.get("/support/tickets", headers=auth(ADMIN))).json()["items"][0]
     assert item["unread_count"] == 1
 
@@ -166,8 +214,8 @@ async def test_unread_for_staff(client, actors):
 
 
 async def test_own_messages_are_never_unread(client, actors):
-    ticket = await new_ticket(client)
-    await client.post(f"/support/tickets/{ticket['id']}/messages", json={"body": "Men"}, headers=auth(OWNER))
+    await new_ticket(client)
+    await _say(client, "Men")
     assert (await client.get("/support/unread", headers=auth(OWNER))).json()["messages"] == 0
 
 
@@ -178,12 +226,30 @@ async def test_read_does_not_touch_updated_at(client, actors):
     assert again["updated_at"] == ticket["updated_at"]
 
 
+# ─── Buyurtma konteksti ──────────────────────────────────────────────────────
+
+
+async def test_order_id_is_kept_on_message_and_chat(client, actors):
+    actors.order_access[77] = {OWNER}
+    data = await _say(client, "Shu buyurtma bo'yicha", order_id=77)
+    assert data["order_id"] == 77
+    assert data["ticket"]["order_id"] == 77
+
+
+async def test_foreign_order_on_message_is_rejected(client, actors):
+    actors.order_access[77] = {STRANGER}
+    resp = await client.post(
+        "/support/conversation/messages", json={"body": "x", "order_id": 77}, headers=auth(OWNER)
+    )
+    assert resp.status_code == 404
+
+
 # ─── O'ziga olish ────────────────────────────────────────────────────────────
 
 
 async def test_assign_and_filter(client, actors):
     t1 = await new_ticket(client)
-    await new_ticket(client)
+    await new_ticket(client, user_id=STRANGER)
 
     resp = await client.post(f"/support/tickets/{t1['id']}/assign", headers=auth(ADMIN))
     assert resp.status_code == 200
@@ -201,3 +267,20 @@ async def test_assign_and_filter(client, actors):
 async def test_owner_cannot_assign(client, actors):
     ticket = await new_ticket(client)
     assert (await client.post(f"/support/tickets/{ticket['id']}/assign", headers=auth(OWNER))).status_code == 403
+
+
+async def test_same_client_id_is_written_once(client, actors, events):
+    """WS javobi kelmay REST bilan qayta yuborilgan xabar ikki marta yozilmaydi."""
+    first = await _say(client, "Salom", client_id="abc-1")
+    again = await _say(client, "Salom", client_id="abc-1")
+    assert again["id"] == first["id"]
+    other = await _say(client, "Salom", client_id="abc-2")
+    assert other["id"] != first["id"]
+
+    conv = (await client.get("/support/conversation", headers=auth(OWNER))).json()["conversation"]
+    assert [m["body"] for m in conv["messages"]] == ["Salom", "Salom"]
+    # Takror hodisa ham yubormaydi.
+    assert [e for e, _ in events] == ["support.ticket_created", "support.ticket_replied"]
+    # Boshqa foydalanuvchi shu client_id bilan o'z xabarini yoza oladi.
+    theirs = await _say(client, "Salom", user=STRANGER, client_id="abc-1")
+    assert theirs["ticket_id"] != first["ticket_id"]

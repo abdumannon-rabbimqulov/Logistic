@@ -20,7 +20,6 @@ from notification_service.messages import Outgoing
 
 STAFF_ROLES = {"admin", "manager"}
 
-_PRIORITY_LABEL = {"low": "past", "normal": "o'rta", "high": "yuqori", "urgent": "shoshilinch"}
 
 # support_service/models.py `TicketStatus` qiymatlari.
 _TICKET_STATUS_LABEL = {
@@ -47,17 +46,15 @@ def _who(name: Any, user_id: Any, role: Any) -> str:
 
 
 def format_ticket_created(data: dict[str, Any]) -> tuple[str, str]:
+    """Foydalanuvchi yordam chatiga birinchi marta yozdi (har foydalanuvchiga bitta chat)."""
     order_part = f"Buyurtma: #{data['order_id']}\n" if data.get("order_id") else ""
-    priority = _PRIORITY_LABEL.get(str(data.get("priority", "")), data.get("priority", "-"))
     body = (
-        f"Murojaat: #{data.get('ticket_id')}\n"
+        f"Chat: #{data.get('ticket_id')}\n"
         f"Foydalanuvchi: {_who(data.get('user_name'), data.get('user_id'), data.get('user_role'))}\n"
-        f"{order_part}"
-        f"Muhimlik: {priority}\n"
-        f"Mavzu: {data.get('subject')}\n\n"
+        f"{order_part}\n"
         f"{(data.get('body') or '')[:500]}"
     )
-    return "Yangi yordam murojaati", body
+    return "Yangi yordam chati", body
 
 
 def _message_text(data: dict[str, Any], limit: int) -> str:
@@ -69,39 +66,39 @@ def _message_text(data: dict[str, Any], limit: int) -> str:
 
 
 def format_ticket_replied(data: dict[str, Any]) -> tuple[str, str]:
-    subject = f" — {data['subject']}" if data.get("subject") else ""
+    order_part = f"Buyurtma: #{data['order_id']}\n" if data.get("order_id") else ""
     body = (
-        f"Murojaat: #{data.get('ticket_id')}{subject}\n"
-        f"Muallif: {_who(data.get('author_name'), data.get('author_user_id'), data.get('author_role'))}\n\n"
+        f"Chat: #{data.get('ticket_id')}\n"
+        f"Muallif: {_who(data.get('author_name'), data.get('author_user_id'), data.get('author_role'))}\n"
+        f"{order_part}\n"
         f"{_message_text(data, 500)}"
     )
-    return "Yordam murojaatiga yangi javob", body
+    title = "Hal qilingan chat qayta ochildi" if data.get("reopened") else "Yordam chatida yangi xabar"
+    return title, body
 
 
 def user_text_ticket_created(data: dict[str, Any]) -> str:
     return (
-        f"✅ Murojaatingiz qabul qilindi — #{data.get('ticket_id')}\n"
-        f"Mavzu: {data.get('subject')}\n\n"
-        f"Operatorlarimiz tez orada javob beradi. Javob shu yerga va ilovadagi "
-        f"\"Murojaatlar\" bo'limiga keladi."
+        "✅ Xabaringiz yordam xizmatiga yetib bordi.\n\n"
+        "Operatorlarimiz tez orada javob beradi. Javob shu yerga va ilovadagi "
+        "\"Yordam\" chatiga keladi."
     )
 
 
 def user_text_ticket_replied(data: dict[str, Any]) -> str:
     return (
-        f"💬 Murojaatingizga javob keldi — #{data.get('ticket_id')}\n\n"
+        "💬 Yordam xizmatidan javob\n\n"
         f"{_message_text(data, 1500)}\n\n"
-        f"Javob yozish uchun ilovadagi \"Murojaatlar\" bo'limini oching."
+        "Javob yozish uchun ilovadagi \"Yordam\" chatini oching."
     )
 
 
 def user_text_status_changed(data: dict[str, Any]) -> str:
     new_status = str(data.get("new_status", ""))
-    label = _TICKET_STATUS_LABEL.get(new_status, new_status)
-    text = f"ℹ️ Murojaat #{data.get('ticket_id')} holati o'zgardi: {label}\nMavzu: {data.get('subject')}"
     if new_status in {"resolved", "closed"}:
-        text += "\n\nSavolingiz qolgan bo'lsa, yangi murojaat oching."
-    return text
+        return "✅ Savolingiz hal qilindi deb belgilandi.\n\nYana savol bo'lsa, shu chatga yozavering."
+    label = _TICKET_STATUS_LABEL.get(new_status, new_status)
+    return f"ℹ️ Yordam xizmati: savolingiz holati — {label}."
 
 
 def _to_user(chat_id: Any, text: str) -> list[Outgoing]:
@@ -138,6 +135,9 @@ def handle(event: str, data: dict[str, Any]) -> list[Outgoing]:
         if data.get("changed_by_user_id") is not None and data.get("changed_by_user_id") == data.get(
             "ticket_user_id"
         ):
+            return []
+        # "Ochiq" ga qaytarish — xodimlarning ichki ishi, foydalanuvchiga shovqin.
+        if data.get("new_status") == "open":
             return []
         return _to_user(data.get("ticket_user_id"), user_text_status_changed(data))
     return []

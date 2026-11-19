@@ -70,22 +70,7 @@
   min-width: 0;
 }
 
-.closeTicketBtn {
-  flex-shrink: 0;
-  border: 1px solid var(--color-gray-200);
-  background: var(--color-bg);
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  font-weight: 600;
-  padding: 6px 12px;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-}
 
-.closeTicketBtn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
 
 .subject {
   margin: 0;
@@ -192,14 +177,6 @@
   font-size: 13px;
 }
 
-.closedBar {
-  padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
-  background: var(--color-bg);
-  border-top: 1px solid var(--color-gray-200);
-  font-size: 13px;
-  color: var(--color-text-tertiary);
-  text-align: center;
-}
 
 .composerWrap {
   background: var(--color-bg);
@@ -367,4 +344,91 @@
 .sendBtn:disabled {
   background: var(--color-gray-300);
   cursor: default;
+}
+
+/* ─── Yagona yordam chati ─────────────────────────────────────────────────── */
+
+/* Chat bo'sh (hali yozilmagan) — salomlashuv */
+.intro {
+  align-self: center;
+  max-width: 320px;
+  margin: 24px auto 8px;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-gray-200);
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.introTitle {
+  margin-bottom: 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+/* Xabar qaysi buyurtma haqida */
+.orderTag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  padding: 0 4px;
+}
+
+/* Yuborilayotgan / yuborilmagan xabar (WS javobi kutilmoqda) */
+.pending .bubble {
+  opacity: 0.6;
+}
+
+.failed .bubble {
+  background: var(--color-gray-200);
+  color: var(--color-text-primary);
+}
+
+.failedRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #c0392b;
+  padding: 0 4px;
+}
+
+.retryBtn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* Composer ustida: "Buyurtma #N bo'yicha" */
+.orderChip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 16px 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-tint, var(--color-gray-100));
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.orderChipText {
+  flex: 1;
+  min-width: 0;
+}
+
+.statusNote {
+  align-self: center;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+  padding: 4px 12px;
 }

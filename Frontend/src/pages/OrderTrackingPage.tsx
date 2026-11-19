@@ -28,6 +28,7 @@ import {
 } from '../utils/orderStatus';
 import { describePickupAt } from '../utils/pickupTime';
 import styles from './OrderTrackingPage.module.css';
+import type { SupportChatNavState } from './SupportChatPage';
 
 const MAX_ROUNDS = 5; // services/dispatch.py MAX_ROUNDS bilan mos
 const POLL_INTERVAL_MS = 5000;
@@ -657,12 +658,12 @@ export function OrderTrackingPage() {
 
           {order.overload_warning && <div className={styles.errorText}>{order.overload_warning}</div>}
 
-          {/* Shu buyurtma bo'yicha yordam so'rash — murojaat support mikroservisida
-              ochiladi va buyurtma raqami bog'lanadi. Shundan keyin buyurtma holati
-              o'zgarganda ticketga avtomatik yozuv tushib turadi. */}
+          {/* Shu buyurtma bo'yicha yordam so'rash — foydalanuvchining yagona yordam chati
+              ochiladi va keyingi xabar shu buyurtmaga bog'lanadi. Shundan keyin buyurtma
+              holati o'zgarganda chatga avtomatik izoh tushib turadi. */}
           <button
             className={styles.supportBtn}
-            onClick={() => navigate('/messages', { state: { newTicketForOrderId: order.id } })}
+            onClick={() => navigate('/messages', { state: { orderId: order.id } satisfies SupportChatNavState })}
           >
             Muammo bormi? Yordam so'rash
           </button>

@@ -92,12 +92,12 @@ export function DriverProfilePage() {
             <ChevronRightIcon />
           </button>
           {/* Haydovchi pastki menyusida "Xabarlar" yo'q (4 ta bo'lim to'la), shuning
-              uchun murojaatlarga kirish shu yerdan beriladi. */}
+              uchun yordam chatiga kirish shu yerdan beriladi. */}
           <button className={styles.row} onClick={() => navigate('/messages')}>
             <span className={styles.rowIcon}><MessagesNavIcon size={20} /></span>
             <span className={styles.rowText}>
-              <span className={styles.rowTitle}>Murojaatlar</span>
-              <span className={styles.rowSub}>Yordam xizmatiga savol yoki shikoyat</span>
+              <span className={styles.rowTitle}>Yordam xizmati</span>
+              <span className={styles.rowSub}>Savol yoki muammo — operator bilan chat</span>
             </span>
             <ChevronRightIcon />
           </button>

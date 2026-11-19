@@ -1,4 +1,8 @@
-// Support mikroservisi bilan ishlash (murojaatlar / ticketlar).
+// Support mikroservisi bilan ishlash — yordam chati.
+//
+// Har foydalanuvchiga BITTA chat (backend'da tarixiy nomi "ticket"): foydalanuvchi
+// `/support/conversation...` yo'llari bilan o'z chatida ishlaydi, xodim esa barcha
+// chatlarni `/support/tickets/...` orqali ko'radi.
 //
 // Bu xizmat asosiy backenddan ALOHIDA: o'z konteyneri, o'z bazasi (`support_db`) va o'z
 // prefiksi (`/support`, `/api` ostida emas). Shuning uchun `api` emas, `supportApi`
@@ -9,13 +13,15 @@
 // bir nechta komponent baham ko'radi. Uzilsa eksponensial kechikish bilan qayta ulanadi;
 // qayta ulanganda tinglovchilarga `resync` keladi — o'tkazib yuborilgan hodisalar
 // bo'lishi mumkin, ekran ma'lumotini qayta so'rab olsin.
+// Matnli xabar ham shu WS orqali yuboriladi (`sendSupportMessage`); ulanish yo'q yoki
+// javob kelmasa — o'sha `client_id` bilan REST (server takrorni yozmaydi).
 
 import { useEffect, useRef } from 'react';
 import { ApiError, getAccessToken, supportApi } from './client';
 import type {
+  SupportConversationResponse,
   SupportSocketEvent,
   SupportUnreadSummary,
-  TicketCreateInput,
   TicketDetail,
   TicketListItem,
   TicketMessageCreated,
@@ -78,14 +84,20 @@ export function listTicketMessages(
   });
 }
 
-export function createTicket(data: TicketCreateInput): Promise<TicketDetail> {
-  return supportApi.post<TicketDetail>('/support/tickets', data);
+// ─── O'z chatim ──────────────────────────────────────────────────────────────
+
+/** O'z chatim (oxirgi xabarlar bilan); hali yozmagan bo'lsam `conversation: null`.
+ *  Ochish o'qildi deb belgilaydi. */
+export function getConversation(messagesLimit = 50): Promise<SupportConversationResponse> {
+  return supportApi.get<SupportConversationResponse>('/support/conversation', { messages_limit: messagesLimit });
 }
 
-/** Yopilgan murojaatga javob yozib bo'lmaydi — backend 409 qaytaradi. Javobda yangi xabar
- *  va murojaatning yangilangan holati (`ticket`) bor. */
-export function replyToTicket(ticketId: number, body: string): Promise<TicketMessageCreated> {
-  return supportApi.post<TicketMessageCreated>(`/support/tickets/${ticketId}/messages`, { body });
+export function listConversationMessages(beforeId: number, limit = 50): Promise<TicketMessagePage> {
+  return supportApi.get<TicketMessagePage>('/support/conversation/messages', { before_id: beforeId, limit });
+}
+
+export function markConversationRead(): Promise<void> {
+  return supportApi.post<void>('/support/conversation/read');
 }
 
 export function markTicketRead(ticketId: number): Promise<void> {
@@ -96,7 +108,7 @@ export function getUnreadSummary(asStaff = false): Promise<SupportUnreadSummary>
   return supportApi.get<SupportUnreadSummary>('/support/unread', asStaff ? { as_staff: true } : undefined);
 }
 
-/** Xodim — `allowed_statuses` bo'yicha; murojaat egasi — faqat `closed`. */
+/** Faqat xodim — `allowed_statuses` bo'yicha (chat yopilmaydi). */
 export function updateTicketStatus(ticketId: number, status: TicketStatus): Promise<TicketListItem> {
   return supportApi.patch<TicketListItem>(`/support/tickets/${ticketId}/status`, { status });
 }
@@ -109,18 +121,19 @@ export function unassignTicket(ticketId: number): Promise<TicketListItem> {
   return supportApi.delete<TicketListItem>(`/support/tickets/${ticketId}/assign`);
 }
 
-/** Rasm/video/hujjat yuborish (multipart). Fayl turi serverda BAYTLARDAN tekshiriladi. */
-export async function uploadTicketAttachment(
-  ticketId: number,
-  file: File,
-  body = '',
+/** Rasm/video/hujjat yuborish (multipart). Fayl turi serverda BAYTLARDAN tekshiriladi.
+ *  `ticketId` yo'q — o'z chatimga (birinchi xabar bo'lsa chat yaratiladi). */
+export async function uploadSupportAttachment(
+  { ticketId, file, body = '', orderId }: { ticketId?: number; file: File; body?: string; orderId?: number | null },
   allowRetry = true,
 ): Promise<TicketMessageCreated> {
   const form = new FormData();
   form.append('file', file);
   form.append('body', body);
+  if (ticketId == null && orderId != null) form.append('order_id', String(orderId));
   const token = getAccessToken();
-  const res = await fetch(supportUrl(`/support/tickets/${ticketId}/attachments`), {
+  const path = ticketId != null ? `/support/tickets/${ticketId}/attachments` : '/support/conversation/attachments';
+  const res = await fetch(supportUrl(path), {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: form,
@@ -128,7 +141,7 @@ export async function uploadTicketAttachment(
   if (res.status === 401 && allowRetry) {
     // Token eskirgan: oddiy so'rov orqali umumiy refresh mantiqini ishga tushiramiz.
     await supportApi.get('/support/unread').catch(() => undefined);
-    return uploadTicketAttachment(ticketId, file, body, false);
+    return uploadSupportAttachment({ ticketId, file, body, orderId }, false);
   }
   if (!res.ok) {
     let detail: unknown = null;
@@ -144,15 +157,40 @@ export async function uploadTicketAttachment(
 
 // ─── Real vaqt ───────────────────────────────────────────────────────────────
 
-export type SupportLiveEvent = SupportSocketEvent | { type: 'resync' };
+/** Tinglovchilarga boradigan hodisalar (yuborish javoblari — `sendSupportMessage` ichida). */
+export type SupportLiveEvent =
+  | Exclude<SupportSocketEvent, { type: 'message.ack' } | { type: 'message.error' }>
+  | { type: 'resync' };
 type Listener = (event: SupportLiveEvent) => void;
 
 const listeners = new Set<Listener>();
 let socket: WebSocket | null = null;
+// `hello` kelgandan keyingina server xabar qabul qiladi (token tekshirilgan).
+let socketReady = false;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let pingTimer: ReturnType<typeof setInterval> | undefined;
 let attempt = 0;
 let connectedOnce = false;
+
+/** WS orqali yuborilib javobi kutilayotgan xabarlar (`client_id` → kutuvchi). */
+interface PendingSend {
+  resolve: (message: TicketMessageCreated) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+const pendingSends = new Map<string, PendingSend>();
+/** Shuncha vaqtda `message.ack` kelmasa — REST bilan (o'sha `client_id`) qayta yuboriladi. */
+const WS_SEND_TIMEOUT_MS = 6_000;
+
+class WsSendFailed extends Error {}
+
+function failPendingSends(): void {
+  for (const [id, pending] of pendingSends) {
+    clearTimeout(pending.timer);
+    pending.reject(new WsSendFailed('WS uzildi'));
+    pendingSends.delete(id);
+  }
+}
 
 function emit(event: SupportLiveEvent): void {
   for (const listener of [...listeners]) {
@@ -186,6 +224,7 @@ function connect(): void {
 
   const ws = new WebSocket(url.toString());
   socket = ws;
+  socketReady = false;
 
   ws.onopen = () => {
     clearInterval(pingTimer);
@@ -203,15 +242,29 @@ function connect(): void {
     if (event.type === 'ping') return;
     if (event.type === 'hello') {
       attempt = 0;
+      socketReady = true;
       if (connectedOnce) emit({ type: 'resync' });
       connectedOnce = true;
+      return;
+    }
+    if (event.type === 'message.ack' || event.type === 'message.error') {
+      const pending = pendingSends.get(event.client_id);
+      if (!pending) return;
+      pendingSends.delete(event.client_id);
+      clearTimeout(pending.timer);
+      if (event.type === 'message.ack') pending.resolve(event.message);
+      else pending.reject(new ApiError(event.status, { detail: event.detail }));
       return;
     }
     emit(event);
   };
   ws.onclose = (ev) => {
     clearInterval(pingTimer);
-    if (socket === ws) socket = null;
+    if (socket === ws) {
+      socket = null;
+      socketReady = false;
+    }
+    failPendingSends();
     if (!listeners.size || ev.code === 4403) return; // bloklangan — qayta urinmaymiz
     if (ev.code === 4401) {
       // Token muddati o'tgan: oddiy so'rov refresh'ni ishga tushiradi, keyin qayta ulanamiz.
@@ -236,10 +289,58 @@ export function subscribeSupportEvents(listener: Listener): () => void {
       clearInterval(pingTimer);
       socket?.close();
       socket = null;
+      socketReady = false;
+      failPendingSends();
       connectedOnce = false;
       attempt = 0;
     }
   };
+}
+
+function newClientId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export interface SendSupportMessageInput {
+  body: string;
+  /** Xodim boshqa odamning chatiga yozganda; bo'lmasa — o'z chatim. */
+  ticketId?: number;
+  /** Xabar qaysi buyurtma haqida (faqat o'z chatimda). */
+  orderId?: number | null;
+}
+
+/** Matnli xabar yuborish: WebSocket orqali (`message.send` → `message.ack`).
+ *  Ulanish yo'q, uzildi yoki javob kechikdi — o'sha `client_id` bilan REST orqali:
+ *  server takrorni yozmaydi, shuning uchun xabar ikki marta tushmaydi.
+ *  Server rad etsa (`message.error`) — `ApiError` (REST bilan qayta urinilmaydi). */
+export async function sendSupportMessage(input: SendSupportMessageInput): Promise<TicketMessageCreated> {
+  const clientId = newClientId();
+  const payload = {
+    body: input.body,
+    order_id: input.ticketId == null ? (input.orderId ?? null) : null,
+    client_id: clientId,
+  };
+  const ws = socket;
+  if (ws && socketReady && ws.readyState === WebSocket.OPEN) {
+    try {
+      return await new Promise<TicketMessageCreated>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pendingSends.delete(clientId);
+          reject(new WsSendFailed('WS javobi kelmadi'));
+        }, WS_SEND_TIMEOUT_MS);
+        pendingSends.set(clientId, { resolve, reject, timer });
+        ws.send(JSON.stringify({ type: 'message.send', ticket_id: input.ticketId ?? null, ...payload }));
+      });
+    } catch (err) {
+      if (!(err instanceof WsSendFailed)) throw err;
+      // WS ishlamadi — pastda REST bilan.
+    }
+  }
+  return input.ticketId != null
+    ? supportApi.post<TicketMessageCreated>(`/support/tickets/${input.ticketId}/messages`, payload)
+    : supportApi.post<TicketMessageCreated>('/support/conversation/messages', payload);
 }
 
 /** React uchun: komponent yashaguncha hodisalarni tinglaydi (eng so'nggi handler bilan). */
@@ -259,13 +360,16 @@ export function mergeTicket<T extends TicketListItem>(current: T, update: Ticket
 
 // ─── Ko'rinish yordamchilari ─────────────────────────────────────────────────
 
-/** Holat nomlarining o'zbekcha ko'rinishi — ro'yxat va tafsilot ekranlarida bir xil. */
+/** Holat nomlarining o'zbekcha ko'rinishi (xodim paneli). `closed` — eski yozuvlar uchun. */
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
-  open: 'Ochiq',
+  open: 'Yangi',
   in_progress: 'Ko’rib chiqilmoqda',
   resolved: 'Hal qilindi',
-  closed: 'Yopilgan',
+  closed: 'Hal qilindi',
 };
+
+/** Xodim tanlay oladigan holatlar (chat yopilmaydi — support_service/rules.py). */
+export const ACTIVE_TICKET_STATUSES: TicketStatus[] = ['open', 'in_progress', 'resolved'];
 
 export const TICKET_PRIORITY_LABELS: Record<string, string> = {
   low: 'Past',
@@ -280,11 +384,6 @@ export const SUPPORT_ROLE_LABELS: Record<string, string> = {
   admin: 'admin',
   manager: 'menejer',
 };
-
-/** Yopilgan/hal qilingan murojaatga yangi xabar yozilmaydi (support_service/models.py). */
-export function isTicketClosed(status: TicketStatus): boolean {
-  return status === 'closed' || status === 'resolved';
-}
 
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

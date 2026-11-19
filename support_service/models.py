@@ -55,9 +55,14 @@ class AttachmentKind(str, enum.Enum):
     DOCUMENT = "document"
 
 
-# Bu holatlardagi murojaatga yangi xabar yozilmaydi. RESOLVED'ni xodim qayta
-# ochishi mumkin (`rules.py`), CLOSED esa yakuniy.
-CLOSED_STATUSES = frozenset({TicketStatus.RESOLVED, TicketStatus.CLOSED})
+# "Hal qilingan" chat: xodimning ish navbatidan chiqqan. Foydalanuvchi yana
+# yozsa chat avtomatik qayta ochiladi (`crud.add_message`). CLOSED — eski
+# (birlashtirishdan oldingi) qiymat, endi hech qachon o'rnatilmaydi
+# (migratsiya `0003_one_chat_per_user`).
+DONE_STATUSES = frozenset({TicketStatus.RESOLVED, TicketStatus.CLOSED})
+
+# Chatning standart sarlavhasi (eski `subject` maydoni — xodim ro'yxati va hodisalar uchun).
+CHAT_SUBJECT = "Yordam chati"
 
 
 def _enum(cls: type[enum.Enum], name: str) -> SQLEnum:
@@ -65,6 +70,12 @@ def _enum(cls: type[enum.Enum], name: str) -> SQLEnum:
 
 
 class SupportTicket(Base):
+    """Foydalanuvchining YAGONA yordam chati (tarixiy nomi — "murojaat").
+
+    Har foydalanuvchiga bitta qator (`user_id` yagona): barcha savollar shu chatda.
+    Holat — xodimlarning ish navbati uchun (yangi / ishlanmoqda / hal qilindi).
+    """
+
     __tablename__ = "support_tickets"
     __table_args__ = (
         # Ro'yxat oxirgi faollik bo'yicha tartiblanadi (`crud.list_tickets`).
@@ -74,15 +85,20 @@ class SupportTicket(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
     # Asosiy tizimdagi foydalanuvchi ID si (Telegram ID bo'lgani uchun BigInteger).
-    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    # Yagona: bitta foydalanuvchi — bitta chat.
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True, unique=True)
     # Murojaat yozilgan paytdagi roli va ismi — keyin o'zgarsa ham tarix saqlanadi.
     user_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
     user_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
+    # Oxirgi marta qaysi buyurtma haqida yozilgan — shu buyurtmaning holat
+    # hodisalari chatga tizim izohi bo'lib tushadi (`main._handle_order_event`).
     order_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
 
-    subject: Mapped[str] = mapped_column(String(200), nullable=False)
-    body: Mapped[str] = mapped_column(Text, nullable=False)
+    # Eski maydonlar: endi har doim CHAT_SUBJECT va bo'sh. Mavzu/matn xabarlarga
+    # ko'chirilgan (migratsiya 0003).
+    subject: Mapped[str] = mapped_column(String(200), nullable=False, default=CHAT_SUBJECT)
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     status: Mapped[TicketStatus] = mapped_column(
         _enum(TicketStatus, "ticketstatus"), default=TicketStatus.OPEN, nullable=False, index=True
@@ -120,6 +136,10 @@ class SupportTicket(Base):
 
 class SupportMessage(Base):
     __tablename__ = "support_messages"
+    __table_args__ = (
+        # Xabarlar vaqt bo'yicha o'qiladi (`crud.list_messages`, `crud.last_messages`).
+        Index("ix_support_messages_ticket_created", "ticket_id", "created_at", "id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ticket_id: Mapped[int] = mapped_column(
@@ -135,6 +155,8 @@ class SupportMessage(Base):
 
     # Faqat biriktirmali xabarda bo'sh bo'lishi mumkin.
     body: Mapped[str] = mapped_column(Text, nullable=False)
+    # Xabar qaysi buyurtma haqida (foydalanuvchi buyurtma sahifasidan kelgan bo'lsa).
+    order_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

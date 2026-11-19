@@ -90,7 +90,7 @@ async def test_upload_and_download_via_signed_url(client, actors, events):
 
     # Tafsilotda ham biriktirma ko'rinadi, xodimga ham.
     detail = (await client.get(f"/support/tickets/{ticket['id']}", headers=auth(MANAGER))).json()
-    assert detail["messages"][0]["attachments"][0]["id"] == att["id"]
+    assert detail["messages"][-1]["attachments"][0]["id"] == att["id"]
 
 
 async def test_disguised_file_is_rejected(client, actors):
@@ -105,11 +105,32 @@ async def test_upload_to_foreign_ticket_is_404(client, actors):
     assert resp.status_code == 404
 
 
-async def test_upload_to_closed_ticket_is_409(client, actors):
+async def test_upload_to_own_conversation_creates_chat(client, actors, events):
+    """Birinchi xabar fayl bo'lsa ham chat yaratiladi; buyurtma raqami bog'lanadi."""
+    actors.order_access[5] = {OWNER}
+    resp = await client.post(
+        "/support/conversation/attachments",
+        files={"file": ("yuk.png", PNG, "image/png")},
+        data={"body": "", "order_id": "5"},
+        headers=auth(OWNER),
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["attachments"][0]["kind"] == "image"
+    assert data["order_id"] == 5
+    assert events[-1][0] == "support.ticket_created"
+    assert events[-1][1]["body"] == "📎 Biriktirma"
+
+    conv = (await client.get("/support/conversation", headers=auth(OWNER))).json()["conversation"]
+    assert conv["id"] == data["ticket_id"]
+
+
+async def test_upload_to_resolved_chat_reopens_it(client, actors):
     ticket = await new_ticket(client)
-    await client.patch(f"/support/tickets/{ticket['id']}/status", json={"status": "closed"}, headers=auth(OWNER))
+    await client.patch(f"/support/tickets/{ticket['id']}/status", json={"status": "resolved"}, headers=auth(MANAGER))
     resp = await _upload(client, ticket["id"], PDF, "doc.pdf")
-    assert resp.status_code == 409
+    assert resp.status_code == 201
+    assert resp.json()["ticket"]["status"] == "open"
 
 
 async def test_document_is_served_as_attachment(client, actors):

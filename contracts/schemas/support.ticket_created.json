@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://logistic.org.uz/contracts/support.ticket_created.json",
   "title": "support.ticket_created",
-  "description": "Yangi yordam murojaati.",
+  "description": "Foydalanuvchining yagona yordam chati yaratildi (birinchi xabari bilan).",
   "type": "object",
   "required": [
     "ticket_id",
