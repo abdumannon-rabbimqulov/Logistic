@@ -122,6 +122,30 @@ say "Xizmatlar ishga tushirilmoqda..."
 # qolib ketmasin.
 "${COMPOSE[@]}" up -d --no-build --remove-orphans
 
+# ── Caddyfile o'zgargan bo'lsa Caddy qayta ishga tushiriladi ─────────────────
+# `./Caddyfile` konteynerga BITTA FAYL sifatida ulangan: `git pull` faylni almashtirsa
+# konteyner eski nusxani ko'rib turaveradi, compose esa Caddy'ni qayta yaratmaydi
+# (xizmat sozlamasi o'zgarmagan). Shuning uchun ichidagi nusxa bilan solishtiramiz.
+# Avval YANGI faylning to'g'riligi tekshiriladi — noto'g'ri bo'lsa Caddy ishlayotgan
+# holicha qoladi (HTTPS to'xtab qolmasin).
+caddy_host_sum="$(sha256sum "$ROOT/Caddyfile" | cut -d' ' -f1)"
+caddy_ctr_sum="$("${COMPOSE[@]}" exec -T caddy sha256sum /etc/caddy/Caddyfile 2>/dev/null | cut -d' ' -f1 || true)"
+if [ -n "$caddy_ctr_sum" ] && [ "$caddy_host_sum" != "$caddy_ctr_sum" ]; then
+    say "Caddyfile o'zgargan — tekshirilmoqda..."
+    caddy_domain="$(grep -E '^DOMAIN=' "$ROOT/.env" | tail -n1 | cut -d= -f2-)"
+    caddy_email="$(grep -E '^ACME_EMAIL=' "$ROOT/.env" | tail -n1 | cut -d= -f2-)"
+    if docker run --rm -e "DOMAIN=$caddy_domain" -e "ACME_EMAIL=$caddy_email" \
+        -v "$ROOT/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine \
+        caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
+        # `restart` emas, qayta YARATISH: yangi fayl ulanadi va eski log (ichida eski
+        # tokenlar bo'lishi mumkin) ham tozalanadi. Sertifikatlar `caddy_data` volume'da.
+        say "Caddy qayta yaratilmoqda (sertifikat saqlanadi, uzilish ~1 soniya)..."
+        "${COMPOSE[@]}" up -d --no-deps --no-build --force-recreate caddy
+    else
+        warn "Yangi Caddyfile yaroqsiz — Caddy eski sozlama bilan qoldi. 'caddy validate' ni tekshiring."
+    fi
+fi
+
 # ── 5. Sog'liqni kutish ─────────────────────────────────────────────────────
 say "Xizmatlar tayyor bo'lishi kutilmoqda..."
 deadline=$(( $(date +%s) + 300 ))

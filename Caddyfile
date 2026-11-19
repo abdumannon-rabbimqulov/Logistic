@@ -39,8 +39,20 @@
 		}
 	}
 
+	# Access log har so'rovning TO'LIQ manzilini yozadi. Brauzer WebSocket'ga sarlavha
+	# qo'sha olmagani uchun JWT `?token=` da ketadi (haydovchi/sender/chat/support WS) —
+	# u serverdagi logga tushib qolmasin. `sig=` — imzolangan fayl havolalari.
+	# `Authorization` va `Cookie` sarlavhalarini Caddy o'zi yashiradi.
 	log {
 		output stdout
-		format console
+		format filter {
+			wrap console
+			request>uri query {
+				replace token REDACTED
+				replace access_token REDACTED
+				replace refresh_token REDACTED
+				replace sig REDACTED
+			}
+		}
 	}
 }
