@@ -6,9 +6,7 @@ jonli GPS (WS /ws/location). Mashina turlari: o'qish hamma uchun, yozish faqat a
 
 import logging
 import os
-import time
 import uuid
-from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import aiofiles
@@ -19,49 +17,32 @@ from fastapi import (
     HTTPException,
     Query,
     UploadFile,
-    WebSocket,
-    WebSocketDisconnect,
     status,
 )
-from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Admin_panel.validation import is_admin
 from config.config import (
-    LIVE_LOC_DB_THROTTLE_SEC,
-    LIVE_LOC_DEFAULT_PERIOD_SEC,
-    LIVE_LOC_TTL_SEC,
     STATIC_PATH,
     UPLOAD_DIR,
-    async_session,
     get_db,
 )
 from driver import crud, schemas
 from driver.models import Driver
 from driver.profile import build_driver_profile
-from services import billing, live_location
-from users import crud as users_crud
-from users.auth import get_current_user, verify_token
+from services import billing
+from users.auth import get_current_user
 from users.models import User
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/drivers", tags=["Haydovchilar (Drivers)"])
 
-LAST_DB_WRITE: dict[int, float] = {}
-ORDER_TRACK_INTERVAL_SEC = 600
+# Jonli GPS WebSocket'i (`/drivers/ws/location`) endi `tracking_service` da — core
+# faqat `/drivers/me/tracking-identity` orqali avtorizatsiya beradi.
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB — rasm yuklash uchun maksimal hajm
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
-
-
-def _normalize_ws_token(raw: Optional[str]) -> Optional[str]:
-    if not raw:
-        return None
-    token = raw.strip()
-    if token.lower().startswith("bearer "):
-        return token[7:].strip()
-    return token
 
 
 async def _ensure_truck_type_name_free(
@@ -259,30 +240,6 @@ async def update_my_driver_profile(
 
 
 
-async def _resolve_driver_ws_session(
-    token: Optional[str],
-) -> Optional[tuple[User, Driver]]:
-    """JWT tekshiruvi — WebSocket accept() dan oldin."""
-    raw = _normalize_ws_token(token)
-    if not raw:
-        return None
-    payload = verify_token(raw)
-    if not payload or payload.get("type") != "access":
-        return None
-    user_id = payload.get("sub")
-    if not user_id:
-        return None
-
-    async with async_session() as db:
-        user = await users_crud.get_user_by_id(db, int(user_id))
-        if not user:
-            return None
-        driver = await crud.get_driver_by_user_id(db, user.id)
-        if not driver or driver.is_blocked:
-            return None
-        return user, driver
-
-
 @router.get("/me/tracking-identity", summary="Tracking servisi uchun: haydovchi identifikatsiyasi")
 async def driver_tracking_identity(
     db: AsyncSession = Depends(get_db),
@@ -302,137 +259,3 @@ async def driver_tracking_identity(
         "truck_number": driver.truck_number,
         "truck_type_id": driver.truck_type_id,
     }
-
-
-def parse_fix_time(raw, now: datetime) -> Optional[datetime]:
-    """Mijoz yuborgan GPS vaqtini (epoch millisekund) UTC datetime'ga aylantiradi.
-
-    `None` — vaqt yuborilmagan (eski klient): server qabul vaqtini ishlatadi.
-    Kelajakdagi vaqt `now` ga tenglanadi (qurilma soati noto'g'ri bo'lishi mumkin).
-    """
-    if raw is None:
-        return None
-    try:
-        fix = datetime.fromtimestamp(float(raw) / 1000.0, tz=timezone.utc)
-    except (TypeError, ValueError, OverflowError, OSError):
-        return None
-    if fix > now:
-        return now
-    return fix
-
-
-def is_stale_fix(fix: Optional[datetime], now: datetime) -> bool:
-    """GPS nuqtasi `LIVE_LOC_TTL_SEC` dan eski bo'lsa — u "jonli" joylashuv emas."""
-    return fix is not None and (now - fix).total_seconds() > LIVE_LOC_TTL_SEC
-
-
-@router.websocket("/ws/location")
-async def websocket_driver_location(
-    websocket: WebSocket,
-    token: Optional[str] = None,
-):
-    """
-    Jonli GPS — faqat WebSocket.
-    Token: query `?token=<access_jwt>` (Bearer prefiksi ixtiyoriy).
-    Xabarlar:
-      { "latitude", "longitude", "accuracy"?, "timestamp"? }  — `timestamp` GPS nuqtasi
-          olingan vaqt (epoch ms). Juda eski nuqta qabul qilinmaydi (`{"status": "stale"}`).
-      { "event": "gps_lost", "reason": "denied|unavailable|timeout" } — telefonda
-          joylashuv o'chdi; server buni darhol qayd qiladi (ogohlantirishlar uchun).
-      { "event": "stop" }
-    """
-    query_token = token or websocket.query_params.get("token")
-    session = await _resolve_driver_ws_session(query_token)
-    if session is None:
-        await websocket.close(code=4401, reason="Unauthorized")
-        return
-
-    user, driver = session
-    driver_id = driver.id
-    stop_requested = False
-
-    await websocket.accept()
-    await websocket.send_json({"status": "connected", "driver_id": driver_id})
-    logger.info("Driver %s WS location connected", driver_id)
-
-    try:
-        async with async_session() as db:
-            while True:
-                data = await websocket.receive_json()
-                if data.get("event") == "stop":
-                    stop_requested = True
-                    break
-                if data.get("event") == "gps_lost":
-                    await live_location.mark_gps_lost(driver_id, str(data.get("reason") or "unknown")[:32])
-                    await websocket.send_json({"status": "acknowledged"})
-                    continue
-
-                now = datetime.now(timezone.utc)
-                fix_time = parse_fix_time(data.get("timestamp"), now)
-                if is_stale_fix(fix_time, now):
-                    # Telefon eski (keshdagi) nuqtani yubormoqda — GPS amalda ishlamayapti.
-                    await websocket.send_json({"status": "stale"})
-                    continue
-
-                lat = float(data["latitude"])
-                lon = float(data["longitude"])
-                # GPS aniqligi (metr) — ixtiyoriy. Geofence tekshiruvida zaxira
-                # koordinata ishlatilganda ruxsat etilgan radius shunga qarab kengayadi.
-                raw_accuracy = data.get("accuracy")
-                accuracy = float(raw_accuracy) if raw_accuracy is not None else None
-
-                await live_location.update_driver_location(
-                    driver_id=driver_id,
-                    lat=lat,
-                    lon=lon,
-                    accuracy=accuracy,
-                    user_id=user.id,
-                    full_name=user.full_name,
-                    truck_number=driver.truck_number,
-                    truck_type_id=driver.truck_type_id,
-                    # Qisqa umr: haydovchi ilovani yopsa yoki GPS o'chsa 2 daqiqada
-                    # "online" ro'yxatdan chiqadi (ilgari 30 daqiqa ko'rinib turardi).
-                    live_period=LIVE_LOC_TTL_SEC,
-                    fix_time=fix_time,
-                )
-
-                # Redis'dagi jonli yozuv qisqa umrli (LIVE_LOC_TTL_SEC). Haydovchi
-                # ilovani yopgach ham dispatch uni "oxirgi ma'lum joylashuvi" bo'yicha
-                # topa olishi uchun koordinata DB'ga ham yoziladi — har xabarda emas,
-                # LIVE_LOC_DB_THROTTLE_SEC oralig'ida bir marta (yozuvlar sonini kamaytiradi).
-                now_ts = time.monotonic()
-                if now_ts - LAST_DB_WRITE.get(driver_id, 0.0) >= LIVE_LOC_DB_THROTTLE_SEC:
-                    LAST_DB_WRITE[driver_id] = now_ts
-                    await db.execute(
-                        update(Driver)
-                        .where(Driver.id == driver_id)
-                        .values(
-                            last_latitude=lat,
-                            last_longitude=lon,
-                            last_location_at=fix_time or now,
-                            is_live_location_active=True,
-                            live_location_expires=datetime.now(timezone.utc)
-                            + timedelta(seconds=LIVE_LOC_DEFAULT_PERIOD_SEC),
-                        )
-                    )
-                    await db.commit()
-
-                await websocket.send_json({"status": "acknowledged"})
-
-    except WebSocketDisconnect:
-        logger.info("Driver %s WS disconnected", driver_id)
-    except Exception as exc:
-        logger.exception("WS location error: %s", exc)
-        try:
-            await websocket.close(code=1011, reason="Server error")
-        except Exception:
-            pass
-    finally:
-        LAST_DB_WRITE.pop(driver_id, None)
-        if stop_requested:
-            await live_location.stop_driver_location(driver_id)
-
-
-
-
-

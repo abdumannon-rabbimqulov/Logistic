@@ -68,7 +68,6 @@ OSRM_BASE_URL = get_optional_env('OSRM_BASE_URL', 'http://osrm:5000')
 
 
 LIVE_LOC_TTL_SEC = int(get_optional_env("LIVE_LOC_TTL_SEC", "120"))
-LIVE_LOC_DB_THROTTLE_SEC = int(get_optional_env("LIVE_LOC_DB_THROTTLE_SEC", "60"))
 LIVE_LOC_DEFAULT_PERIOD_SEC = int(get_optional_env("LIVE_LOC_DEFAULT_PERIOD_SEC", "1800"))
 
 # ── Geofence: haydovchi nuqtaga haqiqatan yetib kelganini tekshirish ──────────

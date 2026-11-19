@@ -63,12 +63,13 @@ Allaqachon olib tashlangan (`3ffb237`):
 - **Qilinadi:** real foydalanuvchilar bilan ishlay boshlagach, prod'da `--delete` bilan o'chiriladi, keyin skriptning o'zi ham o'chiriladi.
 
 ## Holat
-- **Bajarildi (2026-11-19):** 2, 3, 4, 5 va 6-bandlar.
+- **Bajarildi (2026-11-19):** 1, 2, 3, 4, 5 va 6-bandlar.
+  - 1-band: core'dagi `/drivers/ws/location` va `/orders/{id}/ws/driver-location` WebSocket'lari, ularning yordamchilari va `live_location` dagi yozish funksiyalari olib tashlandi — GPS endi faqat `tracking_service` orqali. `LIVE_LOC_DB_THROTTLE_SEC` sozlamasi ham kerak emas.
   - 6-band: `contracts/` paketi — `events.py` (exchange, event nomlari, navbatlar, konvert), `redis_keys.py`, `schemas/*.json` (8 ta event uchun JSON Schema), `validate.py`. Core, support, notification va tracking shundan foydalanadi; har mikroservis image'iga `contracts/` ko'chiriladi. Core hodisalari sxemaga mosligi `tests/test_event_schemas.py` da.
   - 2-band: `utils/admin_alerts` endi async `services/notifications` orqali; GPS va Start eslatmalari `order.notice` hodisasi (outbox) bilan `notification_service`ga. Core'da bevosita yuborish faqat dispatch xabarlari (takliflar, tugmalar, `message_id` kerak) va xato alertlari uchun qoldi.
   - backend: `services/staff.py`, `utils/time.py`, `LAST_KNOWN_LOCATION_MAX_AGE_SEC`, `order/labels.py`;
   - frontend: yorliqlar `utils/orderStatus.ts` dan, `hooks/useYandexMap.ts`, `api/client.ts: wsUrl`, `utils/format.ts` dagi sana va pul formatlari.
-- **Qolgan:** 1, 7.
+- **Qolgan:** 7 (foydalanuvchi qarori).
 
 ## Bajarish tartibi
 **3 → 4 → 5 → 2 → 1 → 6 → 7.**

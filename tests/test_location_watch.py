@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from driver.router import is_stale_fix, parse_fix_time
+from tracking_service.fixes import is_stale_fix, parse_fix_time
 from services.location_watch import Decision, decide
 
 
