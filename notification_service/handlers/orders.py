@@ -58,7 +58,23 @@ def track_button(order_id: int) -> Optional[dict]:
     return {"inline_keyboard": [[{"text": "Buyurtmani ko'rish", "web_app": {"url": f"{base}/orders/{order_id}"}}]]}
 
 
+def notice_messages(data: dict[str, Any]) -> list[Outgoing]:
+    """`order.notice`: matn va qabul qiluvchilar core'dan tayyor keladi."""
+    text = str(data.get("text") or "").strip()
+    if not text:
+        return []
+    out: list[Outgoing] = []
+    for raw in data.get("recipient_ids") or []:
+        try:
+            out.append(Outgoing(int(raw), text))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 def handle(event: str, data: dict[str, Any]) -> list[Outgoing]:
+    if event == c.EVENT_ORDER_NOTICE:
+        return notice_messages(data)
     text = sender_message_for(event, data)
     customer_id = data.get("customer_id")
     if text is None or not customer_id:

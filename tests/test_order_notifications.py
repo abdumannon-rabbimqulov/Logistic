@@ -45,3 +45,11 @@ def test_no_message(event, data):
 def test_handle_builds_message_for_customer():
     [msg] = order_handlers.handle(S, {"order_id": 7, "customer_id": 50, "new_status": "COMPLETED"})
     assert msg.chat_id == 50 and "yetkazildi" in msg.text
+
+
+def test_order_notice_goes_to_each_recipient():
+    msgs = order_handlers.handle(
+        queue.EVENT_ORDER_NOTICE, {"order_id": 7, "recipient_ids": [1, "2", None, "x"], "text": "Salom"}
+    )
+    assert [(m.chat_id, m.text) for m in msgs] == [(1, "Salom"), (2, "Salom")]
+    assert order_handlers.handle(queue.EVENT_ORDER_NOTICE, {"order_id": 7, "recipient_ids": [1], "text": " "}) == []

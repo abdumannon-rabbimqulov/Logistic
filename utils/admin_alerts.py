@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Iterable
-from urllib import error, parse, request
 
-from config.config import ADMIN_IDS, BOT_TOKEN
+from config.config import ADMIN_IDS
 
 logger = logging.getLogger(__name__)
 
@@ -19,23 +17,6 @@ def _truncate(text: str, limit: int = 3200) -> str:
     return text[: limit - 20] + "\n... [truncated]"
 
 
-def _send_sync(chat_id: int, text: str) -> None:
-    """Telegram Bot API'ga POST /sendMessage (sync)."""
-    if not BOT_TOKEN:
-        return
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": str(chat_id),
-        "text": _truncate(text),
-        "disable_web_page_preview": "true",
-    }
-    data = parse.urlencode(payload).encode("utf-8")
-    req = request.Request(url, data=data, method="POST")
-    req.add_header("Content-Type", "application/x-www-form-urlencoded")
-    with request.urlopen(req, timeout=6) as resp:  # noqa: S310
-        _ = resp.read()
-
-
 async def _dispatch(message: str, admin_ids: Iterable[int] | None) -> None:
     """Tayyor matnni har bir adminga yuboradi. Hech qachon exception tashlamaydi."""
     ids = list(admin_ids if admin_ids is not None else ADMIN_IDS)
@@ -44,13 +25,15 @@ async def _dispatch(message: str, admin_ids: Iterable[int] | None) -> None:
 
     message = _truncate(message, 3500)
 
+    # Yagona async Telegram klienti (services/notifications.py). Ilgari bu yerda
+    # alohida sinxron `urllib` + thread nusxasi bor edi.
+    from services.notifications import send_telegram_message
+
     for admin_id in ids:
         try:
-            await asyncio.to_thread(_send_sync, int(admin_id), message)
-        except (ValueError, error.URLError, error.HTTPError, TimeoutError) as exc:
+            await send_telegram_message(int(admin_id), message)
+        except Exception as exc:  # noqa: BLE001 — xabar yuborilmasligi asosiy amalni buzmasin
             logger.warning("Admin alert send failed for %s: %s", admin_id, exc)
-        except Exception as exc:
-            logger.warning("Unexpected admin alert error for %s: %s", admin_id, exc)
 
 
 async def send_error_to_admins(

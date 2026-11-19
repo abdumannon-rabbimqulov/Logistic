@@ -53,6 +53,7 @@ async def main() -> None:
         level=config.LOG_LEVEL,
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
     )
+    config.require_settings()
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):

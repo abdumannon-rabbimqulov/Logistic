@@ -81,3 +81,17 @@ def test_relay_keeps_row_when_broker_down(monkeypatch):
     assert rows[0].published_at is None and rows[0].attempts == 1 and "broker" in rows[0].last_error
     # Birinchisi yiqilsa qolganlariga urinilmaydi (keyingi aylanishda qayta).
     assert rows[1].attempts == 0
+
+
+def test_enqueue_notice_dedupes_and_skips_empty():
+    from services import order_notices
+
+    db = _DB([])
+    order_notices.enqueue_notice(db, order_id=5, recipient_ids=[3, 3, None, 1], text="Salom", kind="x")
+    [row] = db.added
+    assert row.event == queue.EVENT_ORDER_NOTICE
+    assert row.envelope["data"] == {"order_id": 5, "recipient_ids": [1, 3], "text": "Salom", "kind": "x"}
+
+    order_notices.enqueue_notice(db, order_id=5, recipient_ids=[], text="Salom", kind="x")
+    order_notices.enqueue_notice(db, order_id=5, recipient_ids=[1], text="", kind="x")
+    assert len(db.added) == 1

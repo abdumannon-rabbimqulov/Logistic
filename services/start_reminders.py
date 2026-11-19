@@ -30,8 +30,7 @@ from sqlalchemy.orm import selectinload
 
 from config.config import APP_TIMEZONE
 from order.models import Order, OrderStatus
-from services import live_location, notifications, staff
-from utils.admin_alerts import send_notice_to_admins
+from services import live_location, order_notices, staff
 
 logger = logging.getLogger(__name__)
 
@@ -120,20 +119,26 @@ async def send_due_reminders(db: AsyncSession, *, now: Optional[datetime] = None
         if reminder is None:
             continue
         if await live_location.claim_notice_slot(f"start_remind:{order.id}:{reminder.key}", SLOT_TTL_SEC):
-            await notifications.send_telegram_message(order.driver.user_id, reminder.text)
+            order_notices.enqueue_notice(
+                db, order_id=order.id, recipient_ids=[order.driver.user_id], kind=f"start_{reminder.key}",
+                text=reminder.text,
+            )
             sent += 1
 
         if reminder.notify_staff and await live_location.claim_notice_slot(
             f"start_remind:{order.id}:staff", SLOT_TTL_SEC
         ):
             staff_ids = staff_ids if staff_ids is not None else await staff.staff_ids(db)
-            await send_notice_to_admins(
-                title="Haydovchi yo'lga chiqmadi",
-                details=(
+            order_notices.enqueue_notice(
+                db, order_id=order.id, recipient_ids=staff_ids, kind="start_late_staff",
+                text=order_notices.staff_text(
+                    "Haydovchi yo'lga chiqmadi",
                     f"Buyurtma #{order.id}: yo'lga chiqish vaqti {_fmt_time(departure_at)} edi, "
-                    f"haydovchi #{order.driver.id} ({order.driver.truck_number or '-'}) hali \"Start\" bosmagan."
+                    f"haydovchi #{order.driver.id} ({order.driver.truck_number or '-'}) hali \"Start\" bosmagan.",
                 ),
-                admin_ids=staff_ids,
             )
             sent += 1
+    if sent:
+        # Bildirishnomalar outbox orqali (services/order_notices.py) — bitta commit.
+        await db.commit()
     return sent

@@ -20,7 +20,13 @@ def _int_set(raw: str | None) -> frozenset[int]:
     return frozenset(int(part.strip()) for part in (raw or "").split(",") if part.strip())
 
 
-BOT_TOKEN = _required("BOT_TOKEN")
+# Import paytida emas, ishga tushishda tekshiriladi (`main.py: require_settings`) —
+# handlerlar (sof funksiyalar) testlarda tokensiz import qilinadi.
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+
+
+def require_settings() -> None:
+    _required("BOT_TOKEN")
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 # Asosiy ilova bilan bir xil o'zgaruvchi (`ADMIN`): vergul bilan ajratilgan Telegram id'lar.
 ADMIN_IDS = _int_set(os.getenv("ADMIN"))

@@ -25,6 +25,7 @@ EXPECTED_ROUTING_KEYS = {
     "support.ticket_status_changed",
     "order.waypoint_changed",
     "order.trip_started",
+    "order.notice",
 }
 
 
@@ -38,6 +39,7 @@ def test_routing_keys_are_stable():
         queue.EVENT_ORDER_TRUCK_ASSIGNED,
         queue.EVENT_ORDER_WAYPOINT_CHANGED,
         queue.EVENT_ORDER_TRIP_STARTED,
+        queue.EVENT_ORDER_NOTICE,
         queue.EVENT_SUPPORT_TICKET_CREATED,
         queue.EVENT_SUPPORT_TICKET_REPLIED,
         queue.EVENT_SUPPORT_TICKET_STATUS_CHANGED,
@@ -120,6 +122,7 @@ def test_notification_service_contract_matches_core():
     assert nc.EVENT_ORDER_STATUS_CHANGED == queue.EVENT_ORDER_STATUS_CHANGED
     assert nc.EVENT_ORDER_WAYPOINT_CHANGED == queue.EVENT_ORDER_WAYPOINT_CHANGED
     assert nc.EVENT_ORDER_TRIP_STARTED == queue.EVENT_ORDER_TRIP_STARTED
+    assert nc.EVENT_ORDER_NOTICE == queue.EVENT_ORDER_NOTICE
     assert nc.EVENT_SUPPORT_TICKET_CREATED == queue.EVENT_SUPPORT_TICKET_CREATED
     assert nc.EVENT_SUPPORT_TICKET_REPLIED == queue.EVENT_SUPPORT_TICKET_REPLIED
     assert nc.EVENT_SUPPORT_TICKET_STATUS_CHANGED == queue.EVENT_SUPPORT_TICKET_STATUS_CHANGED

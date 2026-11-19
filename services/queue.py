@@ -72,6 +72,10 @@ EVENT_ORDER_TRUCK_ASSIGNED = "order.truck_assigned"
 EVENT_ORDER_WAYPOINT_CHANGED = "order.waypoint_changed"
 # Haydovchi "Start" ni bosdi — yuk olish nuqtasiga yo'lga chiqdi.
 EVENT_ORDER_TRIP_STARTED = "order.trip_started"
+# Buyurtma bo'yicha tayyor matnli bildirishnoma: core MATN va QABUL QILUVCHILARNI
+# hal qiladi (masalan menejerlar ro'yxati bazada), notification_service esa yuboradi.
+# Payload: {order_id, recipient_ids: [int], text, kind}.
+EVENT_ORDER_NOTICE = "order.notice"
 EVENT_SUPPORT_TICKET_CREATED = "support.ticket_created"
 EVENT_SUPPORT_TICKET_REPLIED = "support.ticket_replied"
 EVENT_SUPPORT_TICKET_STATUS_CHANGED = "support.ticket_status_changed"

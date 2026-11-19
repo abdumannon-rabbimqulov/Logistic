@@ -26,8 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from order.models import Order, OrderStatus
-from services import live_location, notifications, order_eta, staff
-from utils.admin_alerts import send_notice_to_admins
+from services import live_location, order_eta, order_notices, staff
 
 logger = logging.getLogger(__name__)
 
@@ -96,16 +95,18 @@ async def check_active_orders(db: AsyncSession, *, now: Optional[datetime] = Non
 
         if decision.recovered:
             await _clear_flag(warned_key)
-            await notifications.send_telegram_message(
-                driver.user_id, f"✅ Joylashuvingiz tiklandi (#{order.id} buyurtma). Rahmat!"
+            order_notices.enqueue_notice(
+                db, order_id=order.id, recipient_ids=[driver.user_id], kind="gps_recovered",
+                text=f"✅ Joylashuvingiz tiklandi (#{order.id} buyurtma). Rahmat!",
             )
             if await _flag_exists(f"locwatch:staff_warned:{order.id}"):
                 await _clear_flag(f"locwatch:staff_warned:{order.id}")
                 staff_ids = staff_ids if staff_ids is not None else await staff.staff_ids(db)
-                await send_notice_to_admins(
-                    title="Haydovchi joylashuvi tiklandi",
-                    details=f"Buyurtma #{order.id}, haydovchi #{driver.id}",
-                    admin_ids=staff_ids,
+                order_notices.enqueue_notice(
+                    db, order_id=order.id, recipient_ids=staff_ids, kind="gps_recovered_staff",
+                    text=order_notices.staff_text(
+                        "Haydovchi joylashuvi tiklandi", f"Buyurtma #{order.id}, haydovchi #{driver.id}"
+                    ),
                 )
             sent += 1
             continue
@@ -120,10 +121,12 @@ async def check_active_orders(db: AsyncSession, *, now: Optional[datetime] = Non
                 if reason == "denied"
                 else "GPS yoqilganini tekshiring va ilovani oching."
             )
-            await notifications.send_telegram_message(
-                driver.user_id,
-                f"⚠️ #{order.id} buyurtma: joylashuvingiz {_minutes(age)} beri kelmayapti.\n"
-                f"{hint}\nSender yukni kuzatib turibdi.",
+            order_notices.enqueue_notice(
+                db, order_id=order.id, recipient_ids=[driver.user_id], kind="gps_lost",
+                text=(
+                    f"⚠️ #{order.id} buyurtma: joylashuvingiz {_minutes(age)} beri kelmayapti.\n"
+                    f"{hint}\nSender yukni kuzatib turibdi."
+                ),
             )
             sent += 1
 
@@ -132,17 +135,20 @@ async def check_active_orders(db: AsyncSession, *, now: Optional[datetime] = Non
         ):
             await _set_flag(f"locwatch:staff_warned:{order.id}")
             staff_ids = staff_ids if staff_ids is not None else await staff.staff_ids(db)
-            await send_notice_to_admins(
-                title="Haydovchi joylashuvi o'chgan",
-                details=(
+            order_notices.enqueue_notice(
+                db, order_id=order.id, recipient_ids=staff_ids, kind="gps_lost_staff",
+                text=order_notices.staff_text(
+                    "Haydovchi joylashuvi o'chgan",
                     f"Buyurtma #{order.id} ({order.status.value})\n"
                     f"Haydovchi #{driver.id}, {driver.truck_number or '-'}\n"
-                    f"Oxirgi joylashuv: {_minutes(age)} oldin"
+                    f"Oxirgi joylashuv: {_minutes(age)} oldin",
                 ),
-                admin_ids=staff_ids,
             )
             sent += 1
 
+    if sent:
+        # Bildirishnomalar outbox orqali (services/order_notices.py) — bitta commit.
+        await db.commit()
     return sent
 
 
