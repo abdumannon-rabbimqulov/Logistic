@@ -3,9 +3,9 @@
 Topologiya (`logistika.events`, topic, durable — core bilan BIR XIL parametrlar):
 
     order.*  → chat.order_events   — shu xizmat o'qiydi (suhbatni ochish/yopish)
-    chat.*   → chat.notifications  — `workers/events_worker.py` o'qiydi (Telegram)
+    chat.*   → chat.notifications  — `notification_service` o'qiydi (Telegram)
 
-Ikkala navbat ham shu yerda, ham events_worker'da e'lon qilinadi (idempotent):
+Ikkala navbat ham shu yerda, ham notification_service'da e'lon qilinadi (idempotent):
 qaysi biri birinchi ko'tarilsa ham, ikkinchisi kechiksa hodisa yo'qolmaydi.
 Core'ning `services/queue.py` si hali `chat.order_events` ni e'lon qilmaydi —
 chat birinchi marta ko'tarilgunicha chiqqan `order.*` hodisalari bu navbatga

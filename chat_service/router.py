@@ -218,8 +218,10 @@ async def send_message(
             "preview": domain.preview_text(msg.kind, msg.text),
             "sender_user_id": principal.user_id,
             "sender_role": domain.role_of(conv, principal.user_id),
-            # Haydovchining user_id si hali noma'lum bo'lishi mumkin — iste'molchi
-            # (core) uni `recipient_driver_id` orqali o'z bazasidan topadi.
+            # Haydovchining user_id si hali noma'lum bo'lishi mumkin (core hodisasida
+            # `driver_user_id` yo'q va haydovchi chatni hali ochmagan) — u holda
+            # notification_service bildirishnoma yubora olmaydi (bazasiz). Hisobotdagi
+            # core taklifi shu bo'shliqni yopadi. `recipient_driver_id` — ma'lumot uchun.
             "recipient_user_id": recipient,
             "recipient_driver_id": conv.driver_id if recipient != conv.sender_user_id else None,
             "recipient_online": await get_broadcaster().is_online(recipient),
