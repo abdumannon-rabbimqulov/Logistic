@@ -23,3 +23,5 @@ shapely
 httpx>=0.27.0
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
+# Testlarda Redis pub/sub (tests/test_dispatch_signal.py — tracking WS).
+fakeredis>=2.23,<3
