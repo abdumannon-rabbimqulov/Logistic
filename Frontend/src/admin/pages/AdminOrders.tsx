@@ -3,6 +3,7 @@ import { ApiError } from '../../api/client';
 import { listAdminOrders } from '../../api/admin';
 import type { Order, OrderStatus } from '../../types/api';
 import { formatPrice, routeLabel } from '../../utils/format';
+import { ORDER_STATUS_META } from '../../utils/orderStatus';
 import { AssignDriverModal } from '../components/AssignDriverModal';
 import { DataTable, type Column } from '../components/DataTable';
 import { OrderEditModal } from '../components/OrderEditModal';
@@ -13,14 +14,13 @@ import styles from './AdminOrders.module.css';
 
 const PAGE_SIZE = 20;
 
+// Ro'yxat `utils/orderStatus.ts` dan quriladi — yorliqlar bitta joyda.
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'Barcha holatlar' },
-  { value: 'PENDING', label: 'Qidirilmoqda' },
-  { value: 'SCHEDULED', label: 'Rejalashtirilgan' },
-  { value: 'ACCEPTED', label: 'Qabul qilindi' },
-  { value: 'IN_PROGRESS', label: "Yo'lda" },
-  { value: 'COMPLETED', label: 'Yakunlandi' },
-  { value: 'CANCELLED', label: 'Bekor qilindi' },
+  ...(Object.keys(ORDER_STATUS_META) as OrderStatus[]).map((value) => ({
+    value,
+    label: ORDER_STATUS_META[value].short,
+  })),
 ];
 
 function RouteCell({ order }: { order: Order }) {

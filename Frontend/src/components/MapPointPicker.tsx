@@ -1,13 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { reverseGeocode } from '../api/orders';
 import { getTelegramWebApp } from '../telegram';
-import {
-  UZBEKISTAN_CENTER,
-  UZBEKISTAN_DEFAULT_ZOOM,
-  loadYandexMaps,
-  type YMap,
-  type YMapEvent,
-} from '../utils/yandexMaps';
+import { useYandexMap } from '../hooks/useYandexMap';
+import { UZBEKISTAN_CENTER, UZBEKISTAN_DEFAULT_ZOOM, type YMap, type YMapEvent } from '../utils/yandexMaps';
 import { BackIcon, LocationIcon } from './icons';
 import styles from './MapPointPicker.module.css';
 
@@ -60,52 +55,30 @@ export function MapPointPicker({ title, initial, myLocation, tone = 'origin', on
   const [resolving, setResolving] = useState(false);
   const seqRef = useRef(0);
 
-  // 1) Xarita: bir marta yaratiladi.
-  useEffect(() => {
-    let cancelled = false;
-    let resizeObserver: ResizeObserver | null = null;
-    loadYandexMaps()
-      .then((ymaps) => {
-        if (cancelled || !containerRef.current) return;
-        const start = initial ?? myLocation;
-        const map = new ymaps.Map(
-          containerRef.current,
-          {
-            center: start ? [start.latitude, start.longitude] : UZBEKISTAN_CENTER,
-            zoom: start ? POINT_ZOOM : UZBEKISTAN_DEFAULT_ZOOM,
-            controls: ['zoomControl', 'trafficControl'],
-          },
-          { suppressMapOpenBlock: true },
-        );
-        mapRef.current = map;
+  // 1) Xarita: bir marta yaratiladi (`hooks/useYandexMap`).
+  const start = initial ?? myLocation;
+  useYandexMap(containerRef, {
+    state: {
+      center: start ? [start.latitude, start.longitude] : UZBEKISTAN_CENTER,
+      zoom: start ? POINT_ZOOM : UZBEKISTAN_DEFAULT_ZOOM,
+      controls: ['zoomControl', 'trafficControl'],
+    },
+    options: { suppressMapOpenBlock: true },
+    onCreate: (map) => {
+      mapRef.current = map;
+      setCenter(map.getCenter());
+      map.events.add('actionbegin', () => setMoving(true));
+      map.events.add('actionend', () => {
+        setMoving(false);
         setCenter(map.getCenter());
-
-        map.events.add('actionbegin', () => {
-          setMoving(true);
-        });
-        map.events.add('actionend', () => {
-          setMoving(false);
-          setCenter(map.getCenter());
-          haptic('light');
-        });
-        // Bir marta bosish — o'sha joy markazga keladi (sudrash shart emas).
-        map.events.add('click', (e: YMapEvent) => {
-          map.panTo(e.get('coords'), { duration: 250 });
-        });
-
-        resizeObserver = new ResizeObserver(() => map.container.fitToViewport());
-        resizeObserver.observe(containerRef.current);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-      resizeObserver?.disconnect();
-      mapRef.current?.destroy();
-      mapRef.current = null;
-    };
-    // Faqat ochilganda — keyingi `initial` o'zgarishi xaritani qayta yaratmasin.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+        haptic('light');
+      });
+      // Bir marta bosish — o'sha joy markazga keladi (sudrash shart emas).
+      map.events.add('click', (e: YMapEvent) => {
+        map.panTo(e.get('coords'), { duration: 250 });
+      });
+    },
+  });
 
   // 2) Markaz o'zgarganda manzilni aniqlash (oxirgi so'rov natijasigina olinadi).
   useEffect(() => {

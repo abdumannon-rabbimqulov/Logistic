@@ -5,6 +5,7 @@ import type { BalanceTransaction } from '../../types/api';
 import { Modal } from './Modal';
 import shared from '../shared.module.css';
 import styles from './BalanceModal.module.css';
+import { formatDateTime, formatMoney } from '../../utils/format';
 
 interface Props {
   userId: number;
@@ -20,15 +21,6 @@ const TYPE_LABEL: Record<string, string> = {
   ORDER_COMMISSION: 'Komissiya',
   ADMIN_ADJUSTMENT: 'Admin tuzatishi',
 };
-
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 2 }).format(value);
-}
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('uz-UZ');
-}
 
 /** Foydalanuvchi balansi: to'ldirish/yechish (POST .../balance/adjust) + tarix
  *  (GET .../balance/transactions). Har qanday foydalanuvchi uchun mustaqil ishlaydi. */
@@ -85,7 +77,7 @@ export function BalanceModal({ userId, userName, initialBalance, onClose, onChan
       <div className={styles.body}>
         <div className={styles.balanceRow}>
           <span>Joriy balans</span>
-          <strong className={balance < 0 ? styles.debt : styles.ok}>{formatMoney(balance)} UZS</strong>
+          <strong className={balance < 0 ? styles.debt : styles.ok}>{formatMoney(balance, 2)} UZS</strong>
         </div>
 
         {balance < 0 && (
@@ -151,9 +143,9 @@ export function BalanceModal({ userId, userName, initialBalance, onClose, onChan
                 <div className={styles.txAmountBox}>
                   <div className={tx.amount < 0 ? styles.debt : styles.ok}>
                     {tx.amount > 0 ? '+' : ''}
-                    {formatMoney(tx.amount)}
+                    {formatMoney(tx.amount, 2)}
                   </div>
-                  <div className={styles.txAfter}>→ {formatMoney(tx.balance_after)}</div>
+                  <div className={styles.txAfter}>→ {formatMoney(tx.balance_after, 2)}</div>
                 </div>
               </li>
             ))}

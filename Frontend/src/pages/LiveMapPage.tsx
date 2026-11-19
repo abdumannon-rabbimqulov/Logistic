@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useYandexMap } from '../hooks/useYandexMap';
 import { getLiveMap, listRegions } from '../api/orders';
 import { listTruckTypes, staticFileUrl } from '../api/truckTypes';
 import { BottomNav } from '../components/BottomNav';
@@ -13,7 +14,7 @@ import type {
   TruckType,
 } from '../types/api';
 import { formatPrice, shortAddress } from '../utils/format';
-import { loadYandexMaps, UZBEKISTAN_CENTER, UZBEKISTAN_DEFAULT_ZOOM, type YMap } from '../utils/yandexMaps';
+import { loadYandexMaps } from '../utils/yandexMaps';
 import styles from './LiveMapPage.module.css';
 
 interface Props {
@@ -82,9 +83,14 @@ export function LiveMapPage({ role }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<YMap | null>(null);
-  const [mapReady, setMapReady] = useState(false);
-  const [mapFailed, setMapFailed] = useState(false);
+  const { mapRef, ready: mapReady, failed: mapFailed } = useYandexMap(containerRef, {
+    options: { minZoom: 4 },
+    onCreate: (map) => {
+      map.options.set('yandexMapDisablePoiInteractivity', true);
+      // Bo'sh joy bosilsa tanlov yopiladi
+      map.events.add('click', () => setSelectedId(null));
+    },
+  });
   // Xarita filter o'zgargandagina markerlarga moslanadi — polling foydalanuvchi
   // surgan/kattalashtirgan ko'rinishni buzmasligi kerak.
   const fittedRef = useRef(false);
@@ -142,37 +148,6 @@ export function LiveMapPage({ role }: Props) {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [filter]);
-
-  // Xaritani bir marta yaratish
-  useEffect(() => {
-    let cancelled = false;
-    let resizeObserver: ResizeObserver | null = null;
-    loadYandexMaps()
-      .then((ymaps) => {
-        if (cancelled || !containerRef.current) return;
-        const map = new ymaps.Map(
-          containerRef.current,
-          { center: UZBEKISTAN_CENTER, zoom: UZBEKISTAN_DEFAULT_ZOOM, controls: ['zoomControl'] },
-          { minZoom: 4 },
-        );
-        map.options.set('yandexMapDisablePoiInteractivity', true);
-        // Bo'sh joy bosilsa tanlov yopiladi
-        (map as unknown as { events: { add(t: string, cb: () => void): void } }).events.add('click', () =>
-          setSelectedId(null),
-        );
-        mapRef.current = map;
-        setMapReady(true);
-        resizeObserver = new ResizeObserver(() => map.container.fitToViewport());
-        resizeObserver.observe(containerRef.current);
-      })
-      .catch(() => !cancelled && setMapFailed(true));
-    return () => {
-      cancelled = true;
-      resizeObserver?.disconnect();
-      mapRef.current?.destroy();
-      mapRef.current = null;
-    };
-  }, []);
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const selected = useMemo(() => items.find((i) => i.marker_id === selectedId) ?? null, [items, selectedId]);
@@ -236,7 +211,7 @@ export function LiveMapPage({ role }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [mapReady, items, selectedId]);
+  }, [mapReady, mapRef, items, selectedId]);
 
   // Tanlangan yuk to'liq ko'rinsin: A, mashina, B
   useEffect(() => {
@@ -251,7 +226,7 @@ export function LiveMapPage({ role }: Props) {
     });
     // Faqat tanlov o'zgarganda — pollingda xarita sakramasin
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady, selectedId]);
+  }, [mapReady, mapRef, selectedId]);
 
   const stats = data?.stats;
   const hasRouteFilter = filter.fromRegion != null || filter.toRegion != null || filter.truckTypeId != null;

@@ -6,6 +6,7 @@ import { Modal } from './Modal';
 import { useToast } from './Toast';
 import shared from '../shared.module.css';
 import styles from './AssignDriverModal.module.css';
+import { formatMoney } from '../../utils/format';
 
 interface Props {
   order: Order;
@@ -15,10 +16,6 @@ interface Props {
 }
 
 const LOOKUP_DEBOUNCE_MS = 400;
-
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 0 }).format(value);
-}
 
 /** Driver ID kiritiladi → haydovchi ma'lumoti ko'rsatiladi → tasdiqlangach biriktiriladi. */
 export function AssignDriverModal({ order, onClose, onAssigned }: Props) {

@@ -8,6 +8,7 @@ import { StatusBadge } from '../../admin/components/StatusBadge';
 import shared from '../../admin/shared.module.css';
 import type { ManagerOrderListItem, OrderStatus } from '../../types/api';
 import styles from './ManagerOrders.module.css';
+import { formatDateTime } from '../../utils/format';
 
 // Menejerning asosiy ish ro'yxati. Narx ustuni ATAYLAB yo'q — backend ham uni
 // qaytarmaydi (manager/schemas.py).
@@ -22,11 +23,6 @@ const STATUSES: OrderStatus[] = [
   'COMPLETED',
   'CANCELLED',
 ];
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('uz-UZ');
-}
 
 export function ManagerOrders() {
   const navigate = useNavigate();

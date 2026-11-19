@@ -8,11 +8,7 @@ import {
 } from '../../api/admin';
 import shared from '../shared.module.css';
 import styles from './AdminSettings.module.css';
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('uz-UZ');
-}
+import { formatDateTime } from '../../utils/format';
 
 interface PercentCardProps {
   title: string;

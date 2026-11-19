@@ -1,4 +1,4 @@
-import { api, getAccessToken } from './client';
+import { api, wsUrl } from './client';
 import type {
   AdminDashboardStats,
   AdminDriverList,
@@ -164,16 +164,7 @@ export function getDriverLocation(driverId: number): Promise<DriverLocationItem>
 /** WS /system/drivers/locations/stream — real-time lokatsiya oqimi manzilini quradi.
  *  BASE_URL nisbiy (/api) yoki absolyut (http://host/api) bo'lishi mumkin — ikkalasini ham qamraydi. */
 export function driverLocationsWsUrl(): string {
-  const base = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api').replace(/\/$/, '');
-  let httpBase: string;
-  try {
-    httpBase = new URL(base, window.location.origin).toString().replace(/\/$/, '');
-  } catch {
-    httpBase = `${window.location.origin}${base}`;
-  }
-  const wsBase = httpBase.replace(/^http/, 'ws');
-  const token = getAccessToken() ?? '';
-  return `${wsBase}/system/drivers/locations/stream?token=${encodeURIComponent(token)}`;
+  return wsUrl('/system/drivers/locations/stream');
 }
 
 // ── Komissiya sozlamasi ─────────────────────────────────────────────────────────

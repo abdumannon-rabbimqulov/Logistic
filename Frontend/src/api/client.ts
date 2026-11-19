@@ -26,6 +26,21 @@ export function apiBaseUrl(): string {
   return BASE_URL;
 }
 
+/** API yo'li uchun WebSocket manzili (`?token=` bilan). BASE_URL nisbiy (`/api`) yoki
+ *  absolyut (`http://host/api`) bo'lishi mumkin — ikkalasi ham to'g'ri `ws(s)://` ga aylanadi.
+ *  Ilgari bu mantiq 3 joyda (admin xaritasi, sender kuzatuvi, haydovchi GPS) takrorlanardi. */
+export function wsUrl(path: string): string {
+  const base = BASE_URL.replace(/\/$/, '');
+  let httpBase: string;
+  try {
+    httpBase = new URL(base, window.location.origin).toString().replace(/\/$/, '');
+  } catch {
+    httpBase = `${window.location.origin}${base}`;
+  }
+  const token = getAccessToken() ?? '';
+  return `${httpBase.replace(/^http/, 'ws')}${path}?token=${encodeURIComponent(token)}`;
+}
+
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_KEY);
 }

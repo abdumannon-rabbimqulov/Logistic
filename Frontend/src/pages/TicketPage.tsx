@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../auth/AuthProvider';
 import type { TicketAttachment, TicketDetail, TicketMessage } from '../types/api';
 import styles from './TicketPage.module.css';
+import { formatShortDateTime } from '../utils/format';
 
 // Bitta murojaat (ticket) va uning yozishmalari — support mikroservisidan.
 // Yozishmada uch xil xabar bo'ladi:
@@ -33,13 +34,6 @@ import styles from './TicketPage.module.css';
 // Yangi xabarlar `/support/ws` orqali o'zi keladi.
 
 const COMPOSER_MAX_HEIGHT = 140;
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ''
-    : d.toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
 
 function appendUnique(list: TicketMessage[], message: TicketMessage): TicketMessage[] {
   return list.some((m) => m.id === message.id) ? list : [...list, message];
@@ -333,7 +327,7 @@ export function TicketPage() {
           <div className={isOwnerView ? styles.mine : styles.theirs}>
             {!isOwnerView && <div className={styles.author}>{ownerLabel}</div>}
             <div className={styles.bubble}>{ticket.body}</div>
-            <div className={styles.time}>{formatTime(ticket.created_at)}</div>
+            <div className={styles.time}>{formatShortDateTime(ticket.created_at)}</div>
           </div>
         )}
 
@@ -352,7 +346,7 @@ export function TicketPage() {
               {!own && <div className={styles.author}>{authorLabel(message)}</div>}
               {message.body && <div className={styles.bubble}>{message.body}</div>}
               <Attachments items={message.attachments} />
-              <div className={styles.time}>{formatTime(message.created_at)}</div>
+              <div className={styles.time}>{formatShortDateTime(message.created_at)}</div>
             </div>
           );
         })}

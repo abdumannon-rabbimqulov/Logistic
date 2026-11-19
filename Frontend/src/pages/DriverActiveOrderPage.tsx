@@ -5,20 +5,15 @@ import { getOrder, getOrderRoute, startOrderTrip, updateWaypoint } from '../api/
 import { BackIcon, ClockIcon, PhoneIcon, RouteIcon, SendIcon, WeightIcon } from '../components/icons';
 import { YandexMap } from '../components/YandexMap';
 import { useLiveLocation } from '../hooks/useLiveLocation';
-import type { OrderDetail, OrderWaypoint, WaypointStatus, WaypointType } from '../types/api';
+import type { OrderDetail, OrderWaypoint, WaypointStatus } from '../types/api';
 import { getCurrentPositionOnce, PositionError } from '../utils/currentPosition';
 import { openTelegramLocationSettings } from '../utils/telegramLocation';
 import { getTelegramWebApp } from '../telegram';
 import { formatPrice, shortAddress, statusLabel, unloadingLabel } from '../utils/format';
 import { describePickupAt } from '../utils/pickupTime';
+import { WAYPOINT_TYPE_LABEL } from '../utils/orderStatus';
 import { buildYandexPointUrl, buildYandexRouteUrl } from '../utils/yandexRoute';
 import styles from './DriverActiveOrderPage.module.css';
-
-const WAYPOINT_TYPE_LABEL: Record<WaypointType, string> = {
-  PICKUP: 'Yuk ortish',
-  DELIVERY: 'Yetkazish',
-  TRANSIT: 'Oraliq nuqta',
-};
 
 /** Joriy nuqtadagi keyingi qadam: tugma matni va nuqtaning yangi holati.
  *

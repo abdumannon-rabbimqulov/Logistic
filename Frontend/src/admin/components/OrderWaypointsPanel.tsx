@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { updateWaypoint } from '../../api/orders';
 import type { Order, OrderWaypoint, WaypointStatus } from '../../types/api';
-import { shortAddress } from '../../utils/format';
+import { formatShortDateTime, shortAddress } from '../../utils/format';
+import { WAYPOINT_STATUS_LABEL, WAYPOINT_TYPE_LABEL } from '../../utils/orderStatus';
 import shared from '../shared.module.css';
 import styles from './OrderWaypointsPanel.module.css';
 
@@ -11,34 +12,11 @@ interface Props {
   onChanged: (updated: Order) => void;
 }
 
-const WAYPOINT_STATUS_LABEL: Record<WaypointStatus, string> = {
-  PENDING: 'Kutilmoqda',
-  ARRIVED: 'Yetib keldi',
-  COMPLETED: 'Yakunlandi',
-  SKIPPED: 'Tashlab ketildi',
-};
-
-const WAYPOINT_TYPE_LABEL: Record<string, string> = {
-  PICKUP: 'Yuk ortish',
-  DELIVERY: 'Yetkazish',
-  TRANSIT: 'Oraliq',
-};
-
 /** Keyingi qadam — haydovchi ilovasidagi bilan bir xil qoida. */
 function nextStatus(wp: OrderWaypoint): WaypointStatus | null {
   if (wp.status === 'PENDING') return 'ARRIVED';
   if (wp.status === 'ARRIVED') return 'COMPLETED';
   return null;
-}
-
-function formatTime(iso: string | null): string {
-  if (!iso) return '';
-  return new Date(iso).toLocaleString('uz-UZ', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 /**
@@ -108,8 +86,8 @@ export function OrderWaypointsPanel({ order, onChanged }: Props) {
 
               {(wp.arrived_at || wp.completed_at) && (
                 <div className={styles.meta}>
-                  {wp.arrived_at && <span>Yetib keldi: {formatTime(wp.arrived_at)}</span>}
-                  {wp.completed_at && <span>Yakunladi: {formatTime(wp.completed_at)}</span>}
+                  {wp.arrived_at && <span>Yetib keldi: {formatShortDateTime(wp.arrived_at)}</span>}
+                  {wp.completed_at && <span>Yakunladi: {formatShortDateTime(wp.completed_at)}</span>}
                   {wp.confirmed_distance_m != null && (
                     <span>
                       Nuqtadan: {wp.confirmed_distance_m} m

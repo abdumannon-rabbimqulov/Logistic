@@ -1,4 +1,4 @@
-import { api, apiBaseUrl, getAccessToken } from './client';
+import { api, wsUrl } from './client';
 import type {
   DispatchAttemptResponse,
   GeocodeSuggestion,
@@ -153,16 +153,7 @@ export function getOrderDriverLocation(orderId: number): Promise<OrderDriverLoca
 /** WS /orders/{id}/ws/driver-location manzilini quradi — faqat shu buyurtmaning
  *  haydovchisi bo'yicha filtrlangan jonli oqim (order/router.py). */
 export function orderDriverLocationWsUrl(orderId: number): string {
-  const base = apiBaseUrl().replace(/\/$/, '');
-  let httpBase: string;
-  try {
-    httpBase = new URL(base, window.location.origin).toString().replace(/\/$/, '');
-  } catch {
-    httpBase = `${window.location.origin}${base}`;
-  }
-  const wsBase = httpBase.replace(/^http/, 'ws');
-  const token = getAccessToken() ?? '';
-  return `${wsBase}/orders/${orderId}/ws/driver-location?token=${encodeURIComponent(token)}`;
+  return wsUrl(`/orders/${orderId}/ws/driver-location`);
 }
 
 export function listRegions(): Promise<RegionItem[]> {

@@ -1,10 +1,6 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import {
-  loadYandexMaps,
-  UZBEKISTAN_CENTER,
-  UZBEKISTAN_DEFAULT_ZOOM,
-  type YMap,
-} from '../utils/yandexMaps';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { useYandexMap } from '../hooks/useYandexMap';
+import { loadYandexMaps } from '../utils/yandexMaps';
 import styles from './YandexMap.module.css';
 
 // Bitta nuqtaga (masalan foydalanuvchi joylashuvi) markazlashganda ishlatiladigan zoom.
@@ -65,9 +61,9 @@ export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
   const originDraggable = Boolean(onOriginMove);
   const destinationDraggable = Boolean(onDestinationMove);
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<YMap | null>(null);
-  const [ready, setReady] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // restrictMapArea ATAYLAB YO'Q: u viewport'ni O'zbekiston to'rtburchagi ichida
+  // ushlab, telefon (vertikal) ekranida butun mamlakat ko'rinishiga to'sqinlik qilardi.
+  const { mapRef, ready, failed } = useYandexMap(containerRef, { options: { minZoom: MIN_ZOOM } });
   // Xarita foydalanuvchi nuqtasiga faqat BIR marta markazlashadi — keyin uni
   // qo'lda surganida har yangi koordinatada sakrab ketmasligi uchun.
   const centeredOnUserRef = useRef(false);
@@ -76,40 +72,7 @@ export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
     focusLocation: (latitude, longitude) => {
       mapRef.current?.setCenter([latitude, longitude], MY_LOCATION_ZOOM, { duration: 300 });
     },
-  }), []);
-
-  useEffect(() => {
-    let cancelled = false;
-    let resizeObserver: ResizeObserver | null = null;
-    loadYandexMaps()
-      .then((ymaps) => {
-        if (cancelled || !containerRef.current) return;
-        const map = new ymaps.Map(
-          containerRef.current,
-          { center: UZBEKISTAN_CENTER, zoom: UZBEKISTAN_DEFAULT_ZOOM, controls: ['zoomControl'] },
-          // restrictMapArea ATAYLAB YO'Q: u viewport'ni O'zbekiston to'rtburchagi ichida
-          // ushlab, telefon (vertikal) ekranida butun mamlakat ko'rinishiga to'sqinlik qilardi.
-          { minZoom: MIN_ZOOM },
-        );
-        mapRef.current = map;
-        setReady(true);
-
-        // Konteyner ymaps o'lchagan paytdan keyin o'zgarsa (masalan, layout hali
-        // to'liq joylashmagan bo'lsa yoki klaviatura/varaqlar ekran balandligini
-        // o'zgartirsa), plitkalar eski o'lchamda "qotib" qoladi — fitToViewport shuni tuzatadi.
-        resizeObserver = new ResizeObserver(() => map.container.fitToViewport());
-        resizeObserver.observe(containerRef.current);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-      resizeObserver?.disconnect();
-      mapRef.current?.destroy();
-      mapRef.current = null;
-    };
-  }, []);
+  }), [mapRef]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -225,7 +188,7 @@ export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
     return () => {
       cancelled = true;
     };
-  }, [ready, origin, destination, route, userLocation, driverLocation, driverStale, followUser, originDraggable, destinationDraggable]);
+  }, [ready, mapRef, origin, destination, route, userLocation, driverLocation, driverStale, followUser, originDraggable, destinationDraggable]);
 
   return (
     <div className={styles.wrap}>

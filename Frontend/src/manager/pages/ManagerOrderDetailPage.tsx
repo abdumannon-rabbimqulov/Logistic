@@ -5,8 +5,9 @@ import { getManagerOrder, updateManagerOrderStatus } from '../../api/manager';
 import { StatusBadge } from '../../admin/components/StatusBadge';
 import { useToast } from '../../admin/components/Toast';
 import shared from '../../admin/shared.module.css';
-import type { ManagerOrderDetail, OrderStatus } from '../../types/api';
-import { shortAddress } from '../../utils/format';
+import type { ManagerOrderDetail, OrderStatus, WaypointStatus, WaypointType } from '../../types/api';
+import { formatDateTime, shortAddress } from '../../utils/format';
+import { WAYPOINT_STATUS_LABEL, WAYPOINT_TYPE_LABEL } from '../../utils/orderStatus';
 import { AssignTruckModal } from '../components/AssignTruckModal';
 import styles from './ManagerOrderDetailPage.module.css';
 
@@ -21,25 +22,6 @@ const STATUSES: OrderStatus[] = [
   'COMPLETED',
   'CANCELLED',
 ];
-
-const WAYPOINT_TYPE_LABELS: Record<string, string> = {
-  PICKUP: 'Yuklash',
-  DELIVERY: 'Tushirish',
-  TRANSIT: 'Oraliq',
-};
-
-const WAYPOINT_STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Kutilmoqda',
-  ARRIVED: 'Yetib bordi',
-  COMPLETED: 'Bajarildi',
-  SKIPPED: "O'tkazib yuborildi",
-};
-
-function formatDateTime(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('uz-UZ');
-}
 
 export function ManagerOrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -202,10 +184,10 @@ export function ManagerOrderDetailPage() {
                 <li key={wp.id} className={styles.waypoint}>
                   <div className={styles.wpHead}>
                     <span className={styles.wpType}>
-                      {WAYPOINT_TYPE_LABELS[wp.type] ?? wp.type}
+                      {WAYPOINT_TYPE_LABEL[wp.type as WaypointType] ?? wp.type}
                     </span>
                     <span className={styles[`wp_${wp.status}`] ?? styles.wpStatus}>
-                      {WAYPOINT_STATUS_LABELS[wp.status] ?? wp.status}
+                      {WAYPOINT_STATUS_LABEL[wp.status as WaypointStatus] ?? wp.status}
                     </span>
                   </div>
                   <div className={styles.wpAddress}>{shortAddress(wp.address) || '—'}</div>

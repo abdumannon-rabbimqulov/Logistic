@@ -1,20 +1,11 @@
 import type { OrderDetail, OrderWaypoint } from '../types/api';
 import styles from './OrderStepper.module.css';
+import { formatShortDateTime } from '../utils/format';
 
 interface Step {
   key: string;
   label: string;
   time?: string | null;
-}
-
-function formatTime(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  return new Date(iso).toLocaleString('uz-UZ', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 const isDone = (wp: OrderWaypoint | undefined) =>
@@ -33,16 +24,16 @@ function computeOrderSteps(order: OrderDetail): { steps: Step[]; current: number
   const lastDelivery = [...order.waypoints].reverse().find((w) => w.type === 'DELIVERY');
 
   const steps: Step[] = [
-    { key: 'created', label: 'Buyurtma berildi', time: formatTime(order.created_at) },
+    { key: 'created', label: 'Buyurtma berildi', time: formatShortDateTime(order.created_at) },
     { key: 'search', label: 'Haydovchi qidirilmoqda' },
     { key: 'found', label: 'Haydovchi topildi' },
-    { key: 'started', label: "Haydovchi yo'lga chiqdi", time: formatTime(order.started_at) },
-    { key: 'loading', label: 'Yuk ortilmoqda', time: formatTime(pickup?.arrived_at) },
-    { key: 'transit', label: "Yo'lda", time: formatTime(pickup?.completed_at) },
+    { key: 'started', label: "Haydovchi yo'lga chiqdi", time: formatShortDateTime(order.started_at) },
+    { key: 'loading', label: 'Yuk ortilmoqda', time: formatShortDateTime(pickup?.arrived_at) },
+    { key: 'transit', label: "Yo'lda", time: formatShortDateTime(pickup?.completed_at) },
     {
       key: 'delivered',
       label: 'Yetkazildi',
-      time: formatTime(order.completed_at ?? lastDelivery?.completed_at),
+      time: formatShortDateTime(order.completed_at ?? lastDelivery?.completed_at),
     },
   ];
 
@@ -93,7 +84,7 @@ export function OrderStepper({ order }: Props) {
           </span>
           <div className={styles.body}>
             <span className={styles.label}>Bekor qilindi</span>
-            {order.cancelled_at && <span className={styles.time}>{formatTime(order.cancelled_at)}</span>}
+            {order.cancelled_at && <span className={styles.time}>{formatShortDateTime(order.cancelled_at)}</span>}
           </div>
         </li>
       )}

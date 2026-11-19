@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getAccessToken, apiBaseUrl } from '../api/client';
+import { wsUrl } from '../api/client';
 import {
   TelegramLocationError,
   getTelegramLocationOnce,
@@ -53,15 +53,7 @@ interface LiveLocationState {
 
 /** `/drivers/ws/location` manzilini quradi (client.ts dagi `driverLocationsWsUrl` naqshi). */
 function locationWsUrl(): string {
-  const base = apiBaseUrl().replace(/\/$/, '');
-  let httpBase: string;
-  try {
-    httpBase = new URL(base, window.location.origin).toString().replace(/\/$/, '');
-  } catch {
-    httpBase = `${window.location.origin}${base}`;
-  }
-  const wsBase = httpBase.replace(/^http/, 'ws');
-  return `${wsBase}/drivers/ws/location?token=${encodeURIComponent(getAccessToken() ?? '')}`;
+  return wsUrl('/drivers/ws/location');
 }
 
 /**

@@ -1,10 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  loadYandexMaps,
-  UZBEKISTAN_CENTER,
-  UZBEKISTAN_DEFAULT_ZOOM,
-  type YMap,
-} from '../../utils/yandexMaps';
+import { useEffect, useRef } from 'react';
+import { useYandexMap } from '../../hooks/useYandexMap';
+import { loadYandexMaps } from '../../utils/yandexMaps';
 import type { DriverMonitorItem } from '../../types/api';
 import styles from './DriversMap.module.css';
 
@@ -30,9 +26,12 @@ const SELECTED_ZOOM = 13;
 
 export function DriversMap({ drivers, selectedId, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<YMap | null>(null);
-  const [ready, setReady] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // Yandex'ning o'z POI (do'kon, kafe...) balonlari o'chiriladi — monitoring
+  // xaritasida marker o'rniga tasodifan POI ochilib ketmasligi uchun.
+  const { mapRef, ready, failed } = useYandexMap(containerRef, {
+    options: { minZoom: 4 },
+    onCreate: (map) => map.options.set('yandexMapDisablePoiInteractivity', true),
+  });
   // Xarita birinchi ma'lumot kelganda bir marta markerlarga moslanadi; keyin admin
   // qo'lda surganini har 8 soniyalik yangilanish buzib yubormasligi kerak.
   const fittedRef = useRef(false);
@@ -40,36 +39,6 @@ export function DriversMap({ drivers, selectedId, onSelect }: Props) {
   // closure'ni ushlab qolmasligi uchun ref orqali.
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
-
-  useEffect(() => {
-    let cancelled = false;
-    let resizeObserver: ResizeObserver | null = null;
-
-    loadYandexMaps()
-      .then((ymaps) => {
-        if (cancelled || !containerRef.current) return;
-        const map = new ymaps.Map(
-          containerRef.current,
-          { center: UZBEKISTAN_CENTER, zoom: UZBEKISTAN_DEFAULT_ZOOM, controls: ['zoomControl'] },
-          { minZoom: 4 },
-        );
-        // Yandex'ning o'z POI (do'kon, kafe...) balonlari o'chiriladi — monitoring
-        // xaritasida marker o'rniga tasodifan POI ochilib ketmasligi uchun.
-        map.options.set('yandexMapDisablePoiInteractivity', true);
-        mapRef.current = map;
-        setReady(true);
-        resizeObserver = new ResizeObserver(() => map.container.fitToViewport());
-        resizeObserver.observe(containerRef.current);
-      })
-      .catch(() => !cancelled && setFailed(true));
-
-    return () => {
-      cancelled = true;
-      resizeObserver?.disconnect();
-      mapRef.current?.destroy();
-      mapRef.current = null;
-    };
-  }, []);
 
   // Markerlarni qayta chizish (har yangilanishda ro'yxat kichik — 100lab haydovchigacha
   // to'liq qayta chizish yetarlicha tez va holat mos kelishini kafolatlaydi).
@@ -122,7 +91,7 @@ export function DriversMap({ drivers, selectedId, onSelect }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [ready, drivers, selectedId]);
+  }, [ready, mapRef, drivers, selectedId]);
 
   // Ro'yxatdan haydovchi tanlanganda xarita o'sha nuqtaga uchadi.
   useEffect(() => {
@@ -135,7 +104,7 @@ export function DriversMap({ drivers, selectedId, onSelect }: Props) {
     // `drivers` ataylab bog'liqlikda emas: har pollingda qayta markazlashtirish
     // adminni xaritada "sakratib" yuborardi.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, selectedId]);
+  }, [ready, mapRef, selectedId]);
 
   return (
     <div className={styles.wrap}>

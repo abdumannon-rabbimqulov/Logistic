@@ -62,6 +62,12 @@ Allaqachon olib tashlangan (`3ffb237`):
 - **Muammo:** `scripts/seed_test_users.py` prod'da paroli `1111` bo'lgan 10 ta sinov hisobini yaratadi.
 - **Qilinadi:** real foydalanuvchilar bilan ishlay boshlagach, prod'da `--delete` bilan o'chiriladi, keyin skriptning o'zi ham o'chiriladi.
 
+## Holat
+- **Bajarildi (2026-11-19):** 3, 4 va 5-bandlar.
+  - backend: `services/staff.py`, `utils/time.py`, `LAST_KNOWN_LOCATION_MAX_AGE_SEC`, `order/labels.py`;
+  - frontend: yorliqlar `utils/orderStatus.ts` dan, `hooks/useYandexMap.ts`, `api/client.ts: wsUrl`, `utils/format.ts` dagi sana va pul formatlari.
+- **Qolgan:** 1, 2, 6, 7.
+
 ## Bajarish tartibi
 **3 → 4 → 5 → 2 → 1 → 6 → 7.**
 - 3, 4 va 5 xavfsiz, mahalliy o'zgarishlar: har biri alohida commit, testlar va build bilan.

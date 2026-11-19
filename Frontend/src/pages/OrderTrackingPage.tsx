@@ -19,7 +19,7 @@ import { BackIcon, PhoneIcon, SendIcon, StarIcon } from '../components/icons';
 import { YandexMap } from '../components/YandexMap';
 import { useOrderDriverLocation } from '../hooks/useOrderDriverLocation';
 import type { OrderDetail, OrderEta, QuickPriceOption } from '../types/api';
-import { formatEta, formatPrice, routeLabel, shortAddress, unloadingLabel } from '../utils/format';
+import { formatClock, formatEta, formatPrice, formatShortDateTime, routeLabel, shortAddress, unloadingLabel } from '../utils/format';
 import {
   FINAL_ORDER_STATUSES,
   WAYPOINT_STATUS_LABEL,
@@ -39,19 +39,6 @@ const SCHEDULED_POLL_INTERVAL_MS = 60_000;
 
 
 /** ISO vaqtdan faqat soat:daqiqa (bosqichlar ro'yxati uchun). */
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('uz-UZ', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 export function OrderTrackingPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
@@ -556,9 +543,9 @@ export function OrderTrackingPage() {
                     <div className={styles.timelineAddress}>{shortAddress(wp.address) || 'Manzil ko‘rsatilmagan'}</div>
                     {(wp.arrived_at || wp.completed_at) && (
                       <div className={styles.timelineTime}>
-                        {wp.arrived_at && `Yetib keldi: ${formatTime(wp.arrived_at)}`}
+                        {wp.arrived_at && `Yetib keldi: ${formatClock(wp.arrived_at)}`}
                         {wp.arrived_at && wp.completed_at && ' · '}
-                        {wp.completed_at && `Yakunlandi: ${formatTime(wp.completed_at)}`}
+                        {wp.completed_at && `Yakunlandi: ${formatClock(wp.completed_at)}`}
                       </div>
                     )}
                     {wp.contact_name && (
@@ -644,7 +631,7 @@ export function OrderTrackingPage() {
             )}
             <div className={styles.detailRow}>
               <dt>Yuklash vaqti</dt>
-              <dd>{formatDateTime(order.pickup_at)}</dd>
+              <dd>{formatShortDateTime(order.pickup_at)}</dd>
             </div>
             {unloadingLabel(order.unloading_mode, order.unloading_wait_hours) && (
               <div className={styles.detailRow}>

@@ -8,12 +8,9 @@ import { Pagination } from '../components/Pagination';
 import { SearchIconAdmin } from '../icons';
 import shared from '../shared.module.css';
 import styles from './DriverBlocksPanel.module.css';
+import { formatMoney } from '../../utils/format';
 
 const PAGE_SIZE = 20;
-
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 0 }).format(value);
-}
 
 /** Haydovchilar ro'yxati: balans, qarz tufayli avtomatik blok va uni ochish. */
 export function DriverBlocksPanel() {

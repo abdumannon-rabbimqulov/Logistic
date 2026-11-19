@@ -63,3 +63,36 @@ export function shortAddress(address: string | null | undefined): string {
   if (!address) return '';
   return address.replace(COUNTRY_PREFIX, '').replace(COUNTRY_SUFFIX, '').trim();
 }
+
+// ── Sana/vaqt va pul formatlari ────────────────────────────────────────────
+// Ilgari har sahifada o'z `formatDateTime`/`formatTime`/`formatMoney` nusxasi bor edi
+// (10+ joy) — bir xil sana turli ekranlarda turlicha ko'rinardi.
+
+function toDate(iso: string | null | undefined): Date | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** To'liq sana va vaqt (admin jadvallari). Bo'sh/yaroqsiz bo'lsa — "—". */
+export function formatDateTime(iso: string | null | undefined): string {
+  return toDate(iso)?.toLocaleString('uz-UZ') ?? '—';
+}
+
+/** Qisqa: "19.11, 14:30" (bosqichlar, xabarlar). Bo'sh bo'lsa — bo'sh qator. */
+export function formatShortDateTime(iso: string | null | undefined): string {
+  return (
+    toDate(iso)?.toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) ??
+    ''
+  );
+}
+
+/** Faqat soat:daqiqa. */
+export function formatClock(iso: string | null | undefined): string {
+  return toDate(iso)?.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) ?? '';
+}
+
+/** Pul miqdori guruhlab ("1 250 000"); `fractionDigits` — kasr xonalari (standart 0). */
+export function formatMoney(value: number, fractionDigits = 0): string {
+  return new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: fractionDigits }).format(value);
+}

@@ -27,6 +27,7 @@ import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import shared from '../shared.module.css';
 import styles from './AdminTickets.module.css';
+import { formatDateTime } from '../../utils/format';
 
 // Foydalanuvchilarning murojaatlari — support MIKROSERVISIDAN keladi (`/support/...`,
 // `/api` ostida emas). Xodim (admin/manager) hamma murojaatni ko'radi, o'ziga oladi va
@@ -39,11 +40,6 @@ const REPLY_MAX_HEIGHT = 200;
 const STATUSES: TicketStatus[] = ['open', 'in_progress', 'resolved', 'closed'];
 
 type AssignedFilter = '' | 'me' | 'none';
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('uz-UZ');
-}
 
 function roleLabel(role: string | null): string {
   return role ? SUPPORT_ROLE_LABELS[role] ?? role : '-';
