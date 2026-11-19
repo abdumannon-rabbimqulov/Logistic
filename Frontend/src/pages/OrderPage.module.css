@@ -217,8 +217,16 @@
   padding: 12px 10px;
   border-radius: var(--radius-md);
   border: var(--border-w) solid var(--color-border);
-  flex: 1 0 78px;
-  min-width: 78px;
+  flex: 1 0 96px;
+  min-width: 96px;
+}
+
+/* Transport turi rasmi (admin yuklagan). Yo'q yoki yuklanmasa — ikonka. */
+.truckImg {
+  width: 100%;
+  max-width: 128px;
+  height: 64px;
+  object-fit: contain;
 }
 
 .truckCardSelected {

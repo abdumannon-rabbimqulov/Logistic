@@ -20,6 +20,7 @@ import {
   truckIconFor,
 } from '../components/icons';
 import { ApiError } from '../api/client';
+import { staticFileUrl } from '../api/truckTypes';
 import { useGeolocation } from '../hooks/useGeolocation';
 import type { GeocodeSuggestion, OrderCreateInput, PriceEstimateOption } from '../types/api';
 import type { OrderPointPrefill, OrderPrefillState } from '../types/navigation';
@@ -38,6 +39,9 @@ export function OrderPage() {
   const [origin, setOrigin] = useState<OrderPointPrefill | null>(prefill?.origin ?? null);
   const [destination, setDestination] = useState<OrderPointPrefill | null>(prefill?.destination ?? null);
   const [selectedTruckTypeId, setSelectedTruckTypeId] = useState<number | null>(prefill?.truckTypeId ?? null);
+  // Rasmi yuklanmagan transport turlari — ularda rasm o'rniga ikonka chiziladi.
+  const [failedImages, setFailedImages] = useState<ReadonlySet<number>>(() => new Set());
+  const markImageFailed = (id: number) => setFailedImages((prev) => new Set(prev).add(id));
   const [options, setOptions] = useState<PriceEstimateOption[]>([]);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [durationMin, setDurationMin] = useState<number | null>(null);
@@ -301,7 +305,17 @@ export function OrderPage() {
                     className={selected ? styles.truckCardSelected : styles.truckCard}
                     onClick={() => setSelectedTruckTypeId(opt.truck_type_id)}
                   >
-                    <Icon color={selected ? 'var(--color-accent-pressed)' : 'var(--color-text-secondary)'} />
+                    {opt.image_url && !failedImages.has(opt.truck_type_id) ? (
+                      <img
+                        className={styles.truckImg}
+                        src={staticFileUrl(opt.image_url)}
+                        alt={opt.name}
+                        loading="lazy"
+                        onError={() => markImageFailed(opt.truck_type_id)}
+                      />
+                    ) : (
+                      <Icon color={selected ? 'var(--color-accent-pressed)' : 'var(--color-text-secondary)'} />
+                    )}
                     {durationMin !== null && (
                       <span className={selected ? styles.truckDurationSelected : styles.truckDuration}>
                         {Math.round(durationMin)} daq

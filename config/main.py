@@ -7,6 +7,7 @@ Bu faylda faqat: lifespan (startup/shutdown), middleware'lar, router'larni ulash
 """
 
 import logging
+import mimetypes
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -88,7 +89,10 @@ app = FastAPI(
 # ─────────────────────────────────────────────────────────────
 setup_error_handlers(app)
 
-# Uploads papkasini static qilib ulash
+# Uploads papkasini static qilib ulash.
+# python:3.11-slim `.webp` ni tanimaydi va `application/octet-stream` qaytarardi
+# (transport turi rasmlari webp) — turini aniq ro'yxatdan o'tkazamiz.
+mimetypes.add_type("image/webp", ".webp")
 app.mount(STATIC_PATH, StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 app.add_middleware(
