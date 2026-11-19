@@ -11,6 +11,8 @@ liniyadagi haydovchi + har bir kuzatayotgan sender). U core'dan ajralgani uchun:
 Protokol core'dagi eski endpointlar bilan BIR XIL (frontend o'zgarmaydi):
   WS {prefix}/drivers/ws/location?token=           — haydovchi GPS yuboradi
   WS {prefix}/orders/{id}/ws/driver-location?token= — sender haydovchini kuzatadi
+  WS {prefix}/drivers/ws/dispatch?token=           — haydovchiga "taklif o'zgardi" signali
+                                                     (core: services/dispatch_signal.py)
 Oxirgi nuqtani bazaga yozish — core'ning ishi (`services/live_location_sync.py`,
 dispatch-worker ichida, Redis'dan davriy).
 """
@@ -148,6 +150,62 @@ async def order_driver_location_ws(websocket: WebSocket, order_id: int, token: O
         logger.debug("Order %s WS receive xatosi: %s", order_id, exc)
     finally:
         pump_task.cancel()
+
+
+# Ulanish jim qolmasligi uchun (mobil tarmoq / proksi bo'sh ulanishni uzadi).
+DISPATCH_KEEPALIVE_SEC = 25
+
+
+@router.websocket("/drivers/ws/dispatch")
+async def driver_dispatch_ws(websocket: WebSocket, token: Optional[str] = None):
+    """Haydovchi ilovasi liniyada turganda ochiq turadi. Taklif yaratilsa yoki yopilsa
+    core shu haydovchining kanaliga `{"event": "dispatch_changed"}` yuboradi va u shu
+    yerdan ilovaga uzatiladi — ilova taklifni `GET /orders/dispatch/active` dan oladi.
+
+    Ilgari ilova buni har 3 soniyada so'rardi; endi so'rov faqat o'zgarish bo'lganda.
+    """
+    raw = _token(token or websocket.query_params.get("token"))
+    identity = await core_client.driver_identity(raw) if raw else None
+    if identity is None:
+        await websocket.close(code=4401, reason="Unauthorized")
+        return
+
+    driver_id = int(identity["driver_id"])
+    channel = store.dispatch_channel(driver_id)
+    # Avval obuna, keyin "connected": ilova "connected" ni olgach joriy holatni so'raydi,
+    # shu oraliqda kelgan signal yo'qolmasligi kerak.
+    pubsub = await store.open_subscription(channel)
+    await websocket.accept()
+    await websocket.send_json({"event": "connected"})
+
+    async def pump() -> None:
+        async for payload in store.iter_json(pubsub, channel):
+            await websocket.send_json(payload)
+
+    async def keepalive() -> None:
+        while True:
+            await asyncio.sleep(DISPATCH_KEEPALIVE_SEC)
+            await websocket.send_json({"event": "ping"})
+
+    tasks = [asyncio.create_task(pump()), asyncio.create_task(keepalive())]
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        logger.debug("Driver %s dispatch WS receive xatosi: %s", driver_id, exc)
+    finally:
+        for task in tasks:
+            task.cancel()
+        # Vazifalar to'liq tugashini kutamiz — aks holda obuna yopilayotganda pump
+        # `ConnectionError` bilan tugab, "exception was never retrieved" bo'lib qolardi.
+        await asyncio.gather(*tasks, return_exceptions=True)
+        # pump hech qachon boshlanmagan bo'lsa ham obuna yopilsin.
+        try:
+            await pubsub.aclose()
+        except Exception:
+            pass
 
 
 # nginx `$request_uri` ni to'liq uzatadi (`/api/...`); ichki tarmoqdan esa prefiksiz.

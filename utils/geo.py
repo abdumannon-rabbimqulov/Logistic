@@ -51,7 +51,10 @@ def simplify_lonlat_array(lonlat: "np.ndarray", tolerance_m: float = 15.0) -> li
     simplified = shapely.simplify(
         shapely.linestrings(lonlat * scale), tolerance_m, preserve_topology=False
     )
-    kept = shapely.get_coordinates(simplified) / scale
+    # Metrdan gradusga qaytishda float "shovqini" qoladi (41.311264 → 41.311263999999994).
+    # OSRM koordinatalari 6 xonali, shuning uchun yaxlitlash asl qiymatni aynan tiklaydi
+    # (GEOS faqat mavjud nuqtalarni qoldiradi, yangisini yaratmaydi).
+    kept = np.round(shapely.get_coordinates(simplified) / scale, 6)
     return [(lat, lon) for lon, lat in kept.tolist()]
 
 

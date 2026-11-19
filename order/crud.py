@@ -16,7 +16,7 @@ from driver.models import Driver, TruckType
 from order.dispatch_models import DispatchAttempt, DispatchAttemptStatus
 from order.models import Order, OrderRoutePostGIS, OrderStatus, OrderWaypoint
 from order.schemas import OrderCreate, PriceEstimateRequest, OrderUpdate, OrderWaypointCreate
-from services import billing, order_flow, osrm_client, outbox, pricing, queue, regions, yandex_geocoder
+from services import billing, dispatch_signal, order_flow, osrm_client, outbox, pricing, queue, regions, yandex_geocoder
 from utils.geo import simplify_polyline
 
 logger = logging.getLogger(__name__)
@@ -300,14 +300,16 @@ async def cancel_order(
     order_flow.ensure_order_transition_allowed(order.status, OrderStatus.CANCELLED)
     old_status = order.status
 
-    await db.execute(
+    cancelled = await db.execute(
         update(DispatchAttempt)
         .where(
             DispatchAttempt.order_id == order.id,
             DispatchAttempt.status == DispatchAttemptStatus.PENDING,
         )
         .values(status=DispatchAttemptStatus.CANCELLED)
+        .returning(DispatchAttempt.driver_id)
     )
+    offered_drivers = list(cancelled.scalars().all())
 
     order.status = OrderStatus.CANCELLED
     order.cancelled_at = datetime.now(timezone.utc)
@@ -315,6 +317,7 @@ async def cancel_order(
     order.cancel_reason = reason
     record_order_status_changed(db, order, old_status, actor_user_id=cancelled_by_user_id)
     await db.commit()
+    await dispatch_signal.notify_drivers(offered_drivers)
     await db.refresh(
         order,
         attribute_names=["status", "cancelled_at", "cancelled_by_user_id", "cancel_reason", "updated_at"],

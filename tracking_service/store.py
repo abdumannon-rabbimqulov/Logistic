@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, Optional
 
 import redis.asyncio as aioredis
+from redis.asyncio.client import PubSub
 
 from contracts import redis_keys
 from tracking_service.config import LIVE_LOC_TTL_SEC, REDIS_URL
@@ -47,6 +48,7 @@ async def close() -> None:
 location_key = redis_keys.driver_location_key
 driver_channel = redis_keys.driver_location_channel
 gps_lost_key = redis_keys.driver_gps_lost_key
+dispatch_channel = redis_keys.driver_dispatch_channel
 
 
 def build_payload(identity: dict[str, Any], lat: float, lon: float, accuracy: Optional[float],
@@ -98,9 +100,15 @@ async def get_location(driver_id: int) -> Optional[dict[str, Any]]:
     return json.loads(raw) if raw else None
 
 
-async def subscribe_driver(driver_id: int) -> AsyncGenerator[dict[str, Any], None]:
+async def open_subscription(channel: str) -> PubSub:
+    """Kanalga obuna — qaytgan paytda obuna ALLAQACHON faol (keyingi xabar yo'qolmaydi)."""
     pubsub = get_redis().pubsub()
-    await pubsub.subscribe(driver_channel(driver_id))
+    await pubsub.subscribe(channel)
+    return pubsub
+
+
+async def iter_json(pubsub: PubSub, channel: str) -> AsyncGenerator[dict[str, Any], None]:
+    """Obunadagi JSON xabarlar; generator yopilganda obuna ham yopiladi."""
     try:
         async for message in pubsub.listen():
             if message["type"] != "message":
@@ -110,5 +118,11 @@ async def subscribe_driver(driver_id: int) -> AsyncGenerator[dict[str, Any], Non
             except (TypeError, ValueError):
                 continue
     finally:
-        await pubsub.unsubscribe(driver_channel(driver_id))
+        await pubsub.unsubscribe(channel)
         await pubsub.aclose()
+
+
+async def subscribe_driver(driver_id: int) -> AsyncGenerator[dict[str, Any], None]:
+    channel = driver_channel(driver_id)
+    async for payload in iter_json(await open_subscription(channel), channel):
+        yield payload

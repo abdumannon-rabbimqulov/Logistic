@@ -1,4 +1,4 @@
-"""Jonli joylashuv uchun Redis kalitlari va kanallari (core + tracking_service)."""
+"""Redis kalitlari va kanallari (core + tracking_service): jonli joylashuv va dispatch signallari."""
 
 from __future__ import annotations
 
@@ -23,3 +23,15 @@ def driver_gps_lost_key(driver_id: int) -> str:
 
 def driver_location_channel(driver_id: int) -> str:
     return f"{DRIVER_LOCATION_CHANNEL_PREFIX}{driver_id}"
+
+
+# Haydovchiga "taklifingiz o'zgardi" signali: core (services/dispatch_signal.py) →
+# tracking_service WS `/drivers/ws/dispatch` → haydovchi ilovasi. Xabar faqat signal
+# (`{"event": "dispatch_changed"}`) — ilova taklifning o'zini `GET /orders/dispatch/active`
+# dan oladi, shuning uchun ruxsat va serializatsiya bitta joyda (core'da) qoladi.
+DRIVER_DISPATCH_CHANNEL_PREFIX = "driver_dispatch_ch:"
+DISPATCH_CHANGED_EVENT = "dispatch_changed"
+
+
+def driver_dispatch_channel(driver_id: int) -> str:
+    return f"{DRIVER_DISPATCH_CHANNEL_PREFIX}{driver_id}"

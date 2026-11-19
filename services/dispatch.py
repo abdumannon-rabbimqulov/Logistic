@@ -43,7 +43,7 @@ from config.config import APP_TIMEZONE, LAST_KNOWN_LOCATION_MAX_AGE_SEC
 from driver.models import Driver
 from order.dispatch_models import DispatchAttempt, DispatchAttemptStatus, DispatchMatchType
 from order.models import Order, OrderStatus
-from services import dispatch_timing, live_location, notifications, osrm_client, pricing, queue
+from services import dispatch_signal, dispatch_timing, live_location, notifications, osrm_client, pricing, queue
 from services import notification_templates as templates
 from services.problems import Violation
 from utils.geo import calculate_distance_km
@@ -533,6 +533,8 @@ async def _run_dispatch_round(db: AsyncSession, order: Order) -> None:
     # Chaqiruvchi (masalan POST /orders) javobni sinxron serializatsiya qilgani uchun
     # o'sha yerda lazy refresh MissingGreenlet beradi — shuning uchun shu yerda tiklanadi.
     await db.refresh(order, attribute_names=["dispatch_round", "updated_at"])
+    # Ilovadagi karta darhol chiqsin — Telegram xabaridan oldin (u sekinroq).
+    await dispatch_signal.notify_drivers([driver.id])
 
     chat_id = driver.user_id
     message_id = await notifications.send_telegram_message(
@@ -603,13 +605,19 @@ async def expire_attempt(db: AsyncSession, attempt_id: int, *, continue_dispatch
         update(DispatchAttempt)
         .where(DispatchAttempt.id == attempt_id, DispatchAttempt.status == DispatchAttemptStatus.PENDING)
         .values(status=DispatchAttemptStatus.EXPIRED, responded_at=datetime.now(timezone.utc))
-        .returning(DispatchAttempt.order_id, DispatchAttempt.bot_chat_id, DispatchAttempt.bot_message_id)
+        .returning(
+            DispatchAttempt.order_id,
+            DispatchAttempt.driver_id,
+            DispatchAttempt.bot_chat_id,
+            DispatchAttempt.bot_message_id,
+        )
     )
     row = result.first()
     if row is None:
         await db.rollback()
         return
     await db.commit()
+    await dispatch_signal.notify_drivers([row.driver_id])
 
     if row.bot_chat_id and row.bot_message_id:
         await notifications.edit_telegram_message(
@@ -797,12 +805,16 @@ async def accept_attempt(db: AsyncSession, attempt_id: int, *, acting_user_id: i
 
     # Ehtiyot chorasi (odatda bo'sh): ketma-ket dispatch bo'lgani uchun shu order uchun
     # boshqa pending attempt bo'lmasligi kerak, lekin himoya qatlami sifatida yopib qo'yiladi.
-    await db.execute(
+    cancelled = await db.execute(
         update(DispatchAttempt)
         .where(DispatchAttempt.order_id == order.id, DispatchAttempt.status == DispatchAttemptStatus.PENDING)
         .values(status=DispatchAttemptStatus.CANCELLED)
+        .returning(DispatchAttempt.driver_id)
     )
+    other_drivers = list(cancelled.scalars().all())
     await db.commit()
+    # Qabul qilgan haydovchining boshqa qurilmasi ham (masalan Telegram + brauzer) yangilansin.
+    await dispatch_signal.notify_drivers([driver.id, *other_drivers])
 
     if row.bot_chat_id and row.bot_message_id:
         await notifications.edit_telegram_message(row.bot_chat_id, row.bot_message_id, templates.OFFER_ACCEPTED_TEXT)
@@ -835,12 +847,15 @@ async def assign_driver_manually(db: AsyncSession, order: Order, driver: Driver)
 
     # Ochiq qolgan takliflar yopiladi — aks holda boshqa haydovchi ham "qabul qildim"
     # deb bosishi va 409 olishi mumkin edi (foydalanuvchi uchun chalkash).
-    await db.execute(
+    cancelled = await db.execute(
         update(DispatchAttempt)
         .where(DispatchAttempt.order_id == order.id, DispatchAttempt.status == DispatchAttemptStatus.PENDING)
         .values(status=DispatchAttemptStatus.CANCELLED)
+        .returning(DispatchAttempt.driver_id)
     )
+    other_drivers = list(cancelled.scalars().all())
     await db.commit()
+    await dispatch_signal.notify_drivers(other_drivers)
 
     await notifications.send_telegram_message(driver.user_id, templates.manually_assigned_text(order))
     await _send_navigation_links(order, driver.user_id)
@@ -868,6 +883,7 @@ async def reject_attempt(db: AsyncSession, attempt_id: int, *, acting_user_id: i
         await db.rollback()
         raise DispatchError("Bu taklif sizga tegishli emas yoki allaqachon javob berilgan", status_code=409)
     await db.commit()
+    await dispatch_signal.notify_drivers([driver.id])
 
     if row.bot_chat_id and row.bot_message_id:
         await notifications.edit_telegram_message(row.bot_chat_id, row.bot_message_id, templates.OFFER_REJECTED_TEXT)
@@ -1052,17 +1068,20 @@ async def pause_dispatch(db: AsyncSession, order: Order) -> Order:
         raise DispatchError("Qidiruv allaqachon to'xtatilgan")
 
     offer_ref = await get_pending_offer_message(db, order)
-    await db.execute(
+    cancelled = await db.execute(
         update(DispatchAttempt)
         .where(
             DispatchAttempt.order_id == order.id,
             DispatchAttempt.status == DispatchAttemptStatus.PENDING,
         )
         .values(status=DispatchAttemptStatus.CANCELLED, responded_at=datetime.now(timezone.utc))
+        .returning(DispatchAttempt.driver_id)
     )
+    paused_drivers = list(cancelled.scalars().all())
 
     order.dispatch_paused_at = datetime.now(timezone.utc)
     await db.commit()
+    await dispatch_signal.notify_drivers(paused_drivers)
     await db.refresh(order, attribute_names=["dispatch_paused_at", "updated_at"])
 
     # Haydovchiga xabar DB yozuvidan keyin — xato bo'lsa ham qidiruv to'xtagan bo'lib

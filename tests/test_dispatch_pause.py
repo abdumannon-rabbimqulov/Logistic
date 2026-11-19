@@ -38,7 +38,17 @@ class FakeSession:
 
     async def execute(self, statement):
         self.statements.append(statement)
-        return None
+        return _EmptyResult()
+
+
+class _EmptyResult:
+    """`UPDATE ... RETURNING driver_id` natijasi — bekor qilingan taklif yo'q."""
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return []
 
 
 def make_order(**overrides) -> Order:

@@ -8,13 +8,17 @@ import { DriverBottomNav } from '../components/DriverBottomNav';
 import { GoOnlineSheet, type GoOnlineResult } from '../components/GoOnlineSheet';
 import { YandexMap } from '../components/YandexMap';
 import { ChevronRightIcon, PowerIcon } from '../components/icons';
+import { useDispatchSignal } from '../hooks/useDispatchSignal';
 import { useLiveLocation } from '../hooks/useLiveLocation';
 import type { DispatchAttemptResponse, OrderListItem } from '../types/api';
 import { formatPrice, statusLabel } from '../utils/format';
 import { useDriverCabinet } from './DriverCabinetContext';
 import styles from './DriverHomePage.module.css';
 
+/** Signal WebSocket'i ishlamay turganda — avvalgidek tez-tez so'raladi. */
 const DISPATCH_POLL_MS = 3000;
+/** WebSocket ulangan paytda — faqat zaxira (signal qaysidir sabab bilan yo'qolsa). */
+const DISPATCH_SAFETY_POLL_MS = 30_000;
 const ACTIVE_STATUSES = new Set(['SCHEDULED', 'ACCEPTED', 'IN_PROGRESS']);
 
 function formatAvailableFrom(dateIso: string): string {
@@ -54,38 +58,45 @@ export function DriverHomePage() {
     void loadActiveOrder();
   }, [loadActiveOrder]);
 
-  // Liniyada bo'lsa har 3 soniyada faol taklifni tekshiramiz (bot bilan sinxron).
+  // Faol taklifni o'qish. Liniyadan chiqilgach kelgan kechikkan javob kartani
+  // qayta ko'rsatmasligi uchun `onlineRef` tekshiriladi.
+  const onlineRef = useRef(cabinet.is_available);
   useEffect(() => {
-    if (!cabinet.is_available) {
-      setAttempt(null);
-      return;
-    }
-    let cancelled = false;
-
-    const poll = async () => {
-      if (busyRef.current || pollingRef.current) return;
-      pollingRef.current = true;
-      try {
-        const next = await getActiveDispatch();
-        // Qo'shimcha himoya: backend endi muddati o'tgan taklifni qaytarmaydi
-        // (services/dispatch.py get_active_attempt), lekin soatlar farqi yoki kechikkan
-        // javob sabab o'tib ketgani kelsa — kartani ko'rsatmaymiz (0 soniyalik miltillash).
-        const fresh = next && new Date(next.expires_at).getTime() > Date.now() ? next : null;
-        if (!cancelled && !busyRef.current) setAttempt(fresh);
-      } catch {
-        // jim — keyingi urinishda qayta so'raladi
-      } finally {
-        pollingRef.current = false;
-      }
-    };
-
-    void poll();
-    const id = window.setInterval(poll, DISPATCH_POLL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
+    onlineRef.current = cabinet.is_available;
+    if (!cabinet.is_available) setAttempt(null);
   }, [cabinet.is_available]);
+
+  const refreshDispatch = useCallback(async () => {
+    if (busyRef.current || pollingRef.current) return;
+    pollingRef.current = true;
+    try {
+      const next = await getActiveDispatch();
+      // Qo'shimcha himoya: backend endi muddati o'tgan taklifni qaytarmaydi
+      // (services/dispatch.py get_active_attempt), lekin soatlar farqi yoki kechikkan
+      // javob sabab o'tib ketgani kelsa — kartani ko'rsatmaymiz (0 soniyalik miltillash).
+      const fresh = next && new Date(next.expires_at).getTime() > Date.now() ? next : null;
+      if (onlineRef.current && !busyRef.current) setAttempt(fresh);
+    } catch {
+      // jim — keyingi signal yoki zaxira so'rovda qayta urinadi
+    } finally {
+      pollingRef.current = false;
+    }
+  }, []);
+
+  // Taklif o'zgarganini server WebSocket orqali aytadi (tracking_service
+  // `/drivers/ws/dispatch`) — ulanish ochilganda ham bir marta o'qiladi.
+  const { connected: signalConnected } = useDispatchSignal({
+    enabled: cabinet.is_available,
+    onSignal: refreshDispatch,
+  });
+
+  // Zaxira so'rov: WS ulangan paytda 30 s da bir, ulanmagan paytda avvalgidek 3 s.
+  useEffect(() => {
+    if (!cabinet.is_available) return;
+    void refreshDispatch();
+    const id = window.setInterval(refreshDispatch, signalConnected ? DISPATCH_SAFETY_POLL_MS : DISPATCH_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [cabinet.is_available, signalConnected, refreshDispatch]);
 
   async function handleGoOnline(result: GoOnlineResult) {
     setToggling(true);

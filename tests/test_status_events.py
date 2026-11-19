@@ -21,7 +21,8 @@ class _FakeDB:
         self.added.append(obj)
 
     async def execute(self, _stmt):
-        return SimpleNamespace(rowcount=1)
+        # `UPDATE ... RETURNING driver_id` (bekor qilingan takliflar) — bo'sh.
+        return SimpleNamespace(rowcount=1, scalars=lambda: SimpleNamespace(all=lambda: []))
 
     async def commit(self):
         # Commit paytida qaysi hodisalar sessiyada bo'lganini eslab qolamiz.
