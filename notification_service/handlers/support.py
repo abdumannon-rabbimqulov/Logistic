@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from notification_service import config
-from notification_service import contracts as c
+from contracts import events as c
 from notification_service.messages import Outgoing
 
 STAFF_ROLES = {"admin", "manager"}

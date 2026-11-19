@@ -10,6 +10,8 @@ ENV PYTHONUNBUFFERED=1
 COPY notification_service/requirements.txt ./notification_service/requirements.txt
 RUN pip install --no-cache-dir -r notification_service/requirements.txt
 
+# Servislararo shartnoma (event nomlari, sxemalar, Redis kalitlari) — yagona manba.
+COPY contracts/ ./contracts/
 COPY notification_service/ ./notification_service/
 
 CMD ["python", "-m", "notification_service.main"]

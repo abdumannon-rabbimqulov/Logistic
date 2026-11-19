@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://logistic.org.uz/contracts/support.ticket_status_changed.json",
+  "title": "support.ticket_status_changed",
+  "description": "Murojaat holati o'zgardi.",
+  "type": "object",
+  "required": [
+    "ticket_id",
+    "ticket_user_id",
+    "new_status"
+  ],
+  "properties": {
+    "ticket_id": {
+      "type": "integer"
+    },
+    "ticket_user_id": {
+      "type": "integer"
+    },
+    "old_status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "new_status": {
+      "type": "string"
+    },
+    "subject": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "order_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "changed_by_user_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "changed_by_role": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

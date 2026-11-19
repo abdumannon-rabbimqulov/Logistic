@@ -18,11 +18,12 @@ from typing import Any, AsyncGenerator, Optional
 
 import redis.asyncio as aioredis
 
+from contracts import redis_keys
 from tracking_service.config import LIVE_LOC_TTL_SEC, REDIS_URL
 
 logger = logging.getLogger(__name__)
 
-GLOBAL_CHANNEL = "driver_locations_channel"
+GLOBAL_CHANNEL = redis_keys.DRIVER_LOCATIONS_CHANNEL
 GPS_LOST_TTL_SEC = 6 * 3600
 
 _redis: Optional[aioredis.Redis] = None
@@ -42,16 +43,10 @@ async def close() -> None:
         _redis = None
 
 
-def location_key(driver_id: int) -> str:
-    return f"driver_location:{driver_id}"
-
-
-def driver_channel(driver_id: int) -> str:
-    return f"driver_location_ch:{driver_id}"
-
-
-def gps_lost_key(driver_id: int) -> str:
-    return f"driver_gps_lost:{driver_id}"
+# Kalitlar — `contracts/redis_keys.py` (core bilan yagona manba).
+location_key = redis_keys.driver_location_key
+driver_channel = redis_keys.driver_location_channel
+gps_lost_key = redis_keys.driver_gps_lost_key
 
 
 def build_payload(identity: dict[str, Any], lat: float, lon: float, accuracy: Optional[float],

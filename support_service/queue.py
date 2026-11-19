@@ -15,8 +15,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import uuid
-from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 
 import aio_pika
@@ -31,18 +29,22 @@ from support_service.config import RABBITMQ_URL
 
 logger = logging.getLogger(__name__)
 
-EVENTS_EXCHANGE = "logistika.events"
-
-EVENT_ORDER_STATUS_CHANGED = "order.status_changed"
-EVENT_ORDER_TRUCK_ASSIGNED = "order.truck_assigned"
-EVENT_SUPPORT_TICKET_CREATED = "support.ticket_created"
-EVENT_SUPPORT_TICKET_REPLIED = "support.ticket_replied"
-EVENT_SUPPORT_TICKET_STATUS_CHANGED = "support.ticket_status_changed"
-
-SUPPORT_EVENTS_QUEUE = "support.order_events"
-SUPPORT_EVENTS_PATTERN = "order.*"
-SUPPORT_NOTIFICATIONS_QUEUE = "support.notifications"
-SUPPORT_NOTIFICATIONS_PATTERN = "support.*"
+# Shartnoma — `contracts/events.py` (core bilan yagona manba; image'ga ko'chiriladi).
+from contracts.events import (  # noqa: E402
+    EVENT_ORDER_STATUS_CHANGED,
+    EVENT_ORDER_TRIP_STARTED,
+    EVENT_ORDER_TRUCK_ASSIGNED,
+    EVENT_ORDER_WAYPOINT_CHANGED,
+    EVENT_SUPPORT_TICKET_CREATED,
+    EVENT_SUPPORT_TICKET_REPLIED,
+    EVENT_SUPPORT_TICKET_STATUS_CHANGED,
+    EVENTS_EXCHANGE,
+    SUPPORT_EVENTS_PATTERN,
+    SUPPORT_EVENTS_QUEUE,
+    SUPPORT_NOTIFICATIONS_PATTERN,
+    SUPPORT_NOTIFICATIONS_QUEUE,
+    build_envelope,
+)
 
 PREFETCH = 10
 
@@ -95,12 +97,7 @@ async def _declare(channel: AbstractRobustChannel) -> AbstractRobustExchange:
 async def publish_event(event: str, payload: dict[str, Any]) -> bool:
     """Hodisa yuboradi. Istisno tashlamaydi — murojaat allaqachon bazaga yozilgan,
     broker o'chgani uchun foydalanuvchiga xato qaytarish noto'g'ri bo'lardi."""
-    envelope = {
-        "event": event,
-        "event_id": str(uuid.uuid4()),
-        "occurred_at": datetime.now(timezone.utc).isoformat(),
-        "data": payload,
-    }
+    envelope = build_envelope(event, payload)
     message = aio_pika.Message(
         body=json.dumps(envelope, separators=(",", ":"), default=str).encode(),
         content_type="application/json",

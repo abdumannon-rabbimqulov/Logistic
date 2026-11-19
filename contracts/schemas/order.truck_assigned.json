@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://logistic.org.uz/contracts/order.truck_assigned.json",
+  "title": "order.truck_assigned",
+  "description": "Xodim buyurtmaga mashina (haydovchi) biriktirdi.",
+  "type": "object",
+  "required": [
+    "order_id",
+    "driver_id"
+  ],
+  "properties": {
+    "order_id": {
+      "type": "integer"
+    },
+    "customer_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "driver_id": {
+      "type": "integer"
+    },
+    "truck_number": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "truck_type_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "assigned_by_user_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "assigned_by_role": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

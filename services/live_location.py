@@ -5,6 +5,7 @@ from typing import AsyncGenerator, Dict, Any, List, Optional
 import redis.asyncio as aioredis
 
 from config.config import REDIS_HOST
+from contracts import redis_keys
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ async def update_driver_location(
     """
     try:
         r = get_redis()
-        key = f"driver_location:{driver_id}"
+        key = redis_keys.driver_location_key(driver_id)
         # `ts` — GPS nuqtasi OLINGAN vaqt (qurilmadan), qabul qilingan vaqt emas.
         # Ilgari server har xabarga "hozir" deb yozardi: GPS o'chgan telefon oxirgi
         # nuqtani qayta yuborsa ham haydovchi "yangi joylashuvda" ko'rinib turardi.
@@ -123,11 +124,11 @@ async def update_driver_location(
         await r.delete(GPS_LOST_KEY.format(driver_id=driver_id))
         
         # Obunachilarga (adminlarga/xaridorlarga) xabar yuborish
-        await r.publish("driver_locations_channel", data_str)
+        await r.publish(redis_keys.DRIVER_LOCATIONS_CHANNEL, data_str)
     except Exception as e:
         logger.error(f"Error updating driver location for driver {driver_id}: {e}")
 
-GPS_LOST_KEY = "driver_gps_lost:{driver_id}"
+GPS_LOST_KEY = redis_keys.DRIVER_GPS_LOST_PREFIX + "{driver_id}"
 GPS_LOST_TTL_SEC = 6 * 3600
 
 
@@ -164,7 +165,7 @@ async def stop_driver_location(driver_id: int) -> None:
     """Haydovchining jonli lokatsiyasini to'xtatish."""
     try:
         r = get_redis()
-        key = f"driver_location:{driver_id}"
+        key = redis_keys.driver_location_key(driver_id)
         await r.delete(key)
         
         # Obunachilarga to'xtaganligini bildirish uchun bo'sh (yoki to'xtatilganligini bildiruvchi) ma'lumot yuborish
@@ -177,7 +178,7 @@ async def stop_driver_location(driver_id: int) -> None:
             "expires_at": ts, # Hozirgi vaqt
             "stopped": True
         }
-        await r.publish("driver_locations_channel", json.dumps(payload))
+        await r.publish(redis_keys.DRIVER_LOCATIONS_CHANNEL, json.dumps(payload))
     except Exception as e:
         logger.error(f"Error stopping driver location for driver {driver_id}: {e}")
 
@@ -185,7 +186,7 @@ async def get_driver_location(driver_id: int) -> Optional[Dict[str, Any]]:
     """Alohida bitta haydovchining oxirgi lokatsiyasini olish."""
     try:
         r = get_redis()
-        key = f"driver_location:{driver_id}"
+        key = redis_keys.driver_location_key(driver_id)
         data = await r.get(key)
         if data:
             return json.loads(data)
@@ -203,7 +204,7 @@ async def get_all_online_drivers() -> List[Dict[str, Any]]:
     try:
         r = get_redis()
         keys: List[str] = []
-        async for key in r.scan_iter(match="driver_location:*", count=500):
+        async for key in r.scan_iter(match=redis_keys.DRIVER_LOCATION_PATTERN, count=500):
             keys.append(key)
         if not keys:
             return []
@@ -222,7 +223,7 @@ async def subscribe_location_updates() -> AsyncGenerator[Dict[str, Any], None]:
     """Redis orqali yangilangan lokatsiyalarni kanal orqali tinglash (Generator)."""
     r = get_redis()
     pubsub = r.pubsub()
-    await pubsub.subscribe("driver_locations_channel")
+    await pubsub.subscribe(redis_keys.DRIVER_LOCATIONS_CHANNEL)
     try:
         async for message in pubsub.listen():
             if message["type"] == "message":
@@ -232,5 +233,5 @@ async def subscribe_location_updates() -> AsyncGenerator[Dict[str, Any], None]:
                 except json.JSONDecodeError:
                     continue
     finally:
-        await pubsub.unsubscribe("driver_locations_channel")
+        await pubsub.unsubscribe(redis_keys.DRIVER_LOCATIONS_CHANNEL)
         await pubsub.close()

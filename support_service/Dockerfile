@@ -21,6 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY support_service/requirements.txt ./support_service/requirements.txt
 RUN pip install --no-cache-dir -r support_service/requirements.txt
 
+# Servislararo shartnoma (event nomlari, sxemalar, Redis kalitlari) — yagona manba.
+COPY contracts/ ./contracts/
 COPY support_service/ ./support_service/
 
 RUN mkdir -p /app/uploads/support

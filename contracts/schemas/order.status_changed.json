@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://logistic.org.uz/contracts/order.status_changed.json",
+  "title": "order.status_changed",
+  "description": "Buyurtma statusi o'zgardi. Core outbox orqali chiqaradi.",
+  "type": "object",
+  "required": [
+    "order_id",
+    "customer_id",
+    "new_status"
+  ],
+  "properties": {
+    "order_id": {
+      "type": "integer"
+    },
+    "customer_id": {
+      "type": "integer"
+    },
+    "driver_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "old_status": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "SCHEDULED",
+        "PENDING",
+        "ACCEPTED",
+        "IN_PROGRESS",
+        "COMPLETED",
+        "CANCELLED",
+        null
+      ]
+    },
+    "new_status": {
+      "type": "string",
+      "enum": [
+        "SCHEDULED",
+        "PENDING",
+        "ACCEPTED",
+        "IN_PROGRESS",
+        "COMPLETED",
+        "CANCELLED"
+      ]
+    },
+    "changed_by_user_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "changed_by_role": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

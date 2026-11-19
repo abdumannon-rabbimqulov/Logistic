@@ -113,23 +113,33 @@ def test_support_service_uses_same_contract(monkeypatch):
     )
 
 
-def test_notification_service_contract_matches_core():
-    """Notification mikroservizi asosiy kodni import qilmaydi — nomlar qo'lda
-    takrorlangan, shuning uchun bu yerda qulflanadi."""
-    from notification_service import contracts as nc
+def test_services_share_contracts_module():
+    """Core, support va notification bir xil `contracts.events` dan foydalanadi."""
+    from contracts import events
+    from support_service import queue as support_queue
 
-    assert nc.EVENTS_EXCHANGE == queue.EVENTS_EXCHANGE
-    assert nc.EVENT_ORDER_STATUS_CHANGED == queue.EVENT_ORDER_STATUS_CHANGED
-    assert nc.EVENT_ORDER_WAYPOINT_CHANGED == queue.EVENT_ORDER_WAYPOINT_CHANGED
-    assert nc.EVENT_ORDER_TRIP_STARTED == queue.EVENT_ORDER_TRIP_STARTED
-    assert nc.EVENT_ORDER_NOTICE == queue.EVENT_ORDER_NOTICE
-    assert nc.EVENT_SUPPORT_TICKET_CREATED == queue.EVENT_SUPPORT_TICKET_CREATED
-    assert nc.EVENT_SUPPORT_TICKET_REPLIED == queue.EVENT_SUPPORT_TICKET_REPLIED
-    assert nc.EVENT_SUPPORT_TICKET_STATUS_CHANGED == queue.EVENT_SUPPORT_TICKET_STATUS_CHANGED
-    assert nc.SUPPORT_NOTIFICATIONS_QUEUE == queue.SUPPORT_NOTIFICATIONS_QUEUE
-    assert nc.SUPPORT_NOTIFICATIONS_PATTERN == queue.SUPPORT_NOTIFICATIONS_PATTERN
-    assert nc.ORDER_NOTIFICATIONS_QUEUE == queue.ORDER_NOTIFICATIONS_QUEUE
-    assert nc.ORDER_NOTIFICATIONS_PATTERN == queue.ORDER_NOTIFICATIONS_PATTERN
+    for name in (
+        "EVENTS_EXCHANGE",
+        "EVENT_ORDER_STATUS_CHANGED",
+        "EVENT_ORDER_WAYPOINT_CHANGED",
+        "EVENT_ORDER_TRIP_STARTED",
+        "EVENT_ORDER_NOTICE",
+        "EVENT_SUPPORT_TICKET_CREATED",
+        "EVENT_SUPPORT_TICKET_REPLIED",
+        "EVENT_SUPPORT_TICKET_STATUS_CHANGED",
+        "SUPPORT_NOTIFICATIONS_QUEUE",
+        "ORDER_NOTIFICATIONS_QUEUE",
+    ):
+        assert getattr(queue, name) == getattr(events, name)
+    assert support_queue.SUPPORT_EVENTS_QUEUE == events.SUPPORT_EVENTS_QUEUE
+    assert events.ALL_EVENTS == EXPECTED_ROUTING_KEYS
+
+
+def test_every_event_has_a_schema():
+    from contracts import events
+    from contracts.validate import SCHEMAS_DIR
+
+    assert {p.stem for p in SCHEMAS_DIR.glob("*.json")} == set(events.ALL_EVENTS)
 
 
 def test_notification_service_does_not_import_core():

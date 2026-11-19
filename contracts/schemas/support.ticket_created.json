@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://logistic.org.uz/contracts/support.ticket_created.json",
+  "title": "support.ticket_created",
+  "description": "Yangi yordam murojaati.",
+  "type": "object",
+  "required": [
+    "ticket_id",
+    "user_id",
+    "subject"
+  ],
+  "properties": {
+    "ticket_id": {
+      "type": "integer"
+    },
+    "user_id": {
+      "type": "integer"
+    },
+    "user_role": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "user_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "order_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "subject": {
+      "type": "string"
+    },
+    "body": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "priority": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

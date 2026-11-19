@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://logistic.org.uz/contracts/order.trip_started.json",
+  "title": "order.trip_started",
+  "description": "Haydovchi \"Start\" bosdi — yuk olish nuqtasiga yo'lga chiqdi.",
+  "type": "object",
+  "required": [
+    "order_id",
+    "customer_id",
+    "driver_id",
+    "started_at"
+  ],
+  "properties": {
+    "order_id": {
+      "type": "integer"
+    },
+    "customer_id": {
+      "type": "integer"
+    },
+    "driver_id": {
+      "type": "integer"
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "departure_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pickup_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

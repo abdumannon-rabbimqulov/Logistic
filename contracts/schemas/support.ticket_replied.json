@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://logistic.org.uz/contracts/support.ticket_replied.json",
+  "title": "support.ticket_replied",
+  "description": "Murojaatga yangi xabar.",
+  "type": "object",
+  "required": [
+    "ticket_id",
+    "ticket_user_id",
+    "author_role"
+  ],
+  "properties": {
+    "ticket_id": {
+      "type": "integer"
+    },
+    "ticket_user_id": {
+      "type": "integer"
+    },
+    "ticket_user_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "assigned_to": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "subject": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "message_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "author_user_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "author_role": {
+      "type": "string"
+    },
+    "author_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "message": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "attachments": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "order_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

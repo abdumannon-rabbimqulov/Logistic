@@ -339,6 +339,7 @@ services:
       - "${TRACKING_SERVICE_PORT:-8020}:8000"
     volumes:
       - ./tracking_service:/app/tracking_service
+      - ./contracts:/app/contracts
     env_file:
       - .env
     environment:
@@ -370,6 +371,7 @@ services:
     container_name: logistika_notification
     volumes:
       - ./notification_service:/app/notification_service
+      - ./contracts:/app/contracts
     env_file:
       - .env
     environment:

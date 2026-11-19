@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://logistic.org.uz/contracts/order.waypoint_changed.json",
+  "title": "order.waypoint_changed",
+  "description": "Yuk olish/tushirish nuqtasi holati o'zgardi.",
+  "type": "object",
+  "required": [
+    "order_id",
+    "customer_id",
+    "waypoint_id",
+    "waypoint_type",
+    "new_status"
+  ],
+  "properties": {
+    "order_id": {
+      "type": "integer"
+    },
+    "customer_id": {
+      "type": "integer"
+    },
+    "driver_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "waypoint_id": {
+      "type": "integer"
+    },
+    "waypoint_type": {
+      "type": "string",
+      "enum": [
+        "PICKUP",
+        "DELIVERY",
+        "TRANSIT"
+      ]
+    },
+    "sequence": {
+      "type": "integer"
+    },
+    "new_status": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "ARRIVED",
+        "COMPLETED",
+        "SKIPPED"
+      ]
+    },
+    "changed_by_user_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "changed_by_role": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

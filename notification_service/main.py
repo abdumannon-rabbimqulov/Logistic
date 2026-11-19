@@ -21,7 +21,8 @@ import signal
 import aio_pika
 from aio_pika.abc import AbstractIncomingMessage
 
-from notification_service import config, contracts as c, telegram
+from contracts import events as c
+from notification_service import config, telegram
 from notification_service.handlers import route
 
 logger = logging.getLogger("notification_service")

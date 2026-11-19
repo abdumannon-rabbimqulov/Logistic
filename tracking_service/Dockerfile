@@ -10,6 +10,8 @@ ENV PYTHONUNBUFFERED=1
 COPY tracking_service/requirements.txt ./tracking_service/requirements.txt
 RUN pip install --no-cache-dir -r tracking_service/requirements.txt
 
+# Servislararo shartnoma (event nomlari, sxemalar, Redis kalitlari) — yagona manba.
+COPY contracts/ ./contracts/
 COPY tracking_service/ ./tracking_service/
 
 EXPOSE 8000

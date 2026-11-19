@@ -41,8 +41,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import uuid
-from datetime import datetime, timezone
 from typing import Any, Optional
 
 import aio_pika
@@ -62,36 +60,26 @@ ROUTING_KEY_DEAD = "dispatch.dead"
 
 # --- Biznes hodisalari (mikroservizlararo) ---------------------------------
 
-EVENTS_EXCHANGE = "logistika.events"
-
-# Routing key'lar SHARTNOMA: ularni o'zgartirish support mikroservizini ham
-# buzadi, shuning uchun `tests/test_event_contract.py` ularni qotirib qo'ygan.
-EVENT_ORDER_STATUS_CHANGED = "order.status_changed"
-EVENT_ORDER_TRUCK_ASSIGNED = "order.truck_assigned"
-# Nuqta (yuk olish/tushirish) holati o'zgardi: ARRIVED / COMPLETED / SKIPPED.
-EVENT_ORDER_WAYPOINT_CHANGED = "order.waypoint_changed"
-# Haydovchi "Start" ni bosdi — yuk olish nuqtasiga yo'lga chiqdi.
-EVENT_ORDER_TRIP_STARTED = "order.trip_started"
-# Buyurtma bo'yicha tayyor matnli bildirishnoma: core MATN va QABUL QILUVCHILARNI
-# hal qiladi (masalan menejerlar ro'yxati bazada), notification_service esa yuboradi.
-# Payload: {order_id, recipient_ids: [int], text, kind}.
-EVENT_ORDER_NOTICE = "order.notice"
-EVENT_SUPPORT_TICKET_CREATED = "support.ticket_created"
-EVENT_SUPPORT_TICKET_REPLIED = "support.ticket_replied"
-EVENT_SUPPORT_TICKET_STATUS_CHANGED = "support.ticket_status_changed"
-
-# Support mikroservizi buyurtma hodisalarini tinglaydi (ochiq murojaatlarga
-# "buyurtma holati o'zgardi" degan tizim izohini qo'shish uchun).
-SUPPORT_EVENTS_QUEUE = "support.order_events"
-SUPPORT_EVENTS_PATTERN = "order.*"
-
-# Asosiy ilova esa support hodisalarini tinglaydi (adminlarga bildirishnoma).
-SUPPORT_NOTIFICATIONS_QUEUE = "support.notifications"
-SUPPORT_NOTIFICATIONS_PATTERN = "support.*"
-
-# Buyurtma hodisalari bo'yicha mijozga Telegram xabarlari (`notification_service`).
-ORDER_NOTIFICATIONS_QUEUE = "notifications.order_events"
-ORDER_NOTIFICATIONS_PATTERN = "order.*"
+# Exchange, event nomlari va navbatlar — `contracts/events.py` (barcha servislar
+# uchun yagona manba). Bu yerda eski nomlar bilan qayta eksport qilinadi.
+from contracts.events import (  # noqa: E402
+    EVENT_ORDER_NOTICE,
+    EVENT_ORDER_STATUS_CHANGED,
+    EVENT_ORDER_TRIP_STARTED,
+    EVENT_ORDER_TRUCK_ASSIGNED,
+    EVENT_ORDER_WAYPOINT_CHANGED,
+    EVENT_SUPPORT_TICKET_CREATED,
+    EVENT_SUPPORT_TICKET_REPLIED,
+    EVENT_SUPPORT_TICKET_STATUS_CHANGED,
+    EVENTS_EXCHANGE,
+    ORDER_NOTIFICATIONS_PATTERN,
+    ORDER_NOTIFICATIONS_QUEUE,
+    SUPPORT_EVENTS_PATTERN,
+    SUPPORT_EVENTS_QUEUE,
+    SUPPORT_NOTIFICATIONS_PATTERN,
+    SUPPORT_NOTIFICATIONS_QUEUE,
+    build_envelope,
+)
 
 _events_exchange: Optional[AbstractRobustExchange] = None
 
@@ -242,18 +230,8 @@ async def publish_dispatch_job(
 
 
 def build_event(event: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Hodisa konverti — barcha xabarlar bir xil ko'rinishda bo'lishi uchun.
-
-    `event_id` iste'molchiga takroriy yetkazishni (at-least-once) aniqlash imkonini
-    beradi, `occurred_at` esa xabar navbatda kutib qolganda ham hodisaning haqiqiy
-    vaqtini saqlaydi.
-    """
-    return {
-        "event": event,
-        "event_id": str(uuid.uuid4()),
-        "occurred_at": datetime.now(timezone.utc).isoformat(),
-        "data": payload,
-    }
+    """Hodisa konverti (`contracts.events.build_envelope`)."""
+    return build_envelope(event, payload)
 
 
 async def publish_envelope(envelope: dict[str, Any]) -> None:

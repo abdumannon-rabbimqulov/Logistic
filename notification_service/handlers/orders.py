@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from notification_service import config
-from notification_service import contracts as c
+from contracts import events as c
 from notification_service.messages import Outgoing
 
 

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://logistic.org.uz/contracts/order.notice.json",
+  "title": "order.notice",
+  "description": "Tayyor matnli bildirishnoma: core matn va qabul qiluvchilarni hal qiladi.",
+  "type": "object",
+  "required": [
+    "order_id",
+    "recipient_ids",
+    "text",
+    "kind"
+  ],
+  "properties": {
+    "order_id": {
+      "type": "integer"
+    },
+    "recipient_ids": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "text": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}
