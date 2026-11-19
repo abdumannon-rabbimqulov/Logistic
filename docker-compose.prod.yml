@@ -164,6 +164,14 @@ services:
         condition: service_healthy
     restart: always
 
+  tracking:
+    image: logistika_tracking:latest
+    container_name: logistika_tracking_prod
+    volumes: !reset null
+    # Tashqariga ochilmaydi — faqat frontend nginx orqali.
+    ports: !reset []
+    restart: always
+
   notification:
     image: logistika_notification:latest
     container_name: logistika_notification_prod

@@ -306,6 +306,39 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  # 9b. Tracking mikroservizi — haydovchilarning jonli GPS oqimi va sender kuzatuvi
+  #
+  # O'z image'i (`tracking_service/Dockerfile`), bazaga ulanmaydi: joylashuvlarni
+  # Redis'ga yozadi, avtorizatsiyani WS ochilganda core'dan (`web`) so'raydi.
+  # Bazaga davriy yozish — `dispatch-worker` (`services/live_location_sync.py`).
+  # nginx: `/api/drivers/ws/` va `/api/orders/{id}/ws/driver-location` shu yerga.
+  tracking:
+    build:
+      context: .
+      dockerfile: tracking_service/Dockerfile
+    container_name: logistika_tracking
+    ports:
+      - "${TRACKING_SERVICE_PORT:-8020}:8000"
+    volumes:
+      - ./tracking_service:/app/tracking_service
+    env_file:
+      - .env
+    environment:
+      - CORE_API_URL=http://web:8000
+      - TZ=Asia/Tashkent
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    depends_on:
+      logistika-redis:
+        condition: service_started
+      web:
+        condition: service_started
+
   # 10. Notification mikroservizi — barcha Telegram bildirishnomalari
   #
   # `support.notifications` (murojaatlar) va `notifications.order_events` (buyurtma

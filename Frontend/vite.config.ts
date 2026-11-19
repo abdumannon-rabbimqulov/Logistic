@@ -9,6 +9,8 @@ const API_TARGET = process.env.VITE_DEV_API_TARGET || 'http://localhost:8000'
 // Support — alohida mikroservis (o'z konteyneri, o'z bazasi). Docker tarmog'ida
 // "support" nomi bilan 8000-portda, host'dan esa 8010-portda ochiq (SUPPORT_SERVICE_PORT).
 const SUPPORT_TARGET = process.env.VITE_DEV_SUPPORT_TARGET || 'http://localhost:8010'
+// Tracking mikroservisi (jonli GPS WebSocket'lari) — docker-compose `tracking` (8020).
+const TRACKING_TARGET = process.env.VITE_DEV_TRACKING_TARGET || 'http://localhost:8020'
 
 // OSRM — marshrut hisoblash. Buyurtma sahifasidagi Leaflet xaritasi (Leaflet Routing
 // Machine) OSRM'ni BRAUZERDAN chaqiradi, shuning uchun unga nisbiy `/osrm` yo'li
@@ -44,6 +46,9 @@ export default defineConfig({
       // shunda brauzer uchun frontend va API bitta origin'da bo'ladi — CORS ham, ngrok ham
       // muammosiz. Bu yerda `/api` backendga uzatiladi (yo'l o'zgartirilmaydi: backend ham
       // `/api` prefiksi ostida ishlaydi — config API_PUBLIC_PREFIX).
+      // Jonli GPS WebSocket'lari — tracking mikroservisiga (umumiy `/api` dan OLDIN turishi shart).
+      '/api/drivers/ws': { target: TRACKING_TARGET, changeOrigin: true, ws: true },
+      '^/api/orders/\\d+/ws/driver-location': { target: TRACKING_TARGET, changeOrigin: true, ws: true },
       '/api': {
         target: API_TARGET,
         changeOrigin: true,

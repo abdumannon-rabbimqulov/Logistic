@@ -45,7 +45,7 @@ configure_mappers()
 
 from config.config import DISPATCH_PREFETCH, async_session  # noqa: E402
 from services import dispatch as dispatch_service  # noqa: E402
-from services import live_location, location_watch, outbox, queue, start_reminders  # noqa: E402
+from services import live_location, live_location_sync, location_watch, outbox, queue, start_reminders  # noqa: E402
 
 logger = logging.getLogger("dispatch_worker")
 
@@ -104,6 +104,7 @@ async def _retry_or_park(order_id: int, reason: str, attempt: int) -> None:
 
 
 async def _sweep_loop(stop: asyncio.Event) -> None:
+    last_location_sync = 0.0
     while not stop.is_set():
         try:
             async with async_session() as db:
@@ -124,6 +125,14 @@ async def _sweep_loop(stop: asyncio.Event) -> None:
                 requeued = await dispatch_service.requeue_stuck_orders(db)
                 if requeued:
                     logger.info("Sweep: %s ta buyurtma navbatga qaytarildi", requeued)
+
+                # Tracking servisi GPS'ni faqat Redis'ga yozadi — bazaga davriy ko'chirish.
+                now_mono = asyncio.get_running_loop().time()
+                if now_mono - last_location_sync >= live_location_sync.SYNC_INTERVAL_SEC:
+                    last_location_sync = now_mono
+                    synced = await live_location_sync.sync_to_db(db)
+                    if synced:
+                        logger.debug("Sweep: %s ta haydovchi joylashuvi bazaga yozildi", synced)
 
                 # "Start" bosilmagan buyurtmalar: yo'lga chiqish vaqtiga qarab eslatma.
                 reminded = await start_reminders.send_due_reminders(db)
