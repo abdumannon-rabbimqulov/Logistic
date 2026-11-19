@@ -13,6 +13,10 @@ COPY . .
 # shuning uchun build-arg sifatida qabul qilinadi (docker-compose.yml'dagi `args:` ga qarang).
 ARG VITE_API_BASE_URL=http://localhost:8000/api
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+# Yandex Maps kaliti — ixtiyoriy (CI'da GitHub secret'dan). `.env` image'ga kirmaydi
+# (Frontend/.dockerignore), shuning uchun kalit faqat shu yo'l bilan beriladi.
+ARG VITE_YANDEX_MAPS_API_KEY=
+ENV VITE_YANDEX_MAPS_API_KEY=$VITE_YANDEX_MAPS_API_KEY
 
 RUN npm run build
 

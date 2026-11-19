@@ -82,22 +82,30 @@ if [ "$PULL" = "1" ] && [ -d "$ROOT/.git" ]; then
     fi
 fi
 
-PREV_IMAGE="$(docker image inspect logistika_backend:latest --format '{{.Id}}' 2>/dev/null || echo '-')"
+# Image'lar GitHub Actions'da yig'ilib GHCR'ga yuklanadi (`.github/workflows/deploy.yml`,
+# `build` job). Teg — aynan shu commit SHA, shuning uchun server kod bilan bir xil
+# image'ni oladi.
+export IMAGE_TAG="$(git rev-parse HEAD)"
+BACKEND_IMAGE="ghcr.io/abdumannon-rabbimqulov/logistika-backend"
+PREV_IMAGE="$("${COMPOSE[@]}" images -q web 2>/dev/null | head -n1 || true)"
+[ -n "$PREV_IMAGE" ] || PREV_IMAGE="-"
 
-# ── 4. Build va ishga tushirish ─────────────────────────────────────────────
-say "Image'lar yig'ilmoqda (ketma-ket)..."
-# ATAYLAB bittadan: `compose build` barcha image'larni (backend, frontend Vite build,
-# support, notification, tracking) PARALLEL yig'adi. 2 vCPU / 3.8 GB serverda bu xotirani
-# tugatib, server butunlay qotib qolgan (SSH ham javob bermagan) — 2026-11-19 deploy'i.
-# Ketma-ket build sekinroq, lekin xavfsiz; umumiy backend image keshdan qayta ishlatiladi.
-for svc in $("${COMPOSE[@]}" config --services); do
-    "${COMPOSE[@]}" build "$svc"
-done
+# ── 4. Image'larni olish (build EMAS) va ishga tushirish ────────────────────
+say "Image'lar GHCR'dan olinmoqda (teg ${IMAGE_TAG:0:7})..."
+if ! "${COMPOSE[@]}" pull --quiet; then
+    # Zaxira: registry ishlamasa yoki image hali yuklanmagan bo'lsa — serverda build,
+    # lekin ATAYLAB BITTADAN: parallel build 2 vCPU / 3.8 GB serverni xotirasiz
+    # qotirgan (2026-11-19 deploy'i, SSH ham javob bermagan).
+    warn "Registry'dan olib bo'lmadi — serverda ketma-ket build qilinadi (sekin)."
+    for svc in $("${COMPOSE[@]}" config --services); do
+        "${COMPOSE[@]}" build "$svc"
+    done
+fi
 
 say "Xizmatlar ishga tushirilmoqda..."
 # `--remove-orphans` — eski nomdagi konteynerlar (masalan avvalgi prod nomlari)
 # qolib ketmasin.
-"${COMPOSE[@]}" up -d --remove-orphans
+"${COMPOSE[@]}" up -d --no-build --remove-orphans
 
 # ── 5. Sog'liqni kutish ─────────────────────────────────────────────────────
 say "Xizmatlar tayyor bo'lishi kutilmoqda..."
@@ -134,10 +142,13 @@ echo "Deploy qilingan commit: $(git rev-parse HEAD)"
 # ── 7. Tozalash ─────────────────────────────────────────────────────────────
 # Faqat hech qaysi konteyner ishlatmayotgan "osilib qolgan" qatlamlar.
 docker image prune -f >/dev/null 2>&1 || true
+# Har deploy yangi SHA teg olib keladi — 7 kundan eski, ishlatilmayotgan image'lar o'chiriladi.
+docker image prune -af --filter "until=168h" >/dev/null 2>&1 || true
 
 if [ "$PREV_IMAGE" != "-" ]; then
     echo
-    warn "Rollback kerak bo'lsa oldingi backend image: ${PREV_IMAGE:7:12}"
-    warn "  docker tag ${PREV_IMAGE} logistika_backend:latest && \\"
+    warn "Rollback kerak bo'lsa — oldingi commit bilan:"
+    warn "  git checkout <oldingi_commit> && IMAGE_TAG=<oldingi_commit> \\"
     warn "  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build"
+    warn "(oldingi backend image id: ${PREV_IMAGE:0:12}, repo: ${BACKEND_IMAGE})"
 fi

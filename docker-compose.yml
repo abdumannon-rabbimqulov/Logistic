@@ -81,7 +81,10 @@ services:
     ports:
       - "5001:5000"              # Tashqi portni 5001 qildik, AirPlay bilan urishmaydi!
     # MLD algoritmi .osrm fayllarini o'qiydi (.osm.pbf emas — u faqat manba).
-    command: osrm-routed --algorithm mld /data/uzbekistan.osrm
+    # `--mmap`: xarita fayllari RAM'ga butunlay yuklanmaydi, diskdan xotiraga
+    # "proyeksiya" qilinadi — doimiy RAM ~1-1.5 GB dan bir necha yuz MB ga tushadi,
+    # kerakli qismlar OS keshida qoladi. Marshrut biroz sekinroq, lekin ms darajasida.
+    command: osrm-routed --algorithm mld --mmap /data/uzbekistan.osrm
     restart: always
     # `restart: always` faqat jarayon o'lsa qayta ishga tushiradi — osilib qolsa (javob
     # bermay turaveradi) bilmaydi. Healthcheck aynan shuni ushlaydi va `service_healthy`

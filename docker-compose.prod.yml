@@ -16,8 +16,15 @@
 # hammasi 127.0.0.1 ga qaytariladi yoki umuman yopiladi. Serverda ularga kirish
 # SSH tunnel orqali (docs/DEPLOY.md, `make mon-tunnel` shabloni bo'yicha).
 
+# Image'lar GitHub Actions'da yig'iladi va GHCR'ga yuklanadi (ghcr.io/abdumannon-rabbimqulov/logistika-*);
+# server faqat `pull` qiladi (scripts/server-deploy.sh). `IMAGE_TAG` = commit SHA.
+# `build:` bo'limlari zaxira uchun qoldi: registry ishlamasa skript ketma-ket build qiladi.
+# XOTIRA CHEGARALARI (`mem_limit`): bitta xizmat xotirani yeb butun serverni (SSH'ni
+# ham) qotirmasligi uchun. Chegaraga yetgan konteynerni Docker o'zi qayta ishga
+# tushiradi (`restart: always`), server esa ochiq qoladi. Server: 2 vCPU / 3.8 GB + 2 GB swap.
 services:
   db:
+    mem_limit: 768m
     # Faqat serverning o'zidan (psql, zaxira nusxa). Tashqi tarmoqdan ko'rinmaydi.
     # Host porti sozlanuvchi: ishlab chiquvchining mashinasida ko'pincha o'z
     # Postgres'i 5432 da turadi va prod stack'ni lokalda sinash mumkin bo'lmasdi
@@ -26,10 +33,12 @@ services:
       - "127.0.0.1:${DB_HOST_PORT:-5432}:5432"
 
   logistika-redis:
+    mem_limit: 128m
     ports: !override
       - "127.0.0.1:6380:6379"
 
   rabbitmq:
+    mem_limit: 384m
     # 15672 — boshqaruv UI. SSH tunnel orqali ochiladi:
     #   ssh -N -L 15672:localhost:15672 FOYDALANUVCHI@SERVER_IP
     ports: !override
@@ -43,6 +52,7 @@ services:
   # cheklangan `/osrm/route/v1/driving/...` yo'li orqali boradi — shuning uchun
   # bu yerda port umuman ochilmaydi.
   osrm:
+    mem_limit: 1g
     container_name: logistika_osrm_prod
     ports: !reset null
     expose:
@@ -59,8 +69,9 @@ services:
   # yugurtirib bir-biriga xalaqit berardi. Bu yerda esa u bir marta bajarilib
   # tugaydi, `web` esa uning MUVAFFAQIYATLI yakunlanishini kutadi.
   migrate:
+    mem_limit: 384m
     build: .
-    image: logistika_backend:latest
+    image: ghcr.io/abdumannon-rabbimqulov/logistika-backend:${IMAGE_TAG:-latest}
     container_name: logistika_migrate
     env_file:
       - .env
@@ -75,8 +86,9 @@ services:
         condition: service_healthy
 
   web:
+    mem_limit: 512m
     build: .
-    image: logistika_backend:latest
+    image: ghcr.io/abdumannon-rabbimqulov/logistika-backend:${IMAGE_TAG:-latest}
     container_name: logistika_web_prod
     # Kod IMAGE ichida — bazaviy fayldagi `.:/app` bind-mount olib tashlanadi.
     # Sabab: image o'zgarmas (immutable) bo'lishi kerak, aks holda serverdagi
@@ -127,8 +139,9 @@ services:
     restart: always
 
   bot:
+    mem_limit: 256m
     build: .
-    image: logistika_backend:latest
+    image: ghcr.io/abdumannon-rabbimqulov/logistika-backend:${IMAGE_TAG:-latest}
     container_name: logistika_bot_prod
     volumes: !reset null
     extra_hosts: !reset null
@@ -147,8 +160,9 @@ services:
     restart: always
 
   dispatch-worker:
+    mem_limit: 384m
     build: .
-    image: logistika_backend:latest
+    image: ghcr.io/abdumannon-rabbimqulov/logistika-backend:${IMAGE_TAG:-latest}
     container_name: logistika_dispatch_worker_prod
     volumes: !reset null
     depends_on:
@@ -165,7 +179,8 @@ services:
     restart: always
 
   tracking:
-    image: logistika_tracking:latest
+    mem_limit: 192m
+    image: ghcr.io/abdumannon-rabbimqulov/logistika-tracking:${IMAGE_TAG:-latest}
     container_name: logistika_tracking_prod
     volumes: !reset null
     # Tashqariga ochilmaydi — faqat frontend nginx orqali.
@@ -173,7 +188,8 @@ services:
     restart: always
 
   notification:
-    image: logistika_notification:latest
+    mem_limit: 128m
+    image: ghcr.io/abdumannon-rabbimqulov/logistika-notification:${IMAGE_TAG:-latest}
     container_name: logistika_notification_prod
     volumes: !reset null
     depends_on:
@@ -183,6 +199,8 @@ services:
 
   # Port ochilmaydi (bazaviy faylda ham yo'q) — faqat frontend nginx `/support/` orqali.
   support:
+    mem_limit: 256m
+    image: ghcr.io/abdumannon-rabbimqulov/logistika-support:${IMAGE_TAG:-latest}
     container_name: logistika_support_prod
 
   # Frontend — ishlab chiqarish rejimi: nginx + `npm run build` bergan statik `dist/`.
@@ -197,12 +215,13 @@ services:
   #
   # Tashqariga port ochmaydi — oldida Caddy turadi (HTTPS).
   frontend:
+    mem_limit: 64m
     build:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
     # Dev image'idan (yuk_frontend_dev) ALOHIDA teg — ikkalasi bir-birini almashtirmasin.
-    image: yuk_frontend:latest
+    image: ghcr.io/abdumannon-rabbimqulov/logistika-frontend:${IMAGE_TAG:-latest}
     container_name: yuk_frontend
     volumes: !reset null
     environment: !reset null
@@ -227,6 +246,7 @@ services:
   # aks holda sertifikat berilmaydi (docs/DEPLOY.md).
   # Lokal sinovda `DOMAIN=localhost` — Caddy ichki sertifikat beradi.
   caddy:
+    mem_limit: 128m
     image: caddy:2-alpine
     container_name: logistika_caddy
     ports:
