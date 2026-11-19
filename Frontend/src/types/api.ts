@@ -598,6 +598,17 @@ export interface PriceEstimateResponse {
 
 export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type AttachmentKind = 'image' | 'video' | 'document';
+
+/** Biriktirma. `url` — imzolangan, qisqa muddatli havola (token'siz ochiladi). */
+export interface TicketAttachment {
+  id: number;
+  filename: string;
+  content_type: string;
+  kind: AttachmentKind;
+  size: number;
+  url: string;
+}
 
 /** Ticket ichidagi bitta xabar. `is_system: true` bo'lganda muallif yo'q — bu
  *  `order.*` hodisasidan avtomatik tushgan yozuv (support RabbitMQ'dan oladi). */
@@ -606,8 +617,19 @@ export interface TicketMessage {
   ticket_id: number;
   author_user_id: number | null;
   author_role: string | null;
+  author_name: string | null;
   is_system: boolean;
   body: string;
+  created_at: string;
+  attachments: TicketAttachment[];
+}
+
+export interface TicketMessagePreview {
+  body: string;
+  author_role: string | null;
+  author_name: string | null;
+  is_system: boolean;
+  has_attachments: boolean;
   created_at: string;
 }
 
@@ -615,18 +637,62 @@ export interface TicketListItem {
   id: number;
   user_id: number;
   user_role: string | null;
+  user_name: string | null;
   order_id: number | null;
   subject: string;
   status: TicketStatus;
   priority: TicketPriority;
+  assigned_to: number | null;
+  assigned_name: string | null;
   created_at: string;
   updated_at: string;
+  last_message_at: string;
+  /** So'rovchi nuqtai nazaridan: egasi uchun — xodim javoblari, xodim uchun — egasining xabarlari. */
+  unread_count: number;
+  last_message: TicketMessagePreview | null;
+  /** Shu foydalanuvchi o'tkaza oladigan holatlar (support_service/rules.py). */
+  allowed_statuses: TicketStatus[];
+}
+
+export interface TicketPage {
+  items: TicketListItem[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface TicketDetail extends TicketListItem {
   body: string;
+  /** Oxirgi xabarlar (o'sish tartibida); eskilari — `listTicketMessages`. */
   messages: TicketMessage[];
+  has_more_messages: boolean;
 }
+
+export interface TicketMessagePage {
+  items: TicketMessage[];
+  has_more: boolean;
+}
+
+/** Javob yozilgandan keyin — yangi xabar va murojaatning yangilangan holati
+ *  (masalan xodim javobidan keyin OPEN → IN_PROGRESS). */
+export interface TicketMessageCreated extends TicketMessage {
+  ticket: TicketListItem;
+}
+
+export interface SupportUnreadSummary {
+  tickets: number;
+  messages: number;
+}
+
+/** WS orqali keladigan murojaat ko'rinishi — ko'ruvchiga bog'liq maydonlarsiz. */
+export type TicketPublic = Omit<TicketListItem, 'unread_count' | 'allowed_statuses'>;
+
+export type SupportSocketEvent =
+  | { type: 'hello'; user_id: number }
+  | { type: 'ping' }
+  | { type: 'message.created'; ticket_id: number; message: TicketMessage; ticket: TicketPublic }
+  | { type: 'ticket.created'; ticket: TicketPublic }
+  | { type: 'ticket.updated'; ticket: TicketPublic };
 
 export interface TicketCreateInput {
   subject: string;

@@ -31,3 +31,6 @@ docker-compose.override.yml
 # har `make mon-up` da `monitoring/render-config.py` tomonidan qayta yaratiladi.
 monitoring/.rendered/
 .DS_Store
+
+# Support biriktirmalari — foydalanuvchilarning shaxsiy fayllari, git'ga tushmasin.
+uploads/support/

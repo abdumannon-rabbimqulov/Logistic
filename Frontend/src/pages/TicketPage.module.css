@@ -1,6 +1,7 @@
+/* Balandlik qat'iy: yozishma o'zi aylanadi, composer esa pastda qotib turadi. */
 .page {
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--color-gray-50);
@@ -65,10 +66,29 @@
 }
 
 .headText {
+  flex: 1;
   min-width: 0;
 }
 
+.closeTicketBtn {
+  flex-shrink: 0;
+  border: 1px solid var(--color-gray-200);
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.closeTicketBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .subject {
+  margin: 0;
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 16px;
@@ -85,6 +105,7 @@
 
 .thread {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -180,13 +201,135 @@
   text-align: center;
 }
 
+.composerWrap {
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-gray-200);
+}
+
 .composer {
   display: flex;
   align-items: flex-end;
   gap: 8px;
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.attachBtn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-gray-100);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.attachBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.fileChip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 16px 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-gray-100);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.fileChipName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileChipRemove {
+  border: none;
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+}
+
+.olderBtn {
+  align-self: center;
+  border: 1px solid var(--color-gray-200);
   background: var(--color-bg);
-  border-top: 1px solid var(--color-gray-200);
+  color: var(--color-accent);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.olderBtn:disabled {
+  color: var(--color-text-tertiary);
+}
+
+/* Biriktirmalar */
+.attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.imageLink {
+  display: block;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  line-height: 0;
+}
+
+.image,
+.video {
+  display: block;
+  max-width: min(260px, 70vw);
+  max-height: 320px;
+  border-radius: var(--radius-md);
+  background: var(--color-gray-100);
+  object-fit: cover;
+}
+
+.docLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-gray-200);
+  background: var(--color-bg);
+  text-decoration: none;
+  max-width: min(260px, 70vw);
+}
+
+.docName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docSize {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
 }
 
 .input {
@@ -197,7 +340,9 @@
   font: inherit;
   font-size: 15px;
   resize: none;
-  max-height: 120px;
+  max-height: 140px;
+  overflow-y: auto;
+  line-height: 1.4;
   color: var(--color-text-primary);
   background: var(--color-bg);
 }

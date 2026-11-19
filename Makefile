@@ -62,7 +62,7 @@ support-logs: ## Support mikroservizi loglari
 	$(COMPOSE) logs -f support
 
 support-ui: ## Support Swagger UI (murojaatlar API si)
-	open http://localhost:8010/docs
+	open http://localhost:5173/support/docs
 
 notification-logs: ## Telegram bildirishnomalari servisi (notification) loglari
 	$(COMPOSE) logs -f notification

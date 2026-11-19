@@ -192,7 +192,7 @@ services:
       # tarmog'idagi xizmat nomi (`web`) ishlatiladi.
       - VITE_DEV_API_TARGET=http://web:8000
       # Support alohida mikroservis — compose tarmog'ida "support" nomi bilan 8000-portda
-      # (tashqariga 8010 sifatida chiqadi). Vite `/support` ni shu manzilga uzatadi.
+      # (host'ga ochilmaydi). Vite `/support` ni (WS bilan birga) shu manzilga uzatadi.
       - VITE_DEV_SUPPORT_TARGET=http://support:8000
       # Buyurtma sahifasidagi Leaflet xaritasi marshrutni brauzerdan so'raydi
       # (`/osrm/...`), Vite esa uni OSRM konteyneriga uzatadi. Konteyner ichida
@@ -269,30 +269,43 @@ services:
         # Yo'lga chiqish vaqtini hisoblash uchun OSRM kerak (resolve_departure_plan).
         condition: service_healthy
 
-  # 9. Support (Yordam) mikroservizi → http://localhost:8010/docs
+  # 9. Support (Yordam) mikroservizi — tashqaridan FAQAT nginx/Vite `/support` orqali
   #
   # ALOHIDA xizmat: o'z image'i (`support_service/Dockerfile`, ichida faqat
-  # `support_service/` papkasi), o'z bazasi (`support_db`) va o'z bog'liqliklari.
-  # Asosiy ilova bilan faqat ikki narsani baham ko'radi:
-  #   1. `SECRET_KEY` — JWT ni mahalliy tekshirish uchun (rol tokendagi `role` claim'ida)
+  # `support_service/` papkasi), o'z bazasi (`support_db`, o'z alembic zanjiri) va
+  # o'z bog'liqliklari. Asosiy ilova bilan baham ko'radigani:
+  #   1. `SECRET_KEY` — JWT ni mahalliy tekshirish uchun
   #   2. RabbitMQ `logistika.events` exchange'i — hodisalar almashinuvi
-  # Asosiy bazaga ulanmaydi va `web` ga HTTP so'rov yubormaydi, shuning uchun
-  # `depends_on: web` ham yo'q — ikkalasi mustaqil ko'tariladi.
+  #   3. Redis — WS fan-out, foydalanuvchi holati keshi, rate-limit (alohida DB raqami)
+  #   4. `web` API — foydalanuvchining o'z tokeni bilan: faolligi (`/auth/me`, ~60 s
+  #      kesh) va buyurtma egaligi (`/orders/{id}`). `web` o'chiq bo'lsa ham support
+  #      ko'tariladi (oxirgi ma'lum holat ishlatiladi), shuning uchun `depends_on` yo'q.
+  #
+  # Port host'ga ATAYLAB ochilmagan: auth/rate-limit chetlab o'tiladigan to'g'ridan-
+  # to'g'ri kirish bo'lmasin. Swagger kerak bo'lsa:
+  #   docker compose exec support python -c "import urllib.request as u;print(u.urlopen('http://127.0.0.1:8000/openapi.json').read()[:200])"
+  # yoki vaqtincha `docker compose run --service-ports` bilan.
   support:
     build:
       context: .
       dockerfile: support_service/Dockerfile
     container_name: logistika_support
-    ports:
-      - "${SUPPORT_SERVICE_PORT:-8010}:8000"
+    expose:
+      - "8000"
     environment:
       - SUPPORT_DB_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/${SUPPORT_DB_NAME:-support_db}
       # Asosiy ilova bilan BIR XIL bo'lishi shart, aks holda token tekshiruvi yiqiladi.
       - SECRET_KEY=${SECRET_KEY}
       - ALGORITHM=${ALGORITHM:-HS256}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      - REDIS_URL=${SUPPORT_REDIS_URL:-redis://logistika-redis:6379/5}
+      - CORE_API_URL=${SUPPORT_CORE_API_URL:-http://web:8000/api}
+      - SUPPORT_UPLOAD_DIR=/app/uploads/support
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - TZ=Asia/Tashkent
+    volumes:
+      # Biriktirmalar (rasm/video/hujjat). Faqat shu papka — butun loyiha emas.
+      - ./uploads/support:/app/uploads/support
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
@@ -305,6 +318,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      logistika-redis:
+        condition: service_started
 
   # 9b. Tracking mikroservizi — haydovchilarning jonli GPS oqimi va sender kuzatuvi
   #

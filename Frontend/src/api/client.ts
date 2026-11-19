@@ -279,4 +279,5 @@ export const supportApi = {
     request<T>(path, { method: 'POST', body, baseUrl: SUPPORT_BASE_URL }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body, baseUrl: SUPPORT_BASE_URL }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE', baseUrl: SUPPORT_BASE_URL }),
 };
