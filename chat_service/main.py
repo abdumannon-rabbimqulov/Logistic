@@ -25,10 +25,12 @@ from chat_service.config import LOG_LEVEL
 from chat_service.db import dispose_engine
 from chat_service.events import handle_order_event
 from chat_service.realtime import RedisBroadcaster, get_broadcaster
+from contracts import safe_logging
 from chat_service.router import router as chat_router
 from chat_service.ws import router as ws_router
 
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)-8s %(name)s: %(message)s")
+safe_logging.install()  # WS manzilidagi `?token=` loglarga tushmasin
 logger = logging.getLogger("chat_service")
 
 

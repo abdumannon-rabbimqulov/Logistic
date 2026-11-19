@@ -27,6 +27,7 @@ from config.config import (
     CORS_ORIGINS,
 )
 from config.registry import Base  # barcha modellarni ro'yxatdan o'tkazadi
+from contracts import safe_logging
 from middlewares.error_handler import setup_error_handlers
 from services.metrics import MetricsMiddleware
 
@@ -39,6 +40,10 @@ from order.router import router as order_router  # noqa: E402
 from users.router import router as auth_router  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# uvicorn loglarni app import qilinishidan OLDIN sozlaydi (`--log-config`), shuning uchun
+# filtr shu yerda o'rnatiladi: Telegram bot tokeni va `?token=` loglarga tushmasin.
+safe_logging.install()
 
 
 @asynccontextmanager

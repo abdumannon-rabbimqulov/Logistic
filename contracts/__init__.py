@@ -10,4 +10,5 @@ standart kutubxona.
   * `schemas/*.json` — har bir event payload'ining JSON Schema'si (Go servislari
                        ham shulardan foydalanadi).
   * `validate.py`    — sxema bo'yicha tekshiruv (testlarda).
+  * `safe_logging.py` — loglarda token va bot sirlarini yashirish (har servis chaqiradi).
 """

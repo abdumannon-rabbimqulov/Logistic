@@ -28,11 +28,13 @@ from typing import Optional
 
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 
+from contracts import safe_logging
 from tracking_service import core_client, store
 from tracking_service.config import API_PREFIX, LOG_LEVEL
 from tracking_service.fixes import is_stale_fix, parse_fix_time
 
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)-8s %(name)s: %(message)s")
+safe_logging.install()  # WS manzilidagi `?token=` loglarga tushmasin
 logger = logging.getLogger("tracking_service")
 
 

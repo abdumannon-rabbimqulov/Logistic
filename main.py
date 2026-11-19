@@ -4,6 +4,7 @@ import logging
 
 
 from config.config import  engine
+from contracts import safe_logging
 from config import registry
 import driver.models
 import order.models
@@ -41,6 +42,7 @@ async def main():
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s"
     )
+    safe_logging.install()  # bot tokeni loglarga tushmasin
 
     dp = Dispatcher()            # Event dispatcher
 

@@ -44,6 +44,7 @@ import users.models  # noqa: F401
 configure_mappers()
 
 from config.config import DISPATCH_PREFETCH, async_session  # noqa: E402
+from contracts import safe_logging  # noqa: E402
 from services import dispatch as dispatch_service  # noqa: E402
 from services import live_location, live_location_sync, location_watch, outbox, queue, start_reminders  # noqa: E402
 
@@ -190,6 +191,8 @@ async def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
     )
+    # httpx Telegram so'rovini bot tokeni bilan birga yozardi — loglarga tushmasin.
+    safe_logging.install()
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

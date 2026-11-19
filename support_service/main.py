@@ -25,12 +25,14 @@ from fastapi import FastAPI
 from support_service import core_client, crud, kv, queue, realtime, schemas
 from support_service.config import LOG_LEVEL
 from support_service.db import async_session, engine
+from contracts import safe_logging
 from support_service.router import router as support_router
 
 logging.basicConfig(
     level=LOG_LEVEL,
     format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
 )
+safe_logging.install()  # WS manzilidagi `?token=` va fayl havolalaridagi `sig=` loglarga tushmasin
 logger = logging.getLogger("support_service")
 
 # Kalitlar — `order.models.OrderStatus` QIYMATLARI (katta harf). Ilgari kichik

@@ -24,6 +24,7 @@ import aio_pika
 from aio_pika.abc import AbstractIncomingMessage
 
 from contracts import events as c
+from contracts import safe_logging
 from notification_service import config, telegram
 from notification_service.handlers import route
 from notification_service.handlers.chat import ChatCoalescer
@@ -73,6 +74,8 @@ async def main() -> None:
         level=config.LOG_LEVEL,
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
     )
+    # httpx Telegram so'rovini bot tokeni bilan birga yozardi — loglarga tushmasin.
+    safe_logging.install()
     config.require_settings()
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
