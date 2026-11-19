@@ -85,8 +85,14 @@ fi
 PREV_IMAGE="$(docker image inspect logistika_backend:latest --format '{{.Id}}' 2>/dev/null || echo '-')"
 
 # ── 4. Build va ishga tushirish ─────────────────────────────────────────────
-say "Image'lar yig'ilmoqda..."
-"${COMPOSE[@]}" build
+say "Image'lar yig'ilmoqda (ketma-ket)..."
+# ATAYLAB bittadan: `compose build` barcha image'larni (backend, frontend Vite build,
+# support, notification, tracking) PARALLEL yig'adi. 2 vCPU / 3.8 GB serverda bu xotirani
+# tugatib, server butunlay qotib qolgan (SSH ham javob bermagan) — 2026-11-19 deploy'i.
+# Ketma-ket build sekinroq, lekin xavfsiz; umumiy backend image keshdan qayta ishlatiladi.
+for svc in $("${COMPOSE[@]}" config --services); do
+    "${COMPOSE[@]}" build "$svc"
+done
 
 say "Xizmatlar ishga tushirilmoqda..."
 # `--remove-orphans` — eski nomdagi konteynerlar (masalan avvalgi prod nomlari)
