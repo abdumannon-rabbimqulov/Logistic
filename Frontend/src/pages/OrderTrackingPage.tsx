@@ -18,6 +18,7 @@ import { OrderStepper } from '../components/OrderStepper';
 import { BackIcon, PhoneIcon, SendIcon, StarIcon } from '../components/icons';
 import { YandexMap } from '../components/YandexMap';
 import { useOrderDriverLocation } from '../hooks/useOrderDriverLocation';
+import { useOrderUpdates } from '../hooks/useOrderUpdates';
 import type { OrderDetail, OrderEta, QuickPriceOption } from '../types/api';
 import { formatClock, formatEta, formatPrice, formatShortDateTime, routeLabel, shortAddress, unloadingLabel } from '../utils/format';
 import {
@@ -31,12 +32,16 @@ import styles from './OrderTrackingPage.module.css';
 import type { SupportChatNavState } from './SupportChatPage';
 
 const MAX_ROUNDS = 5; // services/dispatch.py MAX_ROUNDS bilan mos
+// WebSocket (`useOrderUpdates`) ulanmagan paytda — avvalgi polling oraliqlari:
 const POLL_INTERVAL_MS = 5000;
 // Haydovchi biriktirilgan (ACCEPTED/IN_PROGRESS): nuqtalar va status o'zgarishi kuzatiladi.
 const ACTIVE_POLL_INTERVAL_MS = 10_000;
 const ETA_POLL_INTERVAL_MS = 30_000;
 // Qidiruv boshlanishini kutayotgan buyurtma uchun (holat soatlab o'zgarmaydi)
 const SCHEDULED_POLL_INTERVAL_MS = 60_000;
+// WebSocket ulangan paytda — faqat zaxira (signal qaysidir sabab bilan yo'qolsa). O'zgarish
+// serverdan signal bilan keladi, shuning uchun har sahifa uchun so'rovlar ~6–12 marta kamayadi.
+const SAFETY_POLL_INTERVAL_MS = 60_000;
 
 
 /** ISO vaqtdan faqat soat:daqiqa (bosqichlar ro'yxati uchun). */
@@ -96,6 +101,15 @@ export function OrderTrackingPage() {
     [orderId, dispatchBusy],
   );
 
+  // Buyurtma o'zgarganda server WebSocket orqali xabar beradi (tracking_service
+  // `/orders/{id}/ws/updates`) — sahifa faqat shunda qayta so'raydi.
+  const orderActive = order != null && !FINAL_ORDER_STATUSES.has(order.status);
+  const { connected: updatesConnected } = useOrderUpdates({
+    orderId: orderId ? Number(orderId) : null,
+    enabled: orderActive,
+    onSignal: load,
+  });
+
   useEffect(() => {
     if (!order || FINAL_ORDER_STATUSES.has(order.status)) {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -113,11 +127,13 @@ export function OrderTrackingPage() {
     } else {
       interval = ACTIVE_POLL_INTERVAL_MS;
     }
+    // WS ulangan bo'lsa o'zgarish signal bilan keladi — faqat zaxira so'rov qoladi.
+    if (updatesConnected) interval = Math.max(interval, SAFETY_POLL_INTERVAL_MS);
     timerRef.current = setTimeout(load, interval);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [order, load]);
+  }, [order, load, updatesConnected]);
 
   // Ilova fondan qaytganda (Telegram yopilib-ochilganda) darhol yangilanadi.
   useEffect(() => {

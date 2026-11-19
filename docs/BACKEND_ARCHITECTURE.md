@@ -407,6 +407,8 @@ To'liq namuna va izohlar: `.env.example`. Eng muhimlari:
 | Narx hisoblashda web CPU'sining ~60% i marshrut geometriyasiga ketardi (sof Python Douglas-Peucker, WKT qurish, har chaqiruvda yangi HTTP/SSL klient) | `services/osrm_client.py`: umumiy klient, shapely/numpy, ETA/dispatch uchun `with_geometry=False`, narx→buyurtma uchun 10 daqiqalik siqilgan Redis keshi (64 KB dan katta marshrut keshlanmaydi) |
 | Bitta uvicorn jarayoni 2 vCPU'dan faqat bittasini ishlatardi | prod'da `--workers 2` (`WEB_WORKERS`), web `mem_limit` 896m |
 
+| Haydovchi ilovasi har 3 s, sender buyurtma sahifasi har 5–10 s so'rardi (yuklama testidagi so'rovlarning ~90% i) | **Signal WebSocket'lari** (tracking_service): `/drivers/ws/dispatch` ("taklif o'zgardi") va `/orders/{id}/ws/updates` ("buyurtma o'zgardi"). Core faqat signal yuboradi (`services/realtime_signal.py` → Redis), ma'lumot oddiy REST bilan olinadi. Buyurtma signali manbai — outbox relay (har hodisa commit'dan keyin shu yerdan o'tadi) va dispatch raundlari. WS ulangan paytda zaxira so'rov 30–60 s da |
+
 Yuklama testi (2026-11-19, lokal, prod cheklovlari bilan) — skriptlar repoda yo'q, natijalar:
 yangi kod bilan narx hisoblash 3× arzonlashdi (Toshkent–Nukus 38 → 12 ms CPU), 300 sender +
 150 haydovchi 1 worker'da p95 5.2 s dan 61 ms ga tushdi.

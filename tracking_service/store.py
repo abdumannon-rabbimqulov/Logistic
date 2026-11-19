@@ -49,6 +49,7 @@ location_key = redis_keys.driver_location_key
 driver_channel = redis_keys.driver_location_channel
 gps_lost_key = redis_keys.driver_gps_lost_key
 dispatch_channel = redis_keys.driver_dispatch_channel
+order_updates_channel = redis_keys.order_updates_channel
 
 
 def build_payload(identity: dict[str, Any], lat: float, lon: float, accuracy: Optional[float],

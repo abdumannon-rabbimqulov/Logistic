@@ -13,6 +13,8 @@ Protokol core'dagi eski endpointlar bilan BIR XIL (frontend o'zgarmaydi):
   WS {prefix}/orders/{id}/ws/driver-location?token= — sender haydovchini kuzatadi
   WS {prefix}/drivers/ws/dispatch?token=           — haydovchiga "taklif o'zgardi" signali
                                                      (core: services/dispatch_signal.py)
+  WS {prefix}/orders/{id}/ws/updates?token=        — buyurtma sahifasiga "buyurtma o'zgardi"
+                                                     signali (core: services/order_signal.py)
 Oxirgi nuqtani bazaga yozish — core'ning ishi (`services/live_location_sync.py`,
 dispatch-worker ichida, Redis'dan davriy).
 """
@@ -158,24 +160,9 @@ async def order_driver_location_ws(websocket: WebSocket, order_id: int, token: O
 DISPATCH_KEEPALIVE_SEC = 25
 
 
-@router.websocket("/drivers/ws/dispatch")
-async def driver_dispatch_ws(websocket: WebSocket, token: Optional[str] = None):
-    """Haydovchi ilovasi liniyada turganda ochiq turadi. Taklif yaratilsa yoki yopilsa
-    core shu haydovchining kanaliga `{"event": "dispatch_changed"}` yuboradi va u shu
-    yerdan ilovaga uzatiladi — ilova taklifni `GET /orders/dispatch/active` dan oladi.
-
-    Ilgari ilova buni har 3 soniyada so'rardi; endi so'rov faqat o'zgarish bo'lganda.
-    """
-    raw = _token(token or websocket.query_params.get("token"))
-    identity = await core_client.driver_identity(raw) if raw else None
-    if identity is None:
-        await websocket.close(code=4401, reason="Unauthorized")
-        return
-
-    driver_id = int(identity["driver_id"])
-    channel = store.dispatch_channel(driver_id)
-    # Avval obuna, keyin "connected": ilova "connected" ni olgach joriy holatni so'raydi,
-    # shu oraliqda kelgan signal yo'qolmasligi kerak.
+async def _serve_signal_socket(websocket: WebSocket, channel: str, label: str) -> None:
+    """Signal WS'ining umumiy qismi: avval obuna, keyin "connected" (ilova shundan so'ng
+    joriy holatni so'raydi — oraliqda kelgan signal yo'qolmasin), keyin signallar va ping."""
     pubsub = await store.open_subscription(channel)
     await websocket.accept()
     await websocket.send_json({"event": "connected"})
@@ -196,18 +183,50 @@ async def driver_dispatch_ws(websocket: WebSocket, token: Optional[str] = None):
     except WebSocketDisconnect:
         pass
     except Exception as exc:
-        logger.debug("Driver %s dispatch WS receive xatosi: %s", driver_id, exc)
+        logger.debug("%s WS receive xatosi: %s", label, exc)
     finally:
         for task in tasks:
             task.cancel()
         # Vazifalar to'liq tugashini kutamiz — aks holda obuna yopilayotganda pump
         # `ConnectionError` bilan tugab, "exception was never retrieved" bo'lib qolardi.
         await asyncio.gather(*tasks, return_exceptions=True)
-        # pump hech qachon boshlanmagan bo'lsa ham obuna yopilsin.
         try:
             await pubsub.aclose()
         except Exception:
             pass
+
+
+@router.websocket("/drivers/ws/dispatch")
+async def driver_dispatch_ws(websocket: WebSocket, token: Optional[str] = None):
+    """Haydovchi ilovasi liniyada turganda ochiq turadi. Taklif yaratilsa yoki yopilsa
+    core shu haydovchining kanaliga `{"event": "dispatch_changed"}` yuboradi va u shu
+    yerdan ilovaga uzatiladi — ilova taklifni `GET /orders/dispatch/active` dan oladi.
+
+    Ilgari ilova buni har 3 soniyada so'rardi; endi so'rov faqat o'zgarish bo'lganda.
+    """
+    raw = _token(token or websocket.query_params.get("token"))
+    identity = await core_client.driver_identity(raw) if raw else None
+    if identity is None:
+        await websocket.close(code=4401, reason="Unauthorized")
+        return
+
+    driver_id = int(identity["driver_id"])
+    await _serve_signal_socket(websocket, store.dispatch_channel(driver_id), f"Driver {driver_id} dispatch")
+
+
+@router.websocket("/orders/{order_id}/ws/updates")
+async def order_updates_ws(websocket: WebSocket, order_id: int, token: Optional[str] = None):
+    """Buyurtma sahifasi ochiq turganda: buyurtma o'zgarsa (status, nuqta, qidiruv raundi,
+    narx oshirish so'rovi...) core shu buyurtma kanaliga `{"event": "order_changed"}`
+    yuboradi va u shu yerdan sahifaga uzatiladi — sahifa buyurtmani `GET /orders/{id}`
+    dan oladi. Ruxsat `core_client.order_access` bilan: faqat buyurtmani ko'ra oladiganlar.
+    """
+    raw = _token(token or websocket.query_params.get("token"))
+    access = await core_client.order_access(raw, order_id) if raw else None
+    if access is None:
+        await websocket.close(code=4403)
+        return
+    await _serve_signal_socket(websocket, store.order_updates_channel(order_id), f"Order {order_id} updates")
 
 
 # nginx `$request_uri` ni to'liq uzatadi (`/api/...`); ichki tarmoqdan esa prefiksiz.

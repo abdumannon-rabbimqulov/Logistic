@@ -43,7 +43,7 @@ from config.config import APP_TIMEZONE, LAST_KNOWN_LOCATION_MAX_AGE_SEC
 from driver.models import Driver
 from order.dispatch_models import DispatchAttempt, DispatchAttemptStatus, DispatchMatchType
 from order.models import Order, OrderStatus
-from services import dispatch_signal, dispatch_timing, live_location, notifications, osrm_client, pricing, queue
+from services import dispatch_signal, dispatch_timing, live_location, order_signal, notifications, osrm_client, pricing, queue
 from services import notification_templates as templates
 from services.problems import Violation
 from utils.geo import calculate_distance_km
@@ -535,6 +535,8 @@ async def _run_dispatch_round(db: AsyncSession, order: Order) -> None:
     await db.refresh(order, attribute_names=["dispatch_round", "updated_at"])
     # Ilovadagi karta darhol chiqsin — Telegram xabaridan oldin (u sekinroq).
     await dispatch_signal.notify_drivers([driver.id])
+    # Sender sahifasida "qidiruv raundi" yangilansin (bu outbox hodisasi emas).
+    await order_signal.notify_orders([order.id])
 
     chat_id = driver.user_id
     message_id = await notifications.send_telegram_message(
@@ -965,6 +967,8 @@ async def _request_price_bump(db: AsyncSession, order: Order) -> None:
     await db.commit()
     # _dispatch_next dagi kabi: UPDATE'dan keyin `updated_at` expired qoladi.
     await db.refresh(order, attribute_names=["price_bump_requested_at", "updated_at"])
+    # Sender sahifasida "narxni oshiring" taklifi darhol chiqsin.
+    await order_signal.notify_orders([order.id])
 
     text = templates.price_bump_text(order)
     await notifications.send_telegram_message(

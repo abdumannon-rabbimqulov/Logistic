@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
 from config.base import Base
-from services import queue
+from services import order_signal, queue
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +106,7 @@ async def relay_once(db: AsyncSession, *, batch: int = RELAY_BATCH) -> int:
 
     sent = 0
     now = datetime.now(timezone.utc)
+    changed_orders: set[int] = set()
     for row in rows:
         try:
             await queue.publish_envelope(row.envelope)
@@ -118,7 +119,13 @@ async def relay_once(db: AsyncSession, *, batch: int = RELAY_BATCH) -> int:
         row.published_at = now
         row.attempts += 1
         sent += 1
+        order_id = (row.envelope.get("data") or {}).get("order_id")
+        if isinstance(order_id, int):
+            changed_orders.add(order_id)
     await db.commit()
+    # Buyurtma sahifalari WebSocket orqali yangilansin (commit'dan keyin; xato asosiy
+    # oqimni to'xtatmaydi — `order_signal` o'zi yutadi).
+    await order_signal.notify_orders(changed_orders)
     return sent
 
 

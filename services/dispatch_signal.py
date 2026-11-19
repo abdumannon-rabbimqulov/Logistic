@@ -12,26 +12,14 @@ ilovada zaxira so'rov (uzoqroq oraliqda) bor.
 
 from __future__ import annotations
 
-import json
-import logging
 from typing import Iterable, Optional
 
 from contracts import redis_keys
-
-logger = logging.getLogger(__name__)
-
-_PAYLOAD = json.dumps({"event": redis_keys.DISPATCH_CHANGED_EVENT})
+from services import realtime_signal
 
 
 async def notify_drivers(driver_ids: Iterable[Optional[int]]) -> None:
-    ids = {int(i) for i in driver_ids if i is not None}
-    if not ids:
-        return
-    from services.live_location import get_redis
-
-    try:
-        redis = get_redis()
-        for driver_id in ids:
-            await redis.publish(redis_keys.driver_dispatch_channel(driver_id), _PAYLOAD)
-    except Exception as exc:  # noqa: BLE001 — signal ixtiyoriy, asosiy oqim to'xtamasin
-        logger.warning("Dispatch signali yuborilmadi (%s): %s", sorted(ids), exc)
+    await realtime_signal.publish(
+        (redis_keys.driver_dispatch_channel(int(i)) for i in driver_ids if i is not None),
+        redis_keys.DISPATCH_CHANGED_EVENT,
+    )

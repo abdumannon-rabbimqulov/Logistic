@@ -54,7 +54,7 @@ export default defineConfig({
       // `/api` prefiksi ostida ishlaydi — config API_PUBLIC_PREFIX).
       // Jonli GPS WebSocket'lari — tracking mikroservisiga (umumiy `/api` dan OLDIN turishi shart).
       '/api/drivers/ws': { target: TRACKING_TARGET, changeOrigin: true, ws: true },
-      '^/api/orders/\\d+/ws/driver-location': { target: TRACKING_TARGET, changeOrigin: true, ws: true },
+      '^/api/orders/\\d+/ws/(driver-location|updates)': { target: TRACKING_TARGET, changeOrigin: true, ws: true },
       '/api': {
         target: API_TARGET,
         changeOrigin: true,
