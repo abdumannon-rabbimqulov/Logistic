@@ -18,6 +18,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import configure_mappers
 from config.config import (
     engine,
+    DB_POOL_SIZE,
     UPLOAD_DIR,
     STATIC_PATH,
     ENVIRONMENT,
@@ -43,8 +44,19 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: jadval sxemasini yaratish (production'da alembic migratsiyasi tavsiya etiladi).
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Bir nechta uvicorn worker bir vaqtda ishga tushadi: toza bazada ikkalasi bir xil
+    # jadval/turni yaratishga urinib, biri "already exists" xatosini olishi mumkin.
+    # Sxema baribir yaratilgan bo'ladi, shuning uchun bu worker'ni yiqitmaydi.
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("create_all boshqa worker bilan bir vaqtda ishladi: %s", exc)
+
+    # Pool'dagi ulanishlarni oldindan ochish (services/db_warmup.py — nega kerakligi o'sha yerda).
+    from services.db_warmup import warm_pool
+
+    await warm_pool(engine, DB_POOL_SIZE, [t.name for t in Base.metadata.sorted_tables])
 
     # Navbat topologiyasi (dispatch vazifalari + `logistika.events` biznes hodisalari)
     # shu yerda ham e'lon qilinadi: worker/support'dan oldin ko'tarilsa ham birinchi
@@ -64,8 +76,10 @@ async def lifespan(app: FastAPI):
     # DIQQAT: dispatch sweep loop'i endi bu yerda EMAS — u `workers/dispatch_worker.py`
     # ga ko'chirildi. Web jarayoni sof API bo'lib qoldi, fon ishlari worker'da.
     from services.live_location import close_redis
+    from services.osrm_client import close_client as close_osrm_client
 
     await dispatch_queue.close_queue()
+    await close_osrm_client()
     await close_redis()
 
 

@@ -393,6 +393,13 @@ To'liq namuna va izohlar: `.env.example`. Eng muhimlari:
 | `orders`, `order_waypoints`, `users.phone_number` da indeks yo'q | `f1a6c2e83d47_perf_indexes` migratsiyasi + modellarda `Index(...)` |
 | `GET /orders`, `/orders/available/list` sahifalanmagan | `skip` / `limit` (standart 100, max 200) |
 | Admin dashboard ~10 ta ketma-ket COUNT | har jadvalga bitta so'rov: `count(*) FILTER (WHERE ...)` |
+| DB pool "overflow" ulanishlari yopilib qayta ochilardi; asyncpg har yangi ulanishda PostGIS/enum turlarini qayta o'rganib DB CPU'sini yerdi (yuklama ostida 2 daqiqagacha 1–6 s javob) | web'da `DB_MAX_OVERFLOW=0`, `DB_POOL_SIZE=16` (har worker), pool ishga tushishda isitiladi (`services/db_warmup.py`) |
+| Narx hisoblashda web CPU'sining ~60% i marshrut geometriyasiga ketardi (sof Python Douglas-Peucker, WKT qurish, har chaqiruvda yangi HTTP/SSL klient) | `services/osrm_client.py`: umumiy klient, shapely/numpy, ETA/dispatch uchun `with_geometry=False`, narx→buyurtma uchun 10 daqiqalik siqilgan Redis keshi (64 KB dan katta marshrut keshlanmaydi) |
+| Bitta uvicorn jarayoni 2 vCPU'dan faqat bittasini ishlatardi | prod'da `--workers 2` (`WEB_WORKERS`), web `mem_limit` 896m |
+
+Yuklama testi (2026-11-19, lokal, prod cheklovlari bilan) — skriptlar repoda yo'q, natijalar:
+yangi kod bilan narx hisoblash 3× arzonlashdi (Toshkent–Nukus 38 → 12 ms CPU), 300 sender +
+150 haydovchi 1 worker'da p95 5.2 s dan 61 ms ga tushdi.
 
 Qoidalar: ro'yxat endpointlari doim `limit` bilan; WHERE/ORDER BY dagi ustunga indeks;
 CPU-og'ir sinxron kod (`bcrypt`, katta JSON/geo hisoblar) → `asyncio.to_thread`;

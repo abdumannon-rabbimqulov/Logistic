@@ -105,7 +105,26 @@ CORS_ORIGINS: list[str] = [
 
 DATABASE_URL = get_required_env("DB_URL")
 
-engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True, pool_size=10, max_overflow=20)
+# DB ulanish pool'i — har jarayon uchun alohida. Yuklama testi (2026-11-19) ko'rsatdi:
+# pool doimiy qismidan oshgan "overflow" ulanishlar qaytarilganda yopiladi va keyingi
+# so'rovda qayta ochiladi; asyncpg har yangi ulanishda PostGIS/enum turlarini qayta
+# o'rganadi va bu DB CPU'sini yeydi (30 ta parallel buyurtma ~10 s), yuklama esa
+# o'z-o'zini kuchaytirib, tizim sekin holatdan chiqmay qoladi. Shuning uchun web'da
+# overflow yo'q (`DB_MAX_OVERFLOW=0`): band bo'lsa so'rov yangi ulanish ochmasdan
+# bo'shini kutadi, pool esa ishga tushishda isitiladi (services/db_warmup.py).
+# Postgres `max_connections=100` ga sig'ishi uchun web (har worker) qiymatlarni
+# compose'dan oladi, bot va dispatch-worker esa kichik standart qiymatda qoladi.
+DB_POOL_SIZE = int(get_optional_env('DB_POOL_SIZE', '5'))
+DB_MAX_OVERFLOW = int(get_optional_env('DB_MAX_OVERFLOW', '5'))
+
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    pool_size=DB_POOL_SIZE,
+    max_overflow=DB_MAX_OVERFLOW,
+    pool_recycle=1800,
+)
 async_session = async_sessionmaker(
     engine,
     class_=AsyncSession,

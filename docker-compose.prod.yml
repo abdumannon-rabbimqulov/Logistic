@@ -86,7 +86,8 @@ services:
         condition: service_healthy
 
   web:
-    mem_limit: 512m
+    # 2 ta uvicorn worker (har biri ~250 MB yuklama ostida) — shuning uchun 512m emas.
+    mem_limit: 896m
     build: .
     image: ghcr.io/abdumannon-rabbimqulov/logistika-backend:${IMAGE_TAG:-latest}
     container_name: logistika_web_prod
@@ -136,6 +137,11 @@ services:
       - --proxy-headers
       - --forwarded-allow-ips
       - "*"
+      # Server 2 vCPU: bitta Python jarayoni faqat bitta yadroni ishlata oladi
+      # (yuklama testida web CPU 100% ga yetgan, ikkinchi yadro bo'sh turgan).
+      # Jarayonlar holat bo'lishmaydi: sessiya JWT'da, rate limit va jonli xarita Redis'da.
+      - --workers
+      - "${WEB_WORKERS:-2}"
     restart: always
 
   bot:

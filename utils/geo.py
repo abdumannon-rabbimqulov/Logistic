@@ -1,6 +1,9 @@
 import math
 from typing import Optional, Sequence
 
+import numpy as np
+import shapely
+
 # Bir gradus kenglik (latitude) taxminan 111.32 km ga teng
 _KM_PER_DEGREE = 111.32
 
@@ -21,46 +24,40 @@ def simplify_polyline(
     """
     if len(points) <= 2:
         return list(points)
+    arr = np.asarray(points, dtype=float)
+    return simplify_lonlat_array(arr[:, ::-1], tolerance_m)
+
+
+def simplify_lonlat_array(lonlat: "np.ndarray", tolerance_m: float = 15.0) -> list[tuple[float, float]]:
+    """`simplify_polyline` ning o'zi, lekin kirish OSRM tartibida: (N, 2) massiv [lon, lat].
+
+    Natija [(latitude, longitude), ...] — Yandex Maps shu tartibni kutadi.
+
+    Unumdorlik (yuklama testi, 2026-11-19): sof Python'dagi Douglas-Peucker narx
+    hisoblashda web CPU'sining ~30% ini yeyardi. Endi nuqtalar numpy bilan metrlik
+    tekislikka o'tkaziladi va soddalashtirishni GEOS (shapely, C) bajaradi — algoritm
+    o'sha (kesmagacha masofa, `preserve_topology=False` = klassik Douglas-Peucker).
+    """
+    n = len(lonlat)
+    if n <= 2:
+        return [(float(lat), float(lon)) for lon, lat in lonlat]
 
     # Gradusni taxminan metrga o'tkazish uchun masshtab. Uzunlik gradusi qutbga
     # yaqinlashgan sari qisqaradi, shuning uchun o'rtacha kenglik bo'yicha cos() olinadi.
-    mean_lat = sum(lat for lat, _ in points) / len(points)
     lat_scale = _KM_PER_DEGREE * 1000
-    lon_scale = lat_scale * math.cos(math.radians(mean_lat))
-    tolerance_sq = tolerance_m ** 2
+    lon_scale = lat_scale * math.cos(math.radians(float(lonlat[:, 1].mean())))
+    scale = np.array([lon_scale, lat_scale])
 
-    def _perpendicular_distance_sq(p: tuple[float, float], a: tuple[float, float], b: tuple[float, float]) -> float:
-        """p nuqtaning a-b kesmasigacha bo'lgan masofasi kvadrati (metrda)."""
-        px, py = (p[1] - a[1]) * lon_scale, (p[0] - a[0]) * lat_scale
-        bx, by = (b[1] - a[1]) * lon_scale, (b[0] - a[0]) * lat_scale
-        seg_len_sq = bx * bx + by * by
-        if seg_len_sq == 0:  # a va b ustma-ust — oddiy nuqtalar orasidagi masofa
-            return px * px + py * py
-        # Proyeksiyani [0, 1] oralig'iga qisish — kesmadan tashqariga chiqmasligi uchun
-        t = max(0.0, min(1.0, (px * bx + py * by) / seg_len_sq))
-        dx, dy = px - t * bx, py - t * by
-        return dx * dx + dy * dy
+    simplified = shapely.simplify(
+        shapely.linestrings(lonlat * scale), tolerance_m, preserve_topology=False
+    )
+    kept = shapely.get_coordinates(simplified) / scale
+    return [(lat, lon) for lon, lat in kept.tolist()]
 
-    # Rekursiv emas, stack orqali — juda uzun marshrutlarda rekursiya chuqurligi oshib
-    # ketmasligi uchun. keep[i] = shu nuqta natijada qoladimi.
-    keep = [False] * len(points)
-    keep[0] = keep[-1] = True
-    stack = [(0, len(points) - 1)]
-    while stack:
-        start, end = stack.pop()
-        if end - start < 2:
-            continue
-        max_dist_sq, max_index = -1.0, start
-        for i in range(start + 1, end):
-            dist_sq = _perpendicular_distance_sq(points[i], points[start], points[end])
-            if dist_sq > max_dist_sq:
-                max_dist_sq, max_index = dist_sq, i
-        if max_dist_sq > tolerance_sq:
-            keep[max_index] = True
-            stack.append((start, max_index))
-            stack.append((max_index, end))
 
-    return [p for p, keep_it in zip(points, keep) if keep_it]
+def lonlat_to_wkt(lonlat: "np.ndarray") -> str:
+    """(N, 2) [lon, lat] massivdan PostGIS uchun "LINESTRING(lon lat, ...)" (to'liq aniqlik)."""
+    return shapely.to_wkt(shapely.linestrings(lonlat), rounding_precision=-1, trim=True)
 
 
 def calculate_distance_km(lat1: Optional[float], lon1: Optional[float], lat2: Optional[float], lon2: Optional[float]) -> Optional[float]:

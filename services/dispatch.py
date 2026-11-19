@@ -164,7 +164,8 @@ async def resolve_departure_plan(
     ):
         try:
             route = await osrm_client.get_route(
-                [(driver.last_latitude, driver.last_longitude), (pickup_lat, pickup_lon)]
+                [(driver.last_latitude, driver.last_longitude), (pickup_lat, pickup_lon)],
+                with_geometry=False,
             )
             departure_at = pickup_at - timedelta(minutes=route.duration_min)
         except osrm_client.OSRMRouteError as exc:

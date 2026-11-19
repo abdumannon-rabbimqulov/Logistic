@@ -369,7 +369,7 @@ async def estimate_price(db: AsyncSession, data: PriceEstimateRequest) -> dict:
         "duration_min": Decimal(str(route.duration_min)),
         # To'liq geometriya bazaga saqlanadigan aniqlikda — xaritada ko'rsatish uchun
         # shuncha nuqta shart emas, shuning uchun javob hajmi soddalashtirib kichraytiriladi.
-        "route_geometry": simplify_polyline(route.geometry),
+        "route_geometry": route.display_geometry,
         "options": options,
         "max_discount_percent": max_discount_percent,
     }

@@ -94,7 +94,8 @@ async def compute_eta(order, driver) -> dict[str, Any]:
 
     try:
         route = await osrm_client.get_route(
-            [(fix.latitude, fix.longitude), (float(target.latitude), float(target.longitude))]
+            [(fix.latitude, fix.longitude), (float(target.latitude), float(target.longitude))],
+            with_geometry=False,
         )
     except osrm_client.OSRMRouteError:
         logger.info("ETA: OSRM marshrut bermadi (order %s)", order.id)

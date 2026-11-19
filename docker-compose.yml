@@ -121,6 +121,11 @@ services:
     environment:
       - TZ=Asia/Tashkent
       - FORCE_COLOR=1
+      # DB pool har uvicorn worker uchun (config/config.py). Prod'da 2 worker × 16
+      # = 32 ulanish; bot, dispatch-worker, chat va support bilan birga Postgres'ning
+      # max_connections=100 chegarasiga sig'adi. Overflow ataylab 0 (sababi config'da).
+      - DB_POOL_SIZE=16
+      - DB_MAX_OVERFLOW=0
     command:
       - uvicorn
       - config.main:app
