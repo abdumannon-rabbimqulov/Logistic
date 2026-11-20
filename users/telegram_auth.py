@@ -18,8 +18,15 @@ def validate_telegram_init_data(init_data: str, bot_token: str, max_age_seconds:
     if not hmac.compare_digest(computed_hash, received_hash):
         raise ValueError("initData imzosi noto'g'ri")
 
-    auth_date = int(pairs.get("auth_date", "0"))
-    if auth_date and time() - auth_date > max_age_seconds:
+    try:
+        auth_date = int(pairs["auth_date"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("initData auth_date yaroqsiz") from exc
+
+    now = time()
+    if auth_date <= 0 or auth_date > now + 60:
+        raise ValueError("initData auth_date yaroqsiz")
+    if now - auth_date > max_age_seconds:
         raise ValueError("initData muddati tugagan")
 
     user_raw = pairs.get("user")
