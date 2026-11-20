@@ -86,6 +86,7 @@ jobs:
           # ixtiyoriy secret (bo'lmasa — hozirgi kabi kalitsiz).
           build-args: |
             VITE_API_BASE_URL=/api
+            VITE_TELEGRAM_BOT_URL=https://t.me/Logistika_AIbot
             VITE_YANDEX_MAPS_API_KEY=${{ secrets.VITE_YANDEX_MAPS_API_KEY }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}

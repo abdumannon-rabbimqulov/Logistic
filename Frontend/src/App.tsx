@@ -1,7 +1,8 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AdminApp } from './admin/AdminApp';
 import styles from './App.module.css';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
+import { getAccessToken } from './api/client';
 import { useChatDeepLink } from './components/chat/useChatDeepLink';
 import { DriverGate } from './pages/DriverGate';
 import { HomePage } from './pages/HomePage';
@@ -15,6 +16,8 @@ import { OrderTrackingPage } from './pages/OrderTrackingPage';
 import { OrdersListPage } from './pages/OrdersListPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { RegisterPage } from './pages/RegisterPage';
+import { PublicLandingPage } from './pages/PublicLandingPage';
+import { getInitData } from './telegram';
 
 function SenderApp() {
   // Telegram'dagi "Chatni ochish" (`startapp=chat_<id>`) — chat sahifasiga o'tish.
@@ -87,6 +90,13 @@ function AuthGate() {
 }
 
 export default function App() {
+  const { pathname } = useLocation();
+  // Ommaviy bosh sahifa Telegram tashqarisida, login sessiyasi yo'q tashrifchiga
+  // ko'rsatiladi. Telegram Mini App va mavjud sessiyali brauzer odatdagi oqimda qoladi.
+  if (pathname === '/' && !getInitData() && !getAccessToken()) {
+    return <PublicLandingPage />;
+  }
+
   return (
     <AuthProvider>
       <AuthGate />

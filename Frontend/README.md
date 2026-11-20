@@ -65,9 +65,13 @@ Node **22+** kerak (`vite@8` / `oxlint` `engines: ^20.19.0 || >=22.12.0` talab q
 
 ### Brauzerda ochish
 
-Ilova Telegram Mini App sifatida `window.Telegram.WebApp.initData` orqali login qiladi. Telegram
-tashqarisida (masalan `http://localhost:5173`) ochilsa xato bermaydi — telefon+parol bilan kirish
-formasi ko'rsatiladi (`src/auth/AuthProvider.tsx` → `status: 'local-login'` → `LocalLoginPage`).
+Telegram tashqarisida root (`/`) ochilsa ommaviy YUK bosh sahifasi ko'rsatiladi. Telegram botdagi
+"Yuk ilovasi" tugmasi esa `window.Telegram.WebApp.initData` orqali autentifikatsiya qilib Mini App'ni
+ochadi. To'g'ridan-to'g'ri `/order/new` kabi ilova yo'llari brauzerda ochilsa, telefon+parol bilan
+kirish oqimi saqlanadi (`src/auth/AuthProvider.tsx` → `status: 'local-login'` → `LocalLoginPage`).
+
+Landing sahifadagi Telegram tugmasi `https://t.me/Logistika_AIbot` manzilini ochadi. Zarur bo'lsa,
+build vaqtida `VITE_TELEGRAM_BOT_URL` bilan boshqa manzilga almashtirish mumkin.
 
 Haqiqiy Telegram ichida sinash uchun HTTPS tunnel kerak (Telegram faqat HTTPS qabul qiladi):
 

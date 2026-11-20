@@ -9,6 +9,13 @@
 - **Timezone/calendar:** `Asia/Tashkent`; send pickup instants to the API as ISO timestamps. Date display follows local device language only where the product does not provide a formatter.
 - **Accessibility target:** WCAG 2.2 AA.
 
+## Public landing entry
+
+- An unauthenticated browser visit to `/` renders the Uzbek public landing page without starting authentication requests.
+- Telegram Mini App visits to `/` continue through `AuthProvider` and open the authenticated product flow; a browser session with an existing access token also keeps its authenticated flow.
+- The landing page Telegram CTA uses the build-time `VITE_TELEGRAM_BOT_URL`, defaulting to `https://t.me/Logistika_AIbot`.
+- Public landing page metadata uses the YUK title and Uzbek description; the landing page scrolls normally and expands beyond the 480px Mini App canvas on desktop.
+
 ## Business-context sources
 
 | Domain / scope | Authoritative source | Source type | Reviewed date |

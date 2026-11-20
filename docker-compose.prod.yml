@@ -234,6 +234,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_TELEGRAM_BOT_URL: ${VITE_TELEGRAM_BOT_URL:-}
     # Dev image'idan (yuk_frontend_dev) ALOHIDA teg — ikkalasi bir-birini almashtirmasin.
     image: ghcr.io/abdumannon-rabbimqulov/logistika-frontend:${IMAGE_TAG:-latest}
     container_name: yuk_frontend
