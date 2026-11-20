@@ -227,6 +227,8 @@ export function OrderPage() {
           origin={origin}
           destination={destination}
           route={routeGeometry}
+          onOriginClick={() => openPointPicker('origin')}
+          onDestinationClick={() => openPointPicker('destination')}
           onOriginMove={(lat, lon) => handlePointMoved('origin', lat, lon)}
           onDestinationMove={(lat, lon) => handlePointMoved('destination', lat, lon)}
         />
