@@ -69,9 +69,13 @@ export function MapPointPicker({ title, initial, myLocation, tone = 'origin', on
     state: {
       center: start ? [start.latitude, start.longitude] : UZBEKISTAN_CENTER,
       zoom: start ? POINT_ZOOM : UZBEKISTAN_DEFAULT_ZOOM,
-      controls: ['zoomControl', 'trafficControl'],
+      controls: ['zoomControl'],
     },
-    options: { suppressMapOpenBlock: true },
+    options: {
+      suppressMapOpenBlock: true,
+      minZoom: UZBEKISTAN_DEFAULT_ZOOM,
+      restrictMapArea: [[37.0, 55.5], [46.0, 73.5]],
+    },
     onCreate: (map) => {
       mapRef.current = map;
       setCenter(map.getCenter());
@@ -137,11 +141,15 @@ export function MapPointPicker({ title, initial, myLocation, tone = 'origin', on
     } else if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => focus(pos.coords.latitude, pos.coords.longitude),
-        () => setLocationError('Joylashuv aniqlanmadi. Xaritani surib kerakli joyni tanlang.'),
+        (error) => setLocationError(error.code === 1
+          ? 'Joylashuvga ruxsat berilmagan. Telefon yoki brauzer sozlamalaridan lokatsiyani yoqing. Yoki xaritadan manzilni qo‘lda tanlang.'
+          : error.code === 3
+            ? 'Joylashuvni aniqlash vaqti tugadi. GPS va internetni tekshiring yoki xaritadan manzil tanlang.'
+            : 'Joylashuv aniqlanmadi. GPS/lokatsiyani yoqing yoki xaritadan manzilni qo‘lda tanlang.'),
         { enableHighAccuracy: true, timeout: 8000 },
       );
     } else {
-      setLocationError('Joylashuv aniqlanmadi. Xaritani surib kerakli joyni tanlang.');
+      setLocationError('Qurilmangiz joylashuvni aniqlashni qo‘llab-quvvatlamaydi. Xaritadan manzilni qo‘lda tanlang.');
     }
   }
 
