@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useYandexMap } from '../hooks/useYandexMap';
-import { getLiveMap, listRegions } from '../api/orders';
-import { listTruckTypes, staticFileUrl } from '../api/truckTypes';
+import { getLiveMap } from '../api/orders';
+import { staticFileUrl } from '../api/truckTypes';
 import { BottomNav } from '../components/BottomNav';
 import { DriverBottomNav } from '../components/DriverBottomNav';
 import { CloseIcon, LocationIcon, RouteIcon, WeightIcon } from '../components/icons';
@@ -10,8 +10,6 @@ import type {
   LiveMapItem,
   LiveMapMode,
   LiveMapResponse,
-  RegionItem,
-  TruckType,
 } from '../types/api';
 import { formatPrice, shortAddress } from '../utils/format';
 import { loadYandexMaps } from '../utils/yandexMaps';
@@ -70,12 +68,6 @@ function shortRegion(name: string | null | undefined): string {
   return name.replace(/ viloyati$/, '').replace(/ Respublikasi$/, '');
 }
 
-function millions(value: number | null | undefined): string {
-  if (value == null) return '—';
-  const n = Number(value);
-  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')} mln` : formatPrice(n);
-}
-
 /**
  * Jonli yuk xaritasi — sender va haydovchi uchun bir xil.
  * Ko'rsatiladi: mashina turi, yuk og'irligi, A → B, masofa, narx.
@@ -85,8 +77,6 @@ export function LiveMapPage({ role }: Props) {
   const [filter, setFilter] = useState<LiveMapFilter>(readStoredFilter);
   const [data, setData] = useState<LiveMapResponse | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [regions, setRegions] = useState<RegionItem[]>([]);
-  const [truckTypes, setTruckTypes] = useState<TruckType[]>([]);
   const [regionShapes, setRegionShapes] = useState<RegionFeature[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -95,25 +85,20 @@ export function LiveMapPage({ role }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, ready: mapReady, failed: mapFailed } = useYandexMap(containerRef, {
     state: { center: UZBEKISTAN_CENTER, zoom: 4 },
-    options: { minZoom: 4, restrictMapArea: UZBEKISTAN_BOUNDS },
+    options: { minZoom: 2, restrictMapArea: UZBEKISTAN_BOUNDS },
     onCreate: (map) => {
       map.options.set('yandexMapDisablePoiInteractivity', true);
       // Bo'sh joy bosilsa tanlov yopiladi
       map.events.add('click', () => setSelectedId(null));
     },
   });
-  // Xarita filter o'zgargandagina markerlarga moslanadi — polling foydalanuvchi
-  // surgan/kattalashtirgan ko'rinishni buzmasligi kerak.
   const fittedRef = useRef(false);
+  const overviewBoundsRef = useRef<[[number, number], [number, number]]>(UZBEKISTAN_BOUNDS);
 
   useEffect(() => {
-    listRegions().then(setRegions).catch(() => setRegions([]));
     fetch('/uz_regions.geojson').then((r) => { if (!r.ok) throw new Error('regions'); return r.json(); })
       .then((geo: { features?: RegionFeature[] }) => setRegionShapes(geo.features ?? []))
       .catch(() => setRegionShapes([]));
-    listTruckTypes()
-      .then((list) => setTruckTypes(list.filter((t) => t.is_active)))
-      .catch(() => setTruckTypes([]));
   }, []);
 
   const updateFilter = useCallback((patch: Partial<LiveMapFilter>) => {
@@ -122,7 +107,7 @@ export function LiveMapPage({ role }: Props) {
       storeFilter(next);
       return next;
     });
-    fittedRef.current = false;
+    fittedRef.current = true;
     setSelectedId(null);
   }, []);
 
@@ -189,21 +174,19 @@ export function LiveMapPage({ role }: Props) {
         }
       });
 
-      const points: [number, number][] = [];
       for (const item of items) {
         const point: [number, number] = [item.lat, item.lon];
-        points.push(point);
         const isSelected = item.marker_id === selectedId;
         const placemark = new ymaps.Placemark(
           point,
           {
-            iconContent: item.has_cargo ? '🚚 ' + tons(item.weight) : '🚛',
+            iconContent: item.has_cargo ? '🚚' : '🚛',
             hintContent: [item.truck_type_name, item.has_cargo ? tons(item.weight) : "bo'sh"]
               .filter(Boolean)
               .join(' · '),
           },
           {
-            preset: 'islands#blueStretchyIcon',
+            preset: 'islands#blueCircleIcon',
             iconColor: item.has_cargo ? (isSelected ? '#0F1319' : CARGO_COLOR) : EMPTY_COLOR,
             zIndex: isSelected ? 1000 : 100,
           },
@@ -228,20 +211,31 @@ export function LiveMapPage({ role }: Props) {
         map.geoObjects.add(new ymaps.Placemark(b, { iconContent: 'B' }, { preset: 'islands#redIcon' }));
       }
 
-      if (!fittedRef.current && points.length > 0) {
-        fittedRef.current = true;
-        // Xaritani boshqa davlatlarga avtomatik ko‘chirmaymiz.
-        // Faqat O‘zbekiston chegaralari ichidagi markerlarga moslaymiz.
-        const uzPoints = points.filter(([lat, lon]) => lat >= 37.1 && lat <= 45.6 && lon >= 55.9 && lon <= 73.2);
-        if (uzPoints.length === 1) map.setCenter(uzPoints[0], 9);
-        else if (uzPoints.length > 1) map.setBounds(ymaps.util.bounds.fromPoints(uzPoints), { checkZoomRange: true, zoomMargin: 50 });
-      }
+
     });
 
     return () => {
       cancelled = true;
     };
   }, [mapReady, mapRef, items, selectedId, regionShapes]);
+
+  // Mamlakatning barcha chegaralarini birinchi yuklanishda ekranga sig'dirish.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !regionShapes.length || fittedRef.current) return;
+    const coords: [number, number][] = [];
+    for (const feature of regionShapes) {
+      const raw = feature.geometry.coordinates as number[][][] | number[][][][];
+      const polygons = feature.geometry.type === 'MultiPolygon' ? raw as number[][][][] : [raw as number[][][]];
+      for (const polygon of polygons) for (const ring of polygon)
+        for (const [lon, lat] of ring) coords.push([lat, lon]);
+    }
+    if (!coords.length) return;
+    const lats = coords.map((p) => p[0]);
+    const lons = coords.map((p) => p[1]);
+    overviewBoundsRef.current = [[Math.min(...lats), Math.min(...lons)], [Math.max(...lats), Math.max(...lons)]];
+    fittedRef.current = true;
+    mapRef.current.setBounds(overviewBoundsRef.current, { checkZoomRange: true, zoomMargin: [24, 20, 24, 20] });
+  }, [mapReady, mapRef, regionShapes]);
 
   // Tanlangan yuk to'liq ko'rinsin: A, mashina, B
   useEffect(() => {
@@ -262,7 +256,7 @@ export function LiveMapPage({ role }: Props) {
     setSelectedId(null);
     setLocationError(null);
     fittedRef.current = true;
-    mapRef.current?.setCenter(UZBEKISTAN_CENTER, 4, { duration: 300 });
+    mapRef.current?.setBounds(overviewBoundsRef.current, { checkZoomRange: true, zoomMargin: [24, 20, 24, 20], duration: 300 });
   }
 
   function focusMyLocation() {
@@ -290,17 +284,6 @@ export function LiveMapPage({ role }: Props) {
     );
   }
 
-  const stats = data?.stats;
-  const hasRouteFilter = filter.fromRegion != null || filter.toRegion != null || filter.truckTypeId != null;
-  const regionName = (id: number | null) => (id == null ? null : regions.find((r) => r.id === id)?.name ?? null);
-  const truckName = filter.truckTypeId == null ? null : truckTypes.find((t) => t.id === filter.truckTypeId)?.name ?? null;
-  const fromLabel = filter.fromRegion != null ? shortRegion(regionName(filter.fromRegion)) : 'Hammasi';
-  const toLabel = filter.toRegion != null ? shortRegion(regionName(filter.toRegion)) : 'Hammasi';
-  const statsTitle = hasRouteFilter
-    ? [filter.fromRegion != null || filter.toRegion != null ? `${fromLabel} → ${toLabel}` : null, truckName]
-        .filter(Boolean)
-        .join(' · ')
-    : "Barcha yo'nalishlar";
   const cargoCount = items.filter((i) => i.has_cargo).length;
   const emptyCount = items.length - cargoCount;
 
@@ -319,91 +302,15 @@ export function LiveMapPage({ role }: Props) {
       {locationError && <div className={styles.locationError} role="alert">{locationError}<button type="button" onClick={() => setLocationError(null)} aria-label="Xabarni yopish"><CloseIcon size={15} /></button></div>}
 
       <div className={styles.topPanel}>
-        <div className={styles.modes} role="tablist" aria-label="Ko'rinish">
+        <div className={styles.modes} role="tablist" aria-label="Mashinalar holati">
           {MODES.map((m) => (
-            <button
-              key={m.value}
-              role="tab"
-              aria-selected={filter.mode === m.value}
+            <button key={m.value} role="tab" aria-selected={filter.mode === m.value}
               className={filter.mode === m.value ? styles.modeActive : styles.mode}
-              onClick={() => updateFilter({ mode: m.value })}
-            >
+              onClick={() => updateFilter({ mode: m.value, fromRegion: null, toRegion: null, truckTypeId: null })}>
               {m.label}
             </button>
           ))}
         </div>
-
-        <div className={styles.routeRow}>
-          <select
-            className={styles.select}
-            aria-label="Qayerdan"
-            value={filter.fromRegion ?? ''}
-            onChange={(e) => updateFilter({ fromRegion: e.target.value ? Number(e.target.value) : null })}
-          >
-            <option value="">{filter.mode === 'empty' ? 'Hudud: hammasi' : 'Qayerdan: hammasi'}</option>
-            {regions.map((r) => (
-              <option key={r.id} value={r.id}>
-                {shortRegion(r.name)}
-              </option>
-            ))}
-          </select>
-          <span className={styles.arrow} aria-hidden>→</span>
-          <select
-            className={styles.select}
-            aria-label="Qayerga"
-            value={filter.toRegion ?? ''}
-            disabled={filter.mode === 'empty'}
-            onChange={(e) => updateFilter({ toRegion: e.target.value ? Number(e.target.value) : null })}
-          >
-            <option value="">Qayerga: hammasi</option>
-            {regions.map((r) => (
-              <option key={r.id} value={r.id}>
-                {shortRegion(r.name)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className={styles.truckChips}>
-          <button
-            className={filter.truckTypeId == null ? styles.chipActive : styles.chip}
-            onClick={() => updateFilter({ truckTypeId: null })}
-          >
-            Barcha mashinalar
-          </button>
-          {truckTypes.map((t) => (
-            <button
-              key={t.id}
-              className={filter.truckTypeId === t.id ? styles.chipActive : styles.chip}
-              onClick={() => updateFilter({ truckTypeId: t.id })}
-            >
-              {t.image_url && <img className={styles.chipImg} src={staticFileUrl(t.image_url)} alt="" />}
-              {t.name}
-            </button>
-          ))}
-        </div>
-
-        {stats && filter.mode !== 'empty' && (
-          <div className={styles.stats}>
-            <div className={styles.statsTitle}>
-              {statsTitle}
-            </div>
-            {stats.count > 0 ? (
-              <div className={styles.statsBody}>
-                <span>
-                  O'rtacha <strong>{formatPrice(Number(stats.avg_price))} so'm</strong>
-                </span>
-                <span className={styles.muted}>
-                  {millions(stats.min_price)} – {millions(stats.max_price)} · {stats.count} ta yuk
-                  {stats.avg_price_per_ton != null && ` · 1 t ≈ ${formatPrice(Number(stats.avg_price_per_ton))}`}
-                </span>
-
-              </div>
-            ) : (
-              <div className={styles.muted}>Bu yo'nalishda oxirgi {stats.period_days} kunda yuk bo'lmagan</div>
-            )}
-          </div>
-        )}
       </div>
 
       <div className={styles.counter} aria-live="polite">
