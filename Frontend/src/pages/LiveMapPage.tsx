@@ -4,7 +4,7 @@ import { getLiveMap, listRegions } from '../api/orders';
 import { listTruckTypes, staticFileUrl } from '../api/truckTypes';
 import { BottomNav } from '../components/BottomNav';
 import { DriverBottomNav } from '../components/DriverBottomNav';
-import { CloseIcon, RouteIcon, WeightIcon } from '../components/icons';
+import { CloseIcon, LocationIcon, RouteIcon, WeightIcon } from '../components/icons';
 import type {
   LiveMapFilter,
   LiveMapItem,
@@ -81,6 +81,8 @@ export function LiveMapPage({ role }: Props) {
   const [regions, setRegions] = useState<RegionItem[]>([]);
   const [truckTypes, setTruckTypes] = useState<TruckType[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, ready: mapReady, failed: mapFailed } = useYandexMap(containerRef, {
@@ -228,6 +230,31 @@ export function LiveMapPage({ role }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, mapRef, selectedId]);
 
+  function focusMyLocation() {
+    if (locating || !mapReady || !mapRef.current) return;
+    setLocationError(null);
+    if (!navigator.geolocation) {
+      setLocationError('Lokatsiya mavjud emas. Telefoningizda joylashuv xizmatini yoqing.');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLocating(false);
+        mapRef.current?.setCenter([coords.latitude, coords.longitude], 15, { duration: 300 });
+      },
+      (error) => {
+        setLocating(false);
+        setLocationError(error.code === 1
+          ? 'Joylashuvga ruxsat berilmagan. Telefon yoki Telegram sozlamalaridan lokatsiyaga ruxsat bering.'
+          : error.code === 3
+            ? 'Joylashuv aniqlanmadi. GPS va internetni tekshirib qayta urinib ko‘ring.'
+            : 'Joylashuv aniqlanmadi. Telefoningizda lokatsiyani yoqing.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+    );
+  }
+
   const stats = data?.stats;
   const hasRouteFilter = filter.fromRegion != null || filter.toRegion != null || filter.truckTypeId != null;
   const regionName = (id: number | null) => (id == null ? null : regions.find((r) => r.id === id)?.name ?? null);
@@ -247,6 +274,11 @@ export function LiveMapPage({ role }: Props) {
       <div ref={containerRef} className={styles.map} />
       {!mapReady && !mapFailed && <div className={styles.mapStatus}>Xarita yuklanmoqda…</div>}
       {mapFailed && <div className={styles.mapStatus}>Xarita yuklanmadi</div>}
+
+      <button type="button" className={styles.locateButton} onClick={focusMyLocation} disabled={!mapReady || locating} aria-label="Mening joylashuvim" title="Mening joylashuvim">
+        <LocationIcon size={23} />
+      </button>
+      {locationError && <div className={styles.locationError} role="alert">{locationError}<button type="button" onClick={() => setLocationError(null)} aria-label="Xabarni yopish"><CloseIcon size={15} /></button></div>}
 
       <div className={styles.topPanel}>
         <div className={styles.modes} role="tablist" aria-label="Ko'rinish">
