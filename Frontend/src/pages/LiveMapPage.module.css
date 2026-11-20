@@ -351,3 +351,18 @@
   font-size: 13px;
 }
 .locationError button { margin-left: auto; flex-shrink: 0; background: transparent; }
+
+/* Telefonlarda xaritaga ko'proq joy qoldiramiz. */
+@media (max-width: 600px) {
+  .topPanel { gap: 5px; padding: 8px 10px 0; }
+  .modes { padding: 3px; }
+  .mode, .modeActive { min-height: 32px; font-size: 12px; }
+  .select { height: 34px; font-size: 12px; padding: 0 7px; }
+  .truckChips { margin: 0 -10px; padding: 0 10px 1px; }
+  .chip, .chipActive { height: 29px; padding: 0 9px; font-size: 12px; }
+  .stats { padding: 7px 10px; font-size: 12px; }
+  .statsTitle { margin-bottom: 2px; font-size: 12px; }
+  .statsBody { gap: 0; }
+  .statsBody strong { font-size: 13px; }
+  .muted { font-size: 11px; }
+}
