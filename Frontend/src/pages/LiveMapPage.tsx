@@ -94,8 +94,8 @@ export function LiveMapPage({ role }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, ready: mapReady, failed: mapFailed } = useYandexMap(containerRef, {
-    state: { center: UZBEKISTAN_CENTER, zoom: 5 },
-    options: { minZoom: 5, restrictMapArea: UZBEKISTAN_BOUNDS },
+    state: { center: UZBEKISTAN_CENTER, zoom: 4 },
+    options: { minZoom: 4, restrictMapArea: UZBEKISTAN_BOUNDS },
     onCreate: (map) => {
       map.options.set('yandexMapDisablePoiInteractivity', true);
       // Bo'sh joy bosilsa tanlov yopiladi
