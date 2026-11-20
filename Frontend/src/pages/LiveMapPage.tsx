@@ -33,6 +33,10 @@ const MODES: { value: LiveMapMode; label: string }[] = [
 
 const CARGO_COLOR = '#1D4ED8';
 const EMPTY_COLOR = '#16A34A';
+// O‘zbekistonni qamrab oluvchi taxminiy koordinata chegaralari.
+// Yandex restrictMapArea to‘rtburchak bilan ishlaydi, davlat poligoni emas.
+const UZBEKISTAN_BOUNDS: [[number, number], [number, number]] = [[37.1, 55.9], [45.6, 73.2]];
+const UZBEKISTAN_CENTER: [number, number] = [41.377491, 64.585262];
 
 function readStoredFilter(): LiveMapFilter {
   try {
@@ -86,7 +90,8 @@ export function LiveMapPage({ role }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, ready: mapReady, failed: mapFailed } = useYandexMap(containerRef, {
-    options: { minZoom: 4 },
+    state: { center: UZBEKISTAN_CENTER, zoom: 5 },
+    options: { minZoom: 5, restrictMapArea: UZBEKISTAN_BOUNDS },
     onCreate: (map) => {
       map.options.set('yandexMapDisablePoiInteractivity', true);
       // Bo'sh joy bosilsa tanlov yopiladi
@@ -205,8 +210,11 @@ export function LiveMapPage({ role }: Props) {
 
       if (!fittedRef.current && points.length > 0) {
         fittedRef.current = true;
-        if (points.length === 1) map.setCenter(points[0], 9);
-        else map.setBounds(ymaps.util.bounds.fromPoints(points), { checkZoomRange: true, zoomMargin: 50 });
+        // Xaritani boshqa davlatlarga avtomatik ko‘chirmaymiz.
+        // Faqat O‘zbekiston chegaralari ichidagi markerlarga moslaymiz.
+        const uzPoints = points.filter(([lat, lon]) => lat >= 37.1 && lat <= 45.6 && lon >= 55.9 && lon <= 73.2);
+        if (uzPoints.length === 1) map.setCenter(uzPoints[0], 9);
+        else if (uzPoints.length > 1) map.setBounds(ymaps.util.bounds.fromPoints(uzPoints), { checkZoomRange: true, zoomMargin: 50 });
       }
     });
 
