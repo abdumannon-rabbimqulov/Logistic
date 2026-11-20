@@ -1,6 +1,6 @@
 import type { DriverMonitorItem } from '../../types/api';
 import { formatPrice, statusLabel } from '../../utils/format';
-import { markerColor, statusLabelOf } from './DriversMap';
+import { driverMarkerColor, driverStatusLabel } from './driverMapStatus';
 import styles from './DriverMonitorDrawer.module.css';
 
 interface Props {
@@ -40,8 +40,8 @@ export function DriverMonitorDrawer({ driver, onClose }: Props) {
       </div>
 
       <div className={styles.statusRow}>
-        <span className={styles.statusChip} style={{ background: markerColor(driver) }}>
-          {statusLabelOf(driver)}
+        <span className={styles.statusChip} style={{ background: driverMarkerColor(driver) }}>
+          {driverStatusLabel(driver)}
         </span>
         <span className={styles.locSource}>
           {driver.location_source === 'live'
@@ -90,7 +90,7 @@ export function DriverMonitorDrawer({ driver, onClose }: Props) {
             <dd>
               <a
                 className={styles.link}
-                href={`https://yandex.uz/maps/?pt=${driver.longitude},${driver.latitude}&z=15&l=map`}
+                href={`https://www.openstreetmap.org/?mlat=${driver.latitude}&mlon=${driver.longitude}#map=15/${driver.latitude}/${driver.longitude}`}
                 target="_blank"
                 rel="noreferrer"
               >

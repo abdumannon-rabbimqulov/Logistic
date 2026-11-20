@@ -6,7 +6,7 @@ import { acceptDispatch, getActiveDispatch, listMyOrders, rejectDispatch } from 
 import { DispatchOfferCard } from '../components/DispatchOfferCard';
 import { DriverBottomNav } from '../components/DriverBottomNav';
 import { GoOnlineSheet, type GoOnlineResult } from '../components/GoOnlineSheet';
-import { YandexMap } from '../components/YandexMap';
+import { MapLibreMap } from '../components/MapLibreMap';
 import { ChevronRightIcon, PowerIcon } from '../components/icons';
 import { useDispatchSignal } from '../hooks/useDispatchSignal';
 import { useLiveLocation } from '../hooks/useLiveLocation';
@@ -191,7 +191,7 @@ export function DriverHomePage() {
     <div className={styles.page}>
       {/* Bosh sahifa — xarita. Qolgan hamma narsa uning ustida "suzadi". */}
       <div className={styles.mapLayer}>
-        <YandexMap
+        <MapLibreMap
           origin={offerOrigin}
           destination={offerDestination}
           route={offer?.route_geometry?.length ? offer.route_geometry : null}

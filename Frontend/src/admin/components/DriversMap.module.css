@@ -66,6 +66,14 @@
   white-space: nowrap;
 }
 
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
 .dotFree,
 .dotBusy,
 .dotOffline {

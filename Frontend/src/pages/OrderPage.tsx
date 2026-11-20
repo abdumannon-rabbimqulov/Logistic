@@ -4,7 +4,7 @@ import { createOrder, estimatePrice, reverseGeocode } from '../api/orders';
 import { AddressSearchSheet } from '../components/AddressSearchSheet';
 import { MapPointPicker } from '../components/MapPointPicker';
 import { type CargoDetails, CargoDetailsSheet } from '../components/CargoDetailsSheet';
-import { YandexMap, type YandexMapHandle } from '../components/YandexMap';
+import { MapLibreMap, type MapLibreMapHandle } from '../components/MapLibreMap';
 import {
   BackIcon,
   CardIcon,
@@ -34,7 +34,7 @@ export function OrderPage() {
   const location = useLocation();
   const prefill = (location.state as OrderPrefillState | null) ?? null;
   const geolocation = useGeolocation();
-  const mapRef = useRef<YandexMapHandle>(null);
+  const mapRef = useRef<MapLibreMapHandle>(null);
 
   const [origin, setOrigin] = useState<OrderPointPrefill | null>(prefill?.origin ?? null);
   const [destination, setDestination] = useState<OrderPointPrefill | null>(prefill?.destination ?? null);
@@ -222,7 +222,7 @@ export function OrderPage() {
   return (
     <div className={styles.page}>
       <div className={styles.mapLayer}>
-        <YandexMap
+        <MapLibreMap
           ref={mapRef}
           origin={origin}
           destination={destination}

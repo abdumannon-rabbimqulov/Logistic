@@ -1,8 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { reverseGeocode } from '../api/orders';
 import { getTelegramWebApp } from '../telegram';
-import { useYandexMap } from '../hooks/useYandexMap';
-import { UZBEKISTAN_CENTER, UZBEKISTAN_DEFAULT_ZOOM, type YMap, type YMapEvent } from '../utils/yandexMaps';
+import { UZ_BOUNDS, UZ_CENTER, useMapLibreMap } from '../hooks/useMapLibreMap';
 import { BackIcon, LocationIcon, SearchIcon } from './icons';
 import styles from './MapPointPicker.module.css';
 
@@ -52,7 +51,6 @@ export function MapPointPicker({ title, initial, myLocation, tone = 'origin', on
   const onCloseRef = useRef(onClose);
   const titleId = useId();
   onCloseRef.current = onClose;
-  const mapRef = useRef<YMap | null>(null);
   const [center, setCenter] = useState<[number, number] | null>(
     initial ? [initial.latitude, initial.longitude] : null,
   );
@@ -63,35 +61,36 @@ export function MapPointPicker({ title, initial, myLocation, tone = 'origin', on
   const [locationError, setLocationError] = useState<string | null>(null);
   const seqRef = useRef(0);
 
-  // 1) Xarita: bir marta yaratiladi (`hooks/useYandexMap`).
+  // 1) Xarita: bir marta yaratiladi; MapLibre kutubxonasi shu yerda lazy-load bo'ladi.
   const start = initial ?? myLocation;
-  const { ready: mapReady, failed: mapFailed } = useYandexMap(containerRef, {
-    state: {
-      center: start ? [start.latitude, start.longitude] : UZBEKISTAN_CENTER,
-      zoom: start ? POINT_ZOOM : UZBEKISTAN_DEFAULT_ZOOM,
-      controls: ['zoomControl'],
-    },
-    options: {
-      suppressMapOpenBlock: true,
-      minZoom: UZBEKISTAN_DEFAULT_ZOOM,
-      restrictMapArea: [[37.0, 55.5], [46.0, 73.5]],
-    },
-    onCreate: (map) => {
-      mapRef.current = map;
-      setCenter(map.getCenter());
-      map.events.add('actionbegin', () => setMoving(true));
-      map.events.add('actionend', () => {
-        setMoving(false);
-        setCenter(map.getCenter());
-        setLocationError(null);
-        haptic('light');
-      });
-      // Bir marta bosish — o'sha joy markazga keladi (sudrash shart emas).
-      map.events.add('click', (e: YMapEvent) => {
-        map.panTo(e.get('coords'), { duration: 250 });
-      });
-    },
+  const { mapRef: liveMapRef, ready: mapReady, failed: mapFailed } = useMapLibreMap(containerRef, {
+    center: start ? [start.longitude, start.latitude] : UZ_CENTER,
+    zoom: start ? POINT_ZOOM : 5,
+    minZoom: 4,
+    maxBounds: UZ_BOUNDS,
   });
+  useEffect(() => {
+    const map = liveMapRef.current;
+    if (!mapReady || !map) return;
+    const updateCenter = () => {
+      const { lat, lng } = map.getCenter();
+      setCenter([lat, lng]);
+    };
+    const onMoveEnd = () => {
+      const { lat, lng } = map.getCenter();
+      setCenter([lat, lng]);
+      setMoving(false);
+      setLocationError(null);
+      haptic('light');
+    };
+    map.on('movestart', () => setMoving(true));
+    map.on('moveend', onMoveEnd);
+    map.on('click', (event) => map.easeTo({ center: event.lngLat, duration: 250 }));
+    updateCenter();
+    return () => {
+      map.off('moveend', onMoveEnd);
+    };
+  }, [liveMapRef, mapReady]);
 
   // 2) Markaz o'zgarganda manzilni aniqlash (oxirgi so'rov natijasigina olinadi).
   useEffect(() => {
@@ -134,7 +133,7 @@ export function MapPointPicker({ title, initial, myLocation, tone = 'origin', on
   function goToMyLocation() {
     setLocationError(null);
     const focus = (lat: number, lon: number) => {
-      mapRef.current?.setCenter([lat, lon], POINT_ZOOM, { duration: 300 });
+      liveMapRef.current?.easeTo({ center: [lon, lat], zoom: POINT_ZOOM, duration: 300 });
     };
     if (myLocation) {
       focus(myLocation.latitude, myLocation.longitude);

@@ -3,7 +3,8 @@ import { ApiError } from '../../api/client';
 import { driverLocationsWsUrl, listDriverMonitor } from '../../api/admin';
 import type { DriverLocationItem, DriverMonitorItem } from '../../types/api';
 import { DriverMonitorDrawer } from '../components/DriverMonitorDrawer';
-import { DriversMap, markerColor, statusLabelOf } from '../components/DriversMap';
+import { DriversMap } from '../components/DriversMap';
+import { driverMarkerColor, driverStatusLabel } from '../components/driverMapStatus';
 import { SearchIconAdmin } from '../icons';
 import shared from '../shared.module.css';
 import styles from './AdminDrivers.module.css';
@@ -189,13 +190,13 @@ export function AdminDrivers() {
                     className={d.driver_id === selectedId ? styles.listItemActive : styles.listItem}
                     onClick={() => setSelectedId(d.driver_id)}
                   >
-                    <span className={styles.listDot} style={{ background: markerColor(d) }} />
+                    <span className={styles.listDot} style={{ background: driverMarkerColor(d) }} />
                     <span className={styles.listInfo}>
                       <span className={styles.listName}>
                         {d.full_name ?? `Haydovchi #${d.driver_id}`}
                       </span>
                       <span className={styles.listMeta}>
-                        {d.truck_number} · {statusLabelOf(d)}
+                        {d.truck_number} · {driverStatusLabel(d)}
                       </span>
                     </span>
                   </button>

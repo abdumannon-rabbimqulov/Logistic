@@ -19,6 +19,8 @@ ENV VITE_TELEGRAM_BOT_URL=$VITE_TELEGRAM_BOT_URL
 # (Frontend/.dockerignore), shuning uchun kalit faqat shu yo'l bilan beriladi.
 ARG VITE_YANDEX_MAPS_API_KEY=
 ENV VITE_YANDEX_MAPS_API_KEY=$VITE_YANDEX_MAPS_API_KEY
+ARG VITE_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty
+ENV VITE_MAP_STYLE_URL=$VITE_MAP_STYLE_URL
 
 RUN npm run build
 

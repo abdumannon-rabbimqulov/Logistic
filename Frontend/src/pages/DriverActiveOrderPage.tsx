@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError, type ApiProblem } from '../api/client';
 import { getOrder, getOrderRoute, startOrderTrip, updateWaypoint } from '../api/orders';
 import { BackIcon, ClockIcon, PhoneIcon, RouteIcon, SendIcon, WeightIcon } from '../components/icons';
-import { YandexMap } from '../components/YandexMap';
+import { MapLibreMap } from '../components/MapLibreMap';
 import { useLiveLocation } from '../hooks/useLiveLocation';
 import type { OrderDetail, OrderWaypoint, WaypointStatus } from '../types/api';
 import { getCurrentPositionOnce, PositionError } from '../utils/currentPosition';
@@ -268,7 +268,7 @@ export function DriverActiveOrderPage() {
             (`.mapCard`) ichida. Koordinata bo'lmasa umuman ko'rsatilmaydi. */}
         {mapOrigin && (
           <div className={styles.mapCard}>
-            <YandexMap
+            <MapLibreMap
               origin={mapOrigin}
               destination={mapDestination}
               route={routeGeometry}
