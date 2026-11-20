@@ -258,6 +258,13 @@ export function LiveMapPage({ role }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, mapRef, selectedId]);
 
+  function resetUzbekistanView() {
+    setSelectedId(null);
+    setLocationError(null);
+    fittedRef.current = true;
+    mapRef.current?.setCenter(UZBEKISTAN_CENTER, 4, { duration: 300 });
+  }
+
   function focusMyLocation() {
     if (locating || !mapReady || !mapRef.current) return;
     setLocationError(null);
@@ -303,6 +310,9 @@ export function LiveMapPage({ role }: Props) {
       {!mapReady && !mapFailed && <div className={styles.mapStatus}>Xarita yuklanmoqda…</div>}
       {mapFailed && <div className={styles.mapStatus}>Xarita yuklanmadi</div>}
 
+      <button type="button" className={styles.resetMapButton} onClick={resetUzbekistanView} disabled={!mapReady} aria-label="O‘zbekiston xaritasiga qaytish" title="Standart O‘zbekiston xaritasi">
+        <span aria-hidden="true">🇺🇿</span>
+      </button>
       <button type="button" className={styles.locateButton} onClick={focusMyLocation} disabled={!mapReady || locating} aria-label="Mening joylashuvim" title="Mening joylashuvim">
         <LocationIcon size={23} />
       </button>
