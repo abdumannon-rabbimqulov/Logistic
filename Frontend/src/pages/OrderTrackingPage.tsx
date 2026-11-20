@@ -16,7 +16,7 @@ import { OrderEditSheet } from '../components/OrderEditSheet';
 import { OrderStatusBadge } from '../components/OrderStatusBadge';
 import { OrderStepper } from '../components/OrderStepper';
 import { BackIcon, PhoneIcon, SendIcon, StarIcon } from '../components/icons';
-import { YandexMap } from '../components/YandexMap';
+import { MapLibreMap } from '../components/MapLibreMap';
 import { useOrderDriverLocation } from '../hooks/useOrderDriverLocation';
 import { useOrderUpdates } from '../hooks/useOrderUpdates';
 import type { OrderDetail, OrderEta, QuickPriceOption } from '../types/api';
@@ -310,7 +310,7 @@ export function OrderTrackingPage() {
           kuzatuv mumkin bo'lganda qo'shiladi. */}
       <div className={styles.mapLayer}>
         {hasRoutePoints ? (
-          <YandexMap
+          <MapLibreMap
             origin={originPoint}
             destination={destinationPoint}
             driverLocation={driverLocation}

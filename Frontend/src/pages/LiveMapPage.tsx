@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useYandexMap } from '../hooks/useYandexMap';
+import type { Feature, FeatureCollection, Point } from 'geojson';
+import type { GeoJSONFeatureDiff, GeoJSONSource } from 'maplibre-gl';
+import { useMapLibreMap, UZ_BOUNDS, UZ_CENTER } from '../hooks/useMapLibreMap';
 import { getLiveMap } from '../api/orders';
 import { staticFileUrl } from '../api/truckTypes';
 import { BottomNav } from '../components/BottomNav';
 import { DriverBottomNav } from '../components/DriverBottomNav';
-import { CloseIcon, LocationIcon, RouteIcon, WeightIcon } from '../components/icons';
+import { CloseIcon, LocationIcon, RouteIcon, SearchIcon, WeightIcon } from '../components/icons';
 import type {
   LiveMapFilter,
   LiveMapItem,
@@ -12,7 +14,6 @@ import type {
   LiveMapResponse,
 } from '../types/api';
 import { formatPrice, shortAddress } from '../utils/format';
-import { loadYandexMaps } from '../utils/yandexMaps';
 import styles from './LiveMapPage.module.css';
 
 interface Props {
@@ -32,12 +33,10 @@ const MODES: { value: LiveMapMode; label: string }[] = [
 const CARGO_COLOR = '#1D4ED8';
 const EMPTY_COLOR = '#16A34A';
 const REGION_COLORS = ['#DCEFE7', '#FCE8D9', '#E4EAFB', '#F4E7F5', '#F9F1D4', '#DCEEF4'];
-type RegionFeature = { geometry: { type: string; coordinates: unknown }; properties: { name: string } };
+type RegionFeature = Feature & { properties: { name: string; color?: string } };
 
-// O‘zbekistonni qamrab oluvchi taxminiy koordinata chegaralari.
-// Yandex restrictMapArea to‘rtburchak bilan ishlaydi, davlat poligoni emas.
-const UZBEKISTAN_BOUNDS: [[number, number], [number, number]] = [[37.1, 55.9], [45.6, 73.2]];
-const UZBEKISTAN_CENTER: [number, number] = [41.377491, 64.585262];
+// MapLibre view cheklovi: O'zbekiston to'rtburchagi davlat poligoni emas.
+const MAP_BEARING = -90;
 
 function readStoredFilter(): LiveMapFilter {
   try {
@@ -80,21 +79,26 @@ export function LiveMapPage({ role }: Props) {
   const [regionShapes, setRegionShapes] = useState<RegionFeature[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
   const [locating, setLocating] = useState(false);
   const [expandedMap, setExpandedMap] = useState(false);
+  const [online, setOnline] = useState(() => navigator.onLine);
+  const [now, setNow] = useState(Date.now());
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const { mapRef, ready: mapReady, failed: mapFailed } = useYandexMap(containerRef, {
-    state: { center: UZBEKISTAN_CENTER, zoom: 4 },
-    options: { minZoom: 2, restrictMapArea: UZBEKISTAN_BOUNDS },
-    onCreate: (map) => {
-      map.options.set('yandexMapDisablePoiInteractivity', true);
-      // Bo'sh joy bosilsa tanlov yopiladi
-      map.events.add('click', () => setSelectedId(null));
-    },
+  const { mapRef, moduleRef, ready: mapReady, failed: mapFailed } = useMapLibreMap(containerRef, {
+    center: UZ_CENTER, zoom: 4, minZoom: 4, maxBounds: UZ_BOUNDS,
   });
   const fittedRef = useRef(false);
-  const overviewBoundsRef = useRef<[[number, number], [number, number]]>(UZBEKISTAN_BOUNDS);
+  const overviewBoundsRef = useRef<[[number, number], [number, number]]>(UZ_BOUNDS);
+
+  useEffect(() => {
+    const updateOnline = () => { setOnline(navigator.onLine); setNow(Date.now()); };
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    window.addEventListener('online', updateOnline);
+    window.addEventListener('offline', updateOnline);
+    return () => { window.clearInterval(timer); window.removeEventListener('online', updateOnline); window.removeEventListener('offline', updateOnline); };
+  }, []);
 
   useEffect(() => {
     fetch('/uz_regions.geojson').then((r) => { if (!r.ok) throw new Error('regions'); return r.json(); })
@@ -150,95 +154,101 @@ export function LiveMapPage({ role }: Props) {
   }, [filter]);
 
   const items = useMemo(() => data?.items ?? [], [data]);
-  const selected = useMemo(() => items.find((i) => i.marker_id === selectedId) ?? null, [items, selectedId]);
+  const visibleItems = useMemo(() => {
+    const query = searchText.trim().toLocaleLowerCase();
+    if (!query) return items;
+    return items.filter((item) => [item.truck_type_name, item.cargo_name, item.current_region, item.pickup_address, item.delivery_address]
+      .some((value) => value?.toLocaleLowerCase().includes(query)));
+  }, [items, searchText]);
+  const selected = useMemo(() => visibleItems.find((i) => i.marker_id === selectedId) ?? null, [visibleItems, selectedId]);
+  const dataStale = Boolean(data && (loadError || !online || now - Date.parse(data.generated_at) > 120_000));
 
-  // Viloyat qatlamini faqat GeoJSON o'zgarganda chizamiz, GPS pollingda emas.
-  const regionObjectsRef = useRef<unknown[]>([]);
-  const markerObjectsRef = useRef<Map<string, { obj: unknown; lat: number; lon: number; hasCargo: boolean; hint: string; selected: boolean }>>(new Map());
-  const routeObjectsRef = useRef<unknown[]>([]);
-
+  // Xarita qatlamlari bir marta o'rnatiladi; GPS oqimi faqat GeoJSON source'ni yangilaydi.
   useEffect(() => {
     const map = mapRef.current;
-    if (!mapReady || !map) return;
-    let cancelled = false;
-    loadYandexMaps().then((ymaps) => {
-      if (cancelled) return;
-      regionObjectsRef.current.forEach((obj) => map.geoObjects.remove(obj));
-      regionObjectsRef.current = [];
-      // Viloyat chegaralari: yengil, yarim shaffof qatlam; markerlar ustida qoladi.
-      regionShapes.forEach((feature, index) => {
-        const raw = feature.geometry.coordinates as number[][][] | number[][][][];
-        const polygons = feature.geometry.type === 'MultiPolygon' ? raw as number[][][][] : [raw as number[][][]];
-        for (const polygon of polygons) {
-          const rings = polygon.map((ring) => ring.map(([lon, lat]) => [lat, lon] as [number, number]));
-          const shape = new ymaps.Polygon(rings, { hintContent: feature.properties.name }, {
-            fillColor: REGION_COLORS[index % REGION_COLORS.length], fillOpacity: 0.28,
-            strokeColor: '#64748B', strokeWidth: 1.5, strokeOpacity: 0.85,
-            interactivityModel: 'default#transparent',
-          });
-          map.geoObjects.add(shape);
-          regionObjectsRef.current.push(shape);
-        }
-      });
+    if (!mapReady || !map || !moduleRef.current) return;
+    if (!map.getSource('uz-regions')) map.addSource('uz-regions', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    if (!map.getLayer('uz-regions-fill')) map.addLayer({ id: 'uz-regions-fill', type: 'fill', source: 'uz-regions', paint: { 'fill-color': ['coalesce', ['get', 'color'], '#DCEFE7'], 'fill-opacity': 0.3 } });
+    if (!map.getLayer('uz-regions-line')) map.addLayer({ id: 'uz-regions-line', type: 'line', source: 'uz-regions', paint: { 'line-color': '#64748B', 'line-width': 1.3, 'line-opacity': 0.9 } });
+    if (!map.getSource('live-markers')) map.addSource('live-markers', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, cluster: true, clusterMaxZoom: 11, clusterRadius: 38 });
+    if (!map.getLayer('live-clusters')) map.addLayer({ id: 'live-clusters', type: 'circle', source: 'live-markers', filter: ['has', 'point_count'], paint: { 'circle-color': '#0F1319', 'circle-radius': ['step', ['get', 'point_count'], 18, 20, 22, 50, 27], 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' } });
+    if (!map.getLayer('live-cluster-count')) map.addLayer({ id: 'live-cluster-count', type: 'symbol', source: 'live-markers', filter: ['has', 'point_count'], layout: { 'text-field': '{point_count_abbreviated}', 'text-size': 11 }, paint: { 'text-color': '#fff' } });
+    if (!map.getLayer('live-points')) map.addLayer({ id: 'live-points', type: 'circle', source: 'live-markers', filter: ['!', ['has', 'point_count']], paint: { 'circle-color': ['case', ['get', 'stale'], '#8A93A2', ['get', 'hasCargo'], ['case', ['get', 'selected'], '#0F1319', CARGO_COLOR], EMPTY_COLOR], 'circle-radius': ['case', ['get', 'selected'], 9, 7], 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' } });
+    if (!map.getSource('selected-route')) map.addSource('selected-route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    if (!map.getLayer('selected-route-line')) map.addLayer({ id: 'selected-route-line', type: 'line', source: 'selected-route', paint: { 'line-color': CARGO_COLOR, 'line-width': 3, 'line-opacity': 0.75, 'line-dasharray': [2, 2] } });
+    map.moveLayer('selected-route-line', 'live-clusters');
+    const clear = (event: { point: { x: number; y: number } }) => {
+      const hit = map.queryRenderedFeatures([event.point.x, event.point.y], { layers: ['live-points', 'live-clusters'] });
+      if (!hit.length) setSelectedId(null);
+    };
+    const clickPoint = (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
+      const id = event.features?.[0]?.properties?.markerId;
+      if (typeof id === 'string') setSelectedId(id);
+    };
+    const clickCluster = (event: { features?: Array<{ geometry: { coordinates: [number, number] }; properties?: Record<string, unknown> }> }) => {
+      const feature = event.features?.[0];
+      const clusterId = feature?.properties?.cluster_id;
+      if (typeof clusterId !== 'number' || !feature) return;
+      (map.getSource('live-markers') as GeoJSONSource).getClusterExpansionZoom(clusterId).then((zoom) => map.easeTo({ center: feature.geometry.coordinates, zoom }));
+    };
+    map.on('click', clear);
+    map.on('click', 'live-points', clickPoint as never);
+    map.on('click', 'live-clusters', clickCluster as never);
+    map.on('mouseenter', 'live-points', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'live-points', () => { map.getCanvas().style.cursor = ''; });
+    map.on('mouseenter', 'live-clusters', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'live-clusters', () => { map.getCanvas().style.cursor = ''; });
+    return () => { map.off('click', clear); map.off('click', 'live-points', clickPoint as never); map.off('click', 'live-clusters', clickCluster as never); };
+  }, [mapReady, mapRef, moduleRef]);
 
-    });
-    return () => { cancelled = true; };
+  useEffect(() => {
+    const source = mapRef.current?.getSource('uz-regions') as GeoJSONSource | undefined;
+    if (!source || !regionShapes.length) return;
+    source.setData({ type: 'FeatureCollection', features: regionShapes.map((feature, index) => ({ ...feature, properties: { ...feature.properties, color: REGION_COLORS[index % REGION_COLORS.length] } })) } as FeatureCollection);
   }, [mapReady, mapRef, regionShapes]);
 
-  // GPS: faqat yangi, ko'chgan yoki statusi o'zgargan markerlarni yangilaymiz.
+  const markerFeatures: Feature<Point>[] = useMemo(() => visibleItems.map((item) => ({
+    type: 'Feature', id: item.marker_id, geometry: { type: 'Point', coordinates: [item.lon, item.lat] },
+    properties: { markerId: item.marker_id, hasCargo: item.has_cargo, selected: item.marker_id === selectedId, stale: dataStale, truck: item.truck_type_name ?? 'Mashina' },
+  })), [visibleItems, selectedId, dataStale]);
+  const previousMarkersRef = useRef<Map<string, Feature<Point>>>(new Map());
   useEffect(() => {
-    const map = mapRef.current;
-    if (!mapReady || !map) return;
-    let cancelled = false;
-    loadYandexMaps().then((ymaps) => {
-      if (cancelled) return;
-      const markers = markerObjectsRef.current;
-      const ids = new Set(items.map((item) => item.marker_id));
-      for (const [id, old] of markers) {
-        if (!ids.has(id)) { map.geoObjects.remove(old.obj); markers.delete(id); }
-      }
-      for (const item of items) {
-        const isSelected = item.marker_id === selectedId;
-        const hint = [item.truck_type_name, item.has_cargo ? tons(item.weight) : "bo'sh"].filter(Boolean).join(' · ');
-        const old = markers.get(item.marker_id);
-        if (old && old.lat === item.lat && old.lon === item.lon && old.hasCargo === item.has_cargo && old.hint === hint && old.selected === isSelected) continue;
-        if (old) map.geoObjects.remove(old.obj);
-        const placemark = new ymaps.Placemark([item.lat, item.lon], {
-          iconContent: item.has_cargo ? '🚚' : '🚛', hintContent: hint,
-        }, {
-          preset: 'islands#blueCircleIcon',
-          iconColor: item.has_cargo ? (isSelected ? '#0F1319' : CARGO_COLOR) : EMPTY_COLOR,
-          zIndex: isSelected ? 1000 : 100,
-        }) as { events: { add(type: string, cb: (e: { stopPropagation?: () => void }) => void): void } };
-        placemark.events.add('click', (event) => { event.stopPropagation?.(); setSelectedId(item.marker_id); });
-        map.geoObjects.add(placemark);
-        markers.set(item.marker_id, { obj: placemark, lat: item.lat, lon: item.lon, hasCargo: item.has_cargo, hint, selected: isSelected });
-      }
-      routeObjectsRef.current.forEach((obj) => map.geoObjects.remove(obj));
-      routeObjectsRef.current = [];
-      const sel = items.find((item) => item.marker_id === selectedId);
-      if (sel?.has_cargo && sel.pickup_lat != null && sel.pickup_lon != null && sel.delivery_lat != null && sel.delivery_lon != null) {
-        const a: [number, number] = [sel.pickup_lat, sel.pickup_lon];
-        const b: [number, number] = [sel.delivery_lat, sel.delivery_lon];
-        const route = [
-          new ymaps.Polyline([a, [sel.lat, sel.lon], b], {}, { strokeColor: CARGO_COLOR, strokeWidth: 3, strokeOpacity: 0.7, strokeStyle: 'shortdash' }),
-          new ymaps.Placemark(a, { iconContent: 'A' }, { preset: 'islands#greenIcon' }),
-          new ymaps.Placemark(b, { iconContent: 'B' }, { preset: 'islands#redIcon' }),
-        ];
-        route.forEach((obj) => map.geoObjects.add(obj));
-        routeObjectsRef.current = route;
-      }
-    });
-    return () => { cancelled = true; };
-  }, [mapReady, mapRef, items, selectedId]);
+    const source = mapRef.current?.getSource('live-markers') as GeoJSONSource | undefined;
+    if (!source) return;
+    const current = new Map(markerFeatures.map((feature) => [String(feature.id), feature]));
+    const previous = previousMarkersRef.current;
+    const add = [...current].filter(([id]) => !previous.has(id)).map(([, feature]) => feature);
+    const remove = [...previous.keys()].filter((id) => !current.has(id));
+    const update = [...current].filter(([id, feature]) => previous.has(id) && JSON.stringify(previous.get(id)) !== JSON.stringify(feature)).map(([, feature]) => ({
+      id: feature.id as string,
+      newGeometry: feature.geometry,
+      addOrUpdateProperties: Object.entries(feature.properties ?? {}).map(([key, value]) => ({ key, value })),
+    } satisfies GeoJSONFeatureDiff));
+    if (add.length || remove.length || update.length) void source.updateData({ add, remove, update });
+    previousMarkersRef.current = current;
 
-  // Mamlakatning barcha chegaralarini birinchi yuklanishda ekranga sig'dirish.
+    const selectedItem = visibleItems.find((item) => item.marker_id === selectedId);
+    const coords = selectedItem?.has_cargo && selectedItem.pickup_lat != null && selectedItem.pickup_lon != null && selectedItem.delivery_lat != null && selectedItem.delivery_lon != null
+      ? [[selectedItem.pickup_lon, selectedItem.pickup_lat], [selectedItem.lon, selectedItem.lat], [selectedItem.delivery_lon, selectedItem.delivery_lat]]
+      : [];
+    (mapRef.current?.getSource('selected-route') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: coords.length ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } }] : [] });
+  }, [mapReady, mapRef, markerFeatures, visibleItems, selectedId]);
+
+  const fitUzbekistan = useCallback((duration = 250, padding: number | [number, number, number, number] = 24) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const pad = typeof padding === 'number' ? { top: padding, right: padding, bottom: padding, left: padding } : { top: padding[0], right: padding[1], bottom: padding[2], left: padding[3] };
+    const camera = map.cameraForBounds(overviewBoundsRef.current, { bearing: MAP_BEARING, padding: pad, maxZoom: 6 });
+    if (camera) map.easeTo({ ...camera, duration });
+  }, [mapRef]);
+
+  // Mamlakatning barcha chegaralarini telefon ekraniga aylantirilgan kamera bilan sig'dirish.
   useEffect(() => {
     if (!mapReady || !mapRef.current || !regionShapes.length || fittedRef.current) return;
     const coords: [number, number][] = [];
     for (const feature of regionShapes) {
-      const raw = feature.geometry.coordinates as number[][][] | number[][][][];
-      const polygons = feature.geometry.type === 'MultiPolygon' ? raw as number[][][][] : [raw as number[][][]];
+      const geometry = feature.geometry;
+      const polygons = geometry.type === 'MultiPolygon' ? geometry.coordinates : geometry.type === 'Polygon' ? [geometry.coordinates] : [];
       for (const polygon of polygons) for (const ring of polygon)
         for (const [lon, lat] of ring) coords.push([lat, lon]);
     }
@@ -248,31 +258,32 @@ export function LiveMapPage({ role }: Props) {
       minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
       minLon = Math.min(minLon, lon); maxLon = Math.max(maxLon, lon);
     }
-    overviewBoundsRef.current = [[minLat, minLon], [maxLat, maxLon]];
+    overviewBoundsRef.current = [[minLon, minLat], [maxLon, maxLat]];
     fittedRef.current = true;
-    mapRef.current.setBounds(overviewBoundsRef.current, { checkZoomRange: true, zoomMargin: [24, 20, 24, 20] });
-  }, [mapReady, mapRef, regionShapes]);
+    fitUzbekistan(0, [24, 24, 24, 24]);
+  }, [mapReady, mapRef, regionShapes, fitUzbekistan]);
 
   // Tanlangan yuk to'liq ko'rinsin: A, mashina, B
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map || !selected) return;
-    loadYandexMaps().then((ymaps) => {
-      const pts: [number, number][] = [[selected.lat, selected.lon]];
-      if (selected.pickup_lat != null && selected.pickup_lon != null) pts.push([selected.pickup_lat, selected.pickup_lon]);
-      if (selected.delivery_lat != null && selected.delivery_lon != null) pts.push([selected.delivery_lat, selected.delivery_lon]);
-      if (pts.length > 1) map.setBounds(ymaps.util.bounds.fromPoints(pts), { checkZoomRange: true, zoomMargin: [80, 40, 300, 40], duration: 300 });
-      else map.setCenter(pts[0], 11, { duration: 300 });
-    });
+    const pts: [number, number][] = [[selected.lon, selected.lat]];
+    if (selected.pickup_lat != null && selected.pickup_lon != null) pts.push([selected.pickup_lon, selected.pickup_lat]);
+    if (selected.delivery_lat != null && selected.delivery_lon != null) pts.push([selected.delivery_lon, selected.delivery_lat]);
+    if (pts.length > 1) {
+      const bounds = pts.slice(1).reduce((result, point) => result.extend(point), new (moduleRef.current!.LngLatBounds)(pts[0], pts[0]));
+      const camera = map.cameraForBounds(bounds, { bearing: MAP_BEARING, padding: { top: 80, right: 40, bottom: 300, left: 40 }, maxZoom: 12 });
+      if (camera) map.easeTo({ ...camera, duration: 300 });
+    } else map.easeTo({ center: pts[0], zoom: 11, duration: 300 });
     // Faqat tanlov o'zgarganda — pollingda xarita sakramasin
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady, mapRef, selectedId]);
+  }, [mapReady, mapRef, selectedId, moduleRef]);
 
   function showUzbekistanOverview() {
     const map = mapRef.current;
     if (!map) return;
-    map.container.fitToViewport();
-    map.setBounds(overviewBoundsRef.current, { checkZoomRange: true, zoomMargin: [12, 12, 12, 12], duration: 250 });
+    map.resize();
+    fitUzbekistan(250, [12, 12, 12, 12]);
   }
 
   useEffect(() => {
@@ -301,7 +312,7 @@ export function LiveMapPage({ role }: Props) {
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         setLocating(false);
-        mapRef.current?.setCenter([coords.latitude, coords.longitude], 15, { duration: 300 });
+        mapRef.current?.easeTo({ center: [coords.longitude, coords.latitude], zoom: 15, duration: 300 });
       },
       (error) => {
         setLocating(false);
@@ -315,8 +326,8 @@ export function LiveMapPage({ role }: Props) {
     );
   }
 
-  const cargoCount = items.filter((i) => i.has_cargo).length;
-  const emptyCount = items.length - cargoCount;
+  const cargoCount = visibleItems.filter((i) => i.has_cargo).length;
+  const emptyCount = visibleItems.length - cargoCount;
 
   return (
     <div className={`${styles.page} ${expandedMap ? styles.expandedPage : ''}`}>
@@ -336,6 +347,11 @@ export function LiveMapPage({ role }: Props) {
       {locationError && <div className={styles.locationError} role="alert">{locationError}<button type="button" onClick={() => setLocationError(null)} aria-label="Xabarni yopish"><CloseIcon size={15} /></button></div>}
 
       {!expandedMap && <div className={styles.topPanel}>
+        <label className={styles.searchBox}>
+          <SearchIcon size={18} />
+          <input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Mashina yoki manzilni qidiring" aria-label="Mashina yoki manzilni qidirish" />
+          {searchText && <button type="button" onClick={() => setSearchText('')} aria-label="Qidiruvni tozalash">×</button>}
+        </label>
         <div className={styles.modes} role="tablist" aria-label="Mashinalar holati">
           {MODES.map((m) => (
             <button key={m.value} role="tab" aria-selected={filter.mode === m.value}
@@ -348,8 +364,10 @@ export function LiveMapPage({ role }: Props) {
       </div>}
 
       {!expandedMap && <div className={styles.counter} aria-live="polite">
-        {loadError
-          ? 'Yangilab bo‘lmadi'
+        {dataStale
+          ? 'Yangilanish yo‘q — oxirgi ma’lumot eskirgan'
+          : loadError
+            ? 'Ma’lumot yuklanmadi — internetni tekshiring'
           : data
             ? [
                 filter.mode !== 'empty' ? `${cargoCount} ta yukli` : null,
@@ -360,14 +378,14 @@ export function LiveMapPage({ role }: Props) {
             : 'Yuklanmoqda…'}
       </div>}
 
-      {selected && <SelectedCard item={selected} onClose={() => setSelectedId(null)} />}
+      {selected && <SelectedCard item={selected} stale={dataStale} onClose={() => setSelectedId(null)} />}
 
       {!expandedMap && (role === 'driver' ? <DriverBottomNav /> : <BottomNav />)}
     </div>
   );
 }
 
-function SelectedCard({ item, onClose }: { item: LiveMapItem; onClose: () => void }) {
+function SelectedCard({ item, stale, onClose }: { item: LiveMapItem; stale: boolean; onClose: () => void }) {
   const load = item.load_percent != null ? Math.min(item.load_percent, 100) : null;
   return (
     <div className={styles.card} role="dialog" aria-label="Mashina ma'lumotlari">
@@ -384,7 +402,7 @@ function SelectedCard({ item, onClose }: { item: LiveMapItem; onClose: () => voi
         <div>
           <div className={styles.truckName}>{item.truck_type_name ?? 'Mashina'}</div>
           <div className={styles.muted}>
-            {item.has_cargo ? 'Yuk bilan yo‘lda' : 'Bo‘sh'}
+            {stale ? 'Ma’lumot eskirgan' : item.has_cargo ? 'Yuk bilan yo‘lda' : 'Bo‘sh'}
             {item.current_region && ` · hozir: ${shortRegion(item.current_region)}`}
           </div>
         </div>
