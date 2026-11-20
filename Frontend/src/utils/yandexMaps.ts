@@ -72,7 +72,9 @@ export function loadYandexMaps(): Promise<YMaps> {
     }
     const apiKey = import.meta.env.VITE_YANDEX_MAPS_API_KEY;
     const script = document.createElement('script');
-    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${apiKey}&lang=ru_RU`;
+    // package.standard: full paket o'rniga xarita, marker va geometriya uchun standart modullar.
+    // Geokodlash va marshrutlash kabi qo'shimcha modullar kerak bo'lsa alohida yuklash lozim.
+    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${apiKey}&lang=ru_RU&load=package.standard`;
     script.async = true;
     script.onload = () => window.ymaps!.ready(() => resolve(window.ymaps!));
     script.onerror = () => {
