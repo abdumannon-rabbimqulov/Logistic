@@ -81,6 +81,7 @@ export function LiveMapPage({ role }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
+  const [expandedMap, setExpandedMap] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, ready: mapReady, failed: mapFailed } = useYandexMap(containerRef, {
@@ -267,11 +268,26 @@ export function LiveMapPage({ role }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, mapRef, selectedId]);
 
+  function showUzbekistanOverview() {
+    const map = mapRef.current;
+    if (!map) return;
+    map.container.fitToViewport();
+    map.setBounds(overviewBoundsRef.current, { checkZoomRange: true, zoomMargin: [12, 12, 12, 12], duration: 250 });
+  }
+
+  useEffect(() => {
+    if (!mapReady) return;
+    const id = window.requestAnimationFrame(() => showUzbekistanOverview());
+    return () => window.cancelAnimationFrame(id);
+    // Faqat to‘liq ekran holati almashganda.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedMap, mapReady]);
+
   function resetUzbekistanView() {
     setSelectedId(null);
     setLocationError(null);
     fittedRef.current = true;
-    mapRef.current?.setBounds(overviewBoundsRef.current, { checkZoomRange: true, zoomMargin: [24, 20, 24, 20], duration: 300 });
+    showUzbekistanOverview();
   }
 
   function focusMyLocation() {
@@ -303,11 +319,14 @@ export function LiveMapPage({ role }: Props) {
   const emptyCount = items.length - cargoCount;
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${expandedMap ? styles.expandedPage : ''}`}>
       <div ref={containerRef} className={styles.map} />
       {!mapReady && !mapFailed && <div className={styles.mapStatus}>Xarita yuklanmoqda…</div>}
       {mapFailed && <div className={styles.mapStatus}>Xarita yuklanmadi</div>}
 
+      <button type="button" className={styles.expandMapButton} onClick={() => setExpandedMap((prev) => !prev)} aria-label={expandedMap ? 'Oddiy xaritaga qaytish' : 'Xaritani kengaytirish'} title={expandedMap ? 'Oddiy ko‘rinish' : 'To‘liq xarita'}>
+        {expandedMap ? '↙' : '⛶'}
+      </button>
       <button type="button" className={styles.resetMapButton} onClick={resetUzbekistanView} disabled={!mapReady} aria-label="O‘zbekiston xaritasiga qaytish" title="Standart O‘zbekiston xaritasi">
         <span aria-hidden="true">🇺🇿</span>
       </button>
@@ -316,7 +335,7 @@ export function LiveMapPage({ role }: Props) {
       </button>
       {locationError && <div className={styles.locationError} role="alert">{locationError}<button type="button" onClick={() => setLocationError(null)} aria-label="Xabarni yopish"><CloseIcon size={15} /></button></div>}
 
-      <div className={styles.topPanel}>
+      {!expandedMap && <div className={styles.topPanel}>
         <div className={styles.modes} role="tablist" aria-label="Mashinalar holati">
           {MODES.map((m) => (
             <button key={m.value} role="tab" aria-selected={filter.mode === m.value}
@@ -326,9 +345,9 @@ export function LiveMapPage({ role }: Props) {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
-      <div className={styles.counter} aria-live="polite">
+      {!expandedMap && <div className={styles.counter} aria-live="polite">
         {loadError
           ? 'Yangilab bo‘lmadi'
           : data
@@ -339,11 +358,11 @@ export function LiveMapPage({ role }: Props) {
                 .filter(Boolean)
                 .join(' · ')
             : 'Yuklanmoqda…'}
-      </div>
+      </div>}
 
       {selected && <SelectedCard item={selected} onClose={() => setSelectedId(null)} />}
 
-      {role === 'driver' ? <DriverBottomNav /> : <BottomNav />}
+      {!expandedMap && (role === 'driver' ? <DriverBottomNav /> : <BottomNav />)}
     </div>
   );
 }
