@@ -40,6 +40,9 @@ interface Props {
   onOriginMove?: (latitude: number, longitude: number) => void;
   /** `onOriginMove` bilan bir xil, tushirish nuqtasi uchun. */
   onDestinationMove?: (latitude: number, longitude: number) => void;
+  /** Marker bosilganda manzil tanlash oynasini ochish. */
+  onOriginClick?: () => void;
+  onDestinationClick?: () => void;
 }
 
 // Yandex `Placemark` ning sudrash uchun kerakli qismi (umumiy tur `unknown` bo'lgani uchun).
@@ -49,7 +52,7 @@ interface DraggablePlacemark {
 }
 
 export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
-  { origin, destination, route, userLocation, driverLocation, driverStale = false, followUser = false, onOriginMove, onDestinationMove },
+  { origin, destination, route, userLocation, driverLocation, driverStale = false, followUser = false, onOriginMove, onDestinationMove, onOriginClick, onDestinationClick },
   ref,
 ) {
   // Callback'lar ref'da saqlanadi: ular har render'da yangi funksiya bo'lishi mumkin,
@@ -58,6 +61,10 @@ export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
   const onDestinationMoveRef = useRef(onDestinationMove);
   onOriginMoveRef.current = onOriginMove;
   onDestinationMoveRef.current = onDestinationMove;
+  const onOriginClickRef = useRef(onOriginClick);
+  const onDestinationClickRef = useRef(onDestinationClick);
+  onOriginClickRef.current = onOriginClick;
+  onDestinationClickRef.current = onDestinationClick;
   const originDraggable = Boolean(onOriginMove);
   const destinationDraggable = Boolean(onDestinationMove);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -109,12 +116,16 @@ export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
         draggable: boolean,
         hint: string,
         moveRef: { current?: (latitude: number, longitude: number) => void },
+        clickRef: { current?: () => void },
       ) => {
         const mark = new ymaps.Placemark(
           [point.latitude, point.longitude],
           draggable ? { hintContent: hint } : {},
           { ...options, draggable },
         );
+        if (clickRef.current) {
+          (mark as DraggablePlacemark).events.add('click', () => clickRef.current?.());
+        }
         if (draggable) {
           const dm = mark as DraggablePlacemark;
           dm.events.add('dragend', () => {
@@ -130,20 +141,22 @@ export const YandexMap = forwardRef<YandexMapHandle, Props>(function YandexMap(
         points.push([origin.latitude, origin.longitude]);
         addPointMark(
           origin,
-          { preset: 'islands#circleIcon', iconColor: '#15803D' },
+          { preset: 'islands#greenIcon', iconColor: '#15803D' },
           originDraggable,
-          "Yuklash nuqtasi — surib o'zgartiring",
+          "Yuklash nuqtasi — bosing yoki suring",
           onOriginMoveRef,
+          onOriginClickRef,
         );
       }
       if (destination) {
         points.push([destination.latitude, destination.longitude]);
         addPointMark(
           destination,
-          { preset: 'islands#dotIcon', iconColor: '#0F1319' },
+          { preset: 'islands#blackIcon', iconColor: '#0F1319' },
           destinationDraggable,
-          "Tushirish nuqtasi — surib o'zgartiring",
+          "Tushirish nuqtasi — bosing yoki suring",
           onDestinationMoveRef,
+          onDestinationClickRef,
         );
       }
 
