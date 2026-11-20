@@ -156,7 +156,7 @@
   font-weight: 500;
 }
 
-.searchPill {
+.mapPill {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -166,6 +166,16 @@
   flex-shrink: 0;
   font: var(--text-label-sm);
   color: var(--color-text-secondary);
+}
+
+.addressRow:hover .mapPill {
+  background: var(--color-accent-tint);
+  color: var(--color-accent-pressed);
+}
+
+.addressRow:focus-visible .mapPill {
+  outline: 2px solid var(--color-accent-pressed);
+  outline-offset: 2px;
 }
 
 .addBtn {

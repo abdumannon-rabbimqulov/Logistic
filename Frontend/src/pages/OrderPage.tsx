@@ -11,10 +11,10 @@ import {
   ClockIcon,
   DestinationFlagIcon,
   LocationIcon,
+  PinIcon,
   PlusIcon,
   ProfileIcon,
   RouteIcon,
-  SearchIcon,
   SettingsIcon,
   SwapIcon,
   truckIconFor,
@@ -27,7 +27,7 @@ import type { OrderPointPrefill, OrderPrefillState } from '../types/navigation';
 import { formatEta, formatPrice } from '../utils/format';
 import styles from './OrderPage.module.css';
 
-type AddressSheetTarget = 'origin' | 'destination' | null;
+type PointTarget = 'origin' | 'destination' | null;
 
 export function OrderPage() {
   const navigate = useNavigate();
@@ -49,9 +49,10 @@ export function OrderPage() {
   const [estimating, setEstimating] = useState(false);
   const [estimateError, setEstimateError] = useState<string | null>(null);
   const [estimateRevision, setEstimateRevision] = useState(0);
-  const [addressSheet, setAddressSheet] = useState<AddressSheetTarget>(null);
-  // Xaritadan (markazdagi pin bilan) nuqta tanlash oynasi.
-  const [pickerTarget, setPickerTarget] = useState<AddressSheetTarget>(null);
+  // Manzil tanlashning asosiy usuli — markazdagi pin bilan xaritadan nuqta belgilash.
+  const [pickerTarget, setPickerTarget] = useState<PointTarget>(null);
+  const [addressSearchTarget, setAddressSearchTarget] = useState<PointTarget>(null);
+  const [pickerDraft, setPickerDraft] = useState<OrderPointPrefill | null>(null);
   const [cargoSheetOpen, setCargoSheetOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -76,7 +77,7 @@ export function OrderPage() {
         setOrigin({ address: res.address ?? "Joriy joylashuv", latitude, longitude });
       })
       .catch(() => {
-        // aniqlanmasa — foydalanuvchi "Qidirish" orqali qo'lda tanlaydi
+        // aniqlanmasa — foydalanuvchi manzil qatoridan xaritani ochib tanlaydi
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geolocation.coords]);
@@ -126,6 +127,25 @@ export function OrderPage() {
     setDestination(origin);
   }
 
+  function openPointPicker(target: Exclude<PointTarget, null>) {
+    setPickerDraft(null);
+    setPickerTarget(target);
+  }
+
+  function returnToMapPicker() {
+    const target = addressSearchTarget;
+    setAddressSearchTarget(null);
+    if (target) setPickerTarget(target);
+  }
+
+  function handleAddressSelected(suggestion: GeocodeSuggestion) {
+    const target = addressSearchTarget;
+    if (!target) return;
+    setPickerDraft({ address: suggestion.address, latitude: suggestion.latitude, longitude: suggestion.longitude });
+    setAddressSearchTarget(null);
+    setPickerTarget(target);
+  }
+
   // "Mening joylashuvim" tugmasi — xaritani foydalanuvchi joylashuviga yaqinlashtiradi.
   // Avval useGeolocation aniqlagan koordinata ishlatiladi; hali aniqlanmagan bo'lsa
   // (yoki ruxsat endi berilgan bo'lsa) qaytadan so'raladi.
@@ -159,13 +179,6 @@ export function OrderPage() {
     reverseGeocode(latitude, longitude)
       .then((res) => apply(res.address ?? 'Xaritada belgilangan nuqta'))
       .catch(() => apply('Xaritada belgilangan nuqta'));
-  }
-
-  function handleAddressSelected(suggestion: GeocodeSuggestion) {
-    const point: OrderPointPrefill = { address: suggestion.address, latitude: suggestion.latitude, longitude: suggestion.longitude };
-    if (addressSheet === 'origin') setOrigin(point);
-    if (addressSheet === 'destination') setDestination(point);
-    setAddressSheet(null);
   }
 
   const selectedOption = useMemo(
@@ -253,7 +266,7 @@ export function OrderPage() {
         <div className={styles.dragHandle} />
 
         <div className={styles.addressBlock}>
-          <button className={styles.addressRow} onClick={() => setAddressSheet('origin')}>
+          <button className={styles.addressRow} onClick={() => openPointPicker('origin')}>
             <span className={styles.originDot} />
             <div className={styles.rowText}>
               <div className={styles.rowLabel}>{origin ? "Qayerdan" : "Joriy manzil aniqlanmoqda..."}</div>
@@ -263,13 +276,13 @@ export function OrderPage() {
                 <div className={styles.rowValuePlaceholder}>Manzil tanlang</div>
               )}
             </div>
-            <span className={styles.searchPill}>
-              <SearchIcon />
-              Qidirish
+            <span className={styles.mapPill}>
+              <PinIcon size={14} />
+              Xaritadan
             </span>
           </button>
 
-          <button className={styles.addressRow} onClick={() => setAddressSheet('destination')}>
+          <button className={styles.addressRow} onClick={() => openPointPicker('destination')}>
             <DestinationFlagIcon />
             <div className={styles.rowText}>
               <div className={styles.rowLabel}>Qayerga</div>
@@ -367,15 +380,12 @@ export function OrderPage() {
         </div>
       </div>
 
-      {addressSheet && (
+      {addressSearchTarget && (
         <AddressSearchSheet
-          title={addressSheet === 'origin' ? "Qayerdan olib ketamiz?" : "Qayerga olib boramiz?"}
+          title={addressSearchTarget === 'origin' ? 'Yuk olish joyini qidirish' : 'Yetkazish manzilini qidirish'}
           onSelect={handleAddressSelected}
-          onClose={() => setAddressSheet(null)}
-          onPickOnMap={() => {
-            setPickerTarget(addressSheet);
-            setAddressSheet(null);
-          }}
+          onClose={returnToMapPicker}
+          onPickOnMap={returnToMapPicker}
         />
       )}
 
@@ -383,13 +393,22 @@ export function OrderPage() {
         <MapPointPicker
           title={pickerTarget === 'origin' ? 'Yuk olish joyi' : 'Yetkazish manzili'}
           tone={pickerTarget}
-          initial={pickerTarget === 'origin' ? origin : destination}
+          initial={pickerDraft ?? (pickerTarget === 'origin' ? origin : destination)}
           myLocation={geolocation.coords}
-          onClose={() => setPickerTarget(null)}
+          onSearch={(point) => {
+            setPickerDraft(point);
+            setAddressSearchTarget(pickerTarget);
+            setPickerTarget(null);
+          }}
+          onClose={() => {
+            setPickerTarget(null);
+            setPickerDraft(null);
+          }}
           onConfirm={(point) => {
             if (pickerTarget === 'origin') setOrigin(point);
             else setDestination(point);
             setPickerTarget(null);
+            setPickerDraft(null);
           }}
         />
       )}

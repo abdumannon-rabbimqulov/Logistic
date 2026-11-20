@@ -3,7 +3,7 @@
 ## Product context
 
 - **Audience:** Senders, drivers, dispatch managers, and administrators using the YUK logistics product.
-- **Primary jobs in this slice:** A sender starts a shipment, searches or picks route points, compares vehicle estimates, enters cargo details, places the request, and tracks its lifecycle.
+- **Primary jobs in this slice:** A sender starts a shipment, picks route points directly on the map, compares vehicle estimates, enters cargo details, places the request, and tracks its lifecycle.
 - **Target market:** Uzbekistan; current product copy is Uzbek Latin.
 - **Active locale:** Uzbek Latin (`uz-Latn`); no English fallback for owned UI.
 - **Timezone/calendar:** `Asia/Tashkent`; send pickup instants to the API as ISO timestamps. Date display follows local device language only where the product does not provide a formatter.
@@ -32,7 +32,8 @@
 
 | Capability | Canonical owner | Source of truth | Allowed variants | Verification |
 |---|---|---|---|---|
-| Address Search | `AddressSearchSheet` | this contract + geocoding API | modal bottom sheet | debounce, clear, IME, stale response, error/retry |
+| Route Point Selection | `MapPointPicker` | this contract + reverse-geocoding API | origin / destination | pan or tap map, preview address, explicit confirm, geocode fallback |
+| Address Search | `AddressSearchSheet` inside `MapPointPicker` | this contract + geocoding API | optional map-centered search | debounce, clear, IME, stale response, error/retry; selecting a result recenters the draft only |
 | Bottom Sheet Modal | `BottomSheetModal` | this contract | modal, mobile anchored | focus trap, Escape, inert app, restoration |
 | Form | `CargoDetailsSheet` | order schema/API | create shipment | validation, preserved values, duplicate-submit guard |
 | Select/Listbox | native controls where used; vehicle choice is a button group | current handoff + API options | native / pressed button group | keyboard and selected-state announcement |
@@ -63,7 +64,8 @@
 | Operation | Trigger | Pending | Success destination | Success feedback | Failure recovery | Focus outcome | Source ref |
 |---|---|---|---|---|---|---|---|
 | Create shipment | home CTA, transport shortcut, saved address, or repeat action → final cargo submit | disable repeat submit; preserve cargo form values | `/orders/:id` tracking page | tracking page displays created lifecycle state | keep sheet open and entered values; show inline API error | focus remains in sheet after failure; tracking heading after success | `order/router.py`, `order/service.py` |
-| Address search | type 3+ characters or retry | 300ms debounce, latest request wins | selected route point returns to composer | updated route/estimate | retry search; clear restores input focus | restore composer address control after close | `/orders/geocode/search` |
+| Route point selection | tap the origin or destination row → map picker | reverse geocode after map settles; confirm disabled while resolving | explicit confirmation returns the chosen point to the composer | address, route, and estimate update | keep the picker open; coordinates remain selectable when reverse geocoding has no street label | restore the activated address row after close | `MapPointPicker`, `/orders/geocode/reverse` |
+| Address search | open search from the map picker and type 3+ characters or retry | 300ms debounce, latest request wins | result recenters the map preview; it never commits the route point | user reviews the map and confirms the point | retry search; clear restores input focus; return to map selection | restore the search control or map picker context after close | `AddressSearchSheet`, `/orders/geocode/search` |
 | Vehicle choice | activate a vehicle button | selected state updates immediately; estimate is server-owned | remain on composer | selected vehicle, price, distance, and time update | explain estimate error and offer retry | selected button retains focus | `/orders/estimate-price` |
 | Cancel/back | activate back or dismiss sheet | no submit in progress | previous route/composer | none | no data change | restore trigger focus for modal close | React Router + `BottomSheetModal` |
 
@@ -87,7 +89,8 @@
 
 - Reads are pessimistic. Home sections load independently and preserve successful sections if another API read fails.
 - Request results are committed only if they belong to the latest home/search request.
-- Search is debounced 300ms, composition-safe, clearable, and stale-response-safe.
+- Every route-point entry opens `MapPointPicker` first. The map stays the selection surface for pickup and delivery; the fixed center pin follows pan/tap interaction, and the selected point is committed only with “Shu manzilni tanlash”.
+- Optional address search is debounced 300ms, composition-safe, clearable, and stale-response-safe. A chosen search result only recenters the picker; it does not silently replace an order point.
 - Network retry for an uncertain order-create result is **unresolved**: `POST /orders` starts dispatch and no idempotency key or duplicate-detection contract was found. Do not automatically retry an ambiguous create response until the API/domain owner provides idempotency or a reconciliation rule.
 - Session expiry follows the existing `AuthProvider` flow.
 

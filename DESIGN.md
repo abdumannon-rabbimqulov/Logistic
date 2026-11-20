@@ -124,7 +124,7 @@ Sender navigation is fixed to the bottom with four equal destinations. Mark the 
 
 ### Forms and overlays
 
-Use native labeled fields where their interaction is acceptable. Address search is debounced, clearable, composition-safe, and stale-response-safe. Bottom sheets are modal: they receive focus, trap Tab navigation, close on Escape, make the app root inert, lock background scrolling, and restore focus when dismissed.
+Use native labeled fields where their interaction is acceptable. Route points are chosen map-first in `MapPointPicker`: a fixed pin previews the center, the address resolves after the map settles, and the user confirms before the order route changes. Optional address search is debounced, clearable, composition-safe, and stale-response-safe; selecting a result only recenters the map preview. Bottom sheets are modal: they receive focus, trap Tab navigation, close on Escape, make the app root inert, lock background scrolling, and restore focus when dismissed.
 
 ### Iconography
 
