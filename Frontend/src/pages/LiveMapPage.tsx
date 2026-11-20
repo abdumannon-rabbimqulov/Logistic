@@ -191,7 +191,7 @@ export function LiveMapPage({ role }: Props) {
             zIndex: isSelected ? 1000 : 100,
           },
         ) as { events: { add(type: string, cb: (e: { stopPropagation?: () => void }) => void): void } };
-        placemark.events.add('click', () => setSelectedId(item.marker_id));
+        placemark.events.add('click', (event) => { event.stopPropagation?.(); setSelectedId(item.marker_id); });
         map.geoObjects.add(placemark);
       }
 
@@ -230,9 +230,12 @@ export function LiveMapPage({ role }: Props) {
         for (const [lon, lat] of ring) coords.push([lat, lon]);
     }
     if (!coords.length) return;
-    const lats = coords.map((p) => p[0]);
-    const lons = coords.map((p) => p[1]);
-    overviewBoundsRef.current = [[Math.min(...lats), Math.min(...lons)], [Math.max(...lats), Math.max(...lons)]];
+    let minLat = 90, minLon = 180, maxLat = -90, maxLon = -180;
+    for (const [lat, lon] of coords) {
+      minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
+      minLon = Math.min(minLon, lon); maxLon = Math.max(maxLon, lon);
+    }
+    overviewBoundsRef.current = [[minLat, minLon], [maxLat, maxLon]];
     fittedRef.current = true;
     mapRef.current.setBounds(overviewBoundsRef.current, { checkZoomRange: true, zoomMargin: [24, 20, 24, 20] });
   }, [mapReady, mapRef, regionShapes]);
