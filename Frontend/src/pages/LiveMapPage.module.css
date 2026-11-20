@@ -315,3 +315,39 @@
   font-weight: 700;
   font-size: 14px;
 }
+
+/* GPS tugmasi filter panelidan pastda, xaritaning o'ng tomonida. */
+.locateButton {
+  position: absolute;
+  z-index: 12;
+  right: 16px;
+  bottom: calc(var(--bottom-nav-height) + 74px);
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.locateButton:disabled { opacity: 0.55; cursor: wait; }
+.locateButton:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 2px; }
+.locationError {
+  position: absolute;
+  z-index: 20;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--bottom-nav-height) + 132px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-danger);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+}
+.locationError button { margin-left: auto; flex-shrink: 0; background: transparent; }
