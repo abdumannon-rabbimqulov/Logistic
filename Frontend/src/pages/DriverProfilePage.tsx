@@ -75,7 +75,7 @@ export function DriverProfilePage() {
 
         {/* Qatorlar (keyingi bosqich uchun) */}
         <div className={styles.rows}>
-          <button className={styles.row}>
+          <button type="button" className={styles.row} disabled title="Bu bo‘lim hali mavjud emas">
             <span className={styles.rowIcon}><DocIcon /></span>
             <span className={styles.rowText}>
               <span className={styles.rowTitle}>Hujjatlar</span>
@@ -83,7 +83,7 @@ export function DriverProfilePage() {
             </span>
             <ChevronRightIcon />
           </button>
-          <button className={styles.row}>
+          <button type="button" className={styles.row} disabled title="Bu bo‘lim hali mavjud emas">
             <span className={styles.rowIcon}><UserLineIcon /></span>
             <span className={styles.rowText}>
               <span className={styles.rowTitle}>Shaxsiy ma'lumotlar</span>

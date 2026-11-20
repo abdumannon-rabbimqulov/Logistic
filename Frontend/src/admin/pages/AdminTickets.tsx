@@ -465,7 +465,7 @@ export function AdminTickets() {
               <div className={styles.replyBox}>
                 <textarea
                   ref={replyRef}
-                  className={styles.replyInput}
+                  className={`${styles.replyInput} resize-none`}
                   rows={2}
                   maxLength={5000}
                   value={reply}

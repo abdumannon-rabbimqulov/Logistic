@@ -47,6 +47,8 @@ export function OrderPage() {
   const [durationMin, setDurationMin] = useState<number | null>(null);
   const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null);
   const [estimating, setEstimating] = useState(false);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
+  const [estimateRevision, setEstimateRevision] = useState(0);
   const [addressSheet, setAddressSheet] = useState<AddressSheetTarget>(null);
   // Xaritadan (markazdagi pin bilan) nuqta tanlash oynasi.
   const [pickerTarget, setPickerTarget] = useState<AddressSheetTarget>(null);
@@ -57,6 +59,9 @@ export function OrderPage() {
   // Kiritish paytida har harfda so'rov ketmasligi uchun 500 ms kechiktiriladi.
   const [cargoWeightInput, setCargoWeightInput] = useState<number | null>(null);
   const [cargoWeight, setCargoWeight] = useState<number | null>(null);
+  useEffect(() => {
+    document.title = 'Yangi buyurtma · YUK';
+  }, []);
   useEffect(() => {
     const id = window.setTimeout(() => setCargoWeight(cargoWeightInput), 500);
     return () => window.clearTimeout(id);
@@ -83,10 +88,12 @@ export function OrderPage() {
       setDistanceKm(null);
       setDurationMin(null);
       setRouteGeometry(null);
+      setEstimateError(null);
       return;
     }
     let cancelled = false;
     setEstimating(true);
+    setEstimateError(null);
     estimatePrice(
       { latitude: origin.latitude, longitude: origin.longitude },
       { latitude: destination.latitude, longitude: destination.longitude },
@@ -100,10 +107,11 @@ export function OrderPage() {
         setRouteGeometry(res.route_geometry?.length ? res.route_geometry : null);
         setSelectedTruckTypeId((prev) => prev ?? res.options[0]?.truck_type_id ?? null);
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
         setOptions([]);
         setRouteGeometry(null);
+        setEstimateError(err instanceof ApiError ? err.message : 'Masofa va narx hisoblanmadi. Qayta urinib ko‘ring.');
       })
       .finally(() => {
         if (!cancelled) setEstimating(false);
@@ -111,7 +119,7 @@ export function OrderPage() {
     return () => {
       cancelled = true;
     };
-  }, [origin, destination, cargoWeight]);
+  }, [origin, destination, cargoWeight, estimateRevision]);
 
   function handleSwap() {
     setOrigin(destination);
@@ -165,7 +173,7 @@ export function OrderPage() {
     [options, selectedTruckTypeId],
   );
 
-  const canSubmit = Boolean(origin && destination && selectedTruckTypeId && !estimating);
+  const canSubmit = Boolean(origin && destination && selectedOption && !estimating);
 
   async function handleCargoSubmit(details: CargoDetails) {
     if (!origin || !destination || !selectedTruckTypeId) return;
@@ -282,16 +290,23 @@ export function OrderPage() {
 
         {options.length > 0 && (
           <>
-            <div className={styles.tabsRow}>
-              <span className={styles.tab}>Hammasi</span>
+            <div className={styles.tabsRow} role="group" aria-label="Transport turini tanlang">
+              <button
+                type="button"
+                className={selectedTruckTypeId === null ? styles.tabActive : styles.tab}
+                aria-pressed={selectedTruckTypeId === null}
+                onClick={() => setSelectedTruckTypeId(null)}
+              >Hammasi</button>
               {options.map((opt) => (
-                <span
+                <button
+                  type="button"
                   key={opt.truck_type_id}
                   className={opt.truck_type_id === selectedTruckTypeId ? styles.tabActive : styles.tab}
+                  aria-pressed={opt.truck_type_id === selectedTruckTypeId}
                   onClick={() => setSelectedTruckTypeId(opt.truck_type_id)}
                 >
                   {opt.name}
-                </span>
+                </button>
               ))}
             </div>
 
@@ -330,14 +345,20 @@ export function OrderPage() {
           </>
         )}
 
-        {estimating && <div className={styles.tab} style={{ padding: '0 18px' }}>Narx hisoblanmoqda...</div>}
+        {estimating && <div className={styles.estimateStatus} role="status">Masofa va narx hisoblanmoqda…</div>}
+        {estimateError && (
+          <div className={styles.estimateError} role="alert">
+            <span>{estimateError}</span>
+            <button type="button" onClick={() => setEstimateRevision((revision) => revision + 1)}>Qayta hisoblash</button>
+          </div>
+        )}
         {submitError && <div className={styles.errorBanner}>{submitError}</div>}
 
         <div className={styles.ctaRow}>
           <span className={styles.ctaSideBtn}>
             <CardIcon />
           </span>
-          <button className={styles.ctaMain} disabled={!canSubmit} onClick={() => setCargoSheetOpen(true)}>
+          <button className={styles.ctaMain} disabled={!canSubmit || submitting} onClick={() => setCargoSheetOpen(true)}>
             {selectedOption ? `Buyurtma berish · ${formatPrice(selectedOption.price)}` : 'Buyurtma berish'}
           </button>
           <span className={styles.ctaSideBtn}>

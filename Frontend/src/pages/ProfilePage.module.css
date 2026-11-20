@@ -226,7 +226,7 @@
   flex: 1;
   height: 46px;
   border-radius: var(--radius-pill);
-  background: var(--color-accent);
+  background: var(--color-accent-cta);
   color: #fff;
   font-size: 14px;
   font-weight: 700;

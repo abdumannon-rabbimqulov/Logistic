@@ -115,6 +115,7 @@ function PasswordCard({
       {/* Brauzer parol menejeri to'g'ri ishlashi uchun forma (Enter bilan ham yuboriladi). */}
       <form
         className={styles.fields}
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           void f.save();

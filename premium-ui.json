@@ -1,0 +1,14 @@
+{
+  "profile": "product-admin",
+  "sourceRoots": ["Frontend/src"],
+  "locale": "uz-Latn",
+  "canonicalMap": "UX-CONTRACT.md",
+  "ownership": {
+    "Select/Listbox": "native",
+    "Date": "native"
+  },
+  "evidence": {
+    "crudFullFlow": "UX-CONTRACT.md",
+    "failurePaths": "UX-CONTRACT.md"
+  }
+}

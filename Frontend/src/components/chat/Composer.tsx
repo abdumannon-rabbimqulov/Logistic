@@ -208,7 +208,7 @@ export function Composer({
             )}
             <textarea
               ref={inputRef}
-              className={styles.input}
+              className={`${styles.input} resize-none`}
               value={text}
               rows={1}
               maxLength={4096}

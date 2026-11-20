@@ -468,7 +468,7 @@ export function SupportChatPage() {
           </button>
           <textarea
             ref={inputRef}
-            className={styles.input}
+            className={`${styles.input} resize-none`}
             value={draft}
             rows={1}
             maxLength={5000}
