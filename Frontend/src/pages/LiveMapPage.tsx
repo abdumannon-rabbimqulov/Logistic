@@ -151,73 +151,85 @@ export function LiveMapPage({ role }: Props) {
   const items = useMemo(() => data?.items ?? [], [data]);
   const selected = useMemo(() => items.find((i) => i.marker_id === selectedId) ?? null, [items, selectedId]);
 
-  // Markerlar + tanlangan yukning A/B nuqtalari
+  // Viloyat qatlamini faqat GeoJSON o'zgarganda chizamiz, GPS pollingda emas.
+  const regionObjectsRef = useRef<unknown[]>([]);
+  const markerObjectsRef = useRef<Map<string, { obj: unknown; lat: number; lon: number; hasCargo: boolean; hint: string; selected: boolean }>>(new Map());
+  const routeObjectsRef = useRef<unknown[]>([]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map) return;
     let cancelled = false;
-
     loadYandexMaps().then((ymaps) => {
       if (cancelled) return;
-      map.geoObjects.removeAll();
+      regionObjectsRef.current.forEach((obj) => map.geoObjects.remove(obj));
+      regionObjectsRef.current = [];
       // Viloyat chegaralari: yengil, yarim shaffof qatlam; markerlar ustida qoladi.
       regionShapes.forEach((feature, index) => {
         const raw = feature.geometry.coordinates as number[][][] | number[][][][];
         const polygons = feature.geometry.type === 'MultiPolygon' ? raw as number[][][][] : [raw as number[][][]];
         for (const polygon of polygons) {
           const rings = polygon.map((ring) => ring.map(([lon, lat]) => [lat, lon] as [number, number]));
-          map.geoObjects.add(new ymaps.Polygon(rings, { hintContent: feature.properties.name }, {
+          const shape = new ymaps.Polygon(rings, { hintContent: feature.properties.name }, {
             fillColor: REGION_COLORS[index % REGION_COLORS.length], fillOpacity: 0.28,
             strokeColor: '#64748B', strokeWidth: 1.5, strokeOpacity: 0.85,
             interactivityModel: 'default#transparent',
-          }));
+          });
+          map.geoObjects.add(shape);
+          regionObjectsRef.current.push(shape);
         }
       });
 
+    });
+    return () => { cancelled = true; };
+  }, [mapReady, mapRef, regionShapes]);
+
+  // GPS: faqat yangi, ko'chgan yoki statusi o'zgargan markerlarni yangilaymiz.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+    let cancelled = false;
+    loadYandexMaps().then((ymaps) => {
+      if (cancelled) return;
+      const markers = markerObjectsRef.current;
+      const ids = new Set(items.map((item) => item.marker_id));
+      for (const [id, old] of markers) {
+        if (!ids.has(id)) { map.geoObjects.remove(old.obj); markers.delete(id); }
+      }
       for (const item of items) {
-        const point: [number, number] = [item.lat, item.lon];
         const isSelected = item.marker_id === selectedId;
-        const placemark = new ymaps.Placemark(
-          point,
-          {
-            iconContent: item.has_cargo ? '🚚' : '🚛',
-            hintContent: [item.truck_type_name, item.has_cargo ? tons(item.weight) : "bo'sh"]
-              .filter(Boolean)
-              .join(' · '),
-          },
-          {
-            preset: 'islands#blueCircleIcon',
-            iconColor: item.has_cargo ? (isSelected ? '#0F1319' : CARGO_COLOR) : EMPTY_COLOR,
-            zIndex: isSelected ? 1000 : 100,
-          },
-        ) as { events: { add(type: string, cb: (e: { stopPropagation?: () => void }) => void): void } };
+        const hint = [item.truck_type_name, item.has_cargo ? tons(item.weight) : "bo'sh"].filter(Boolean).join(' · ');
+        const old = markers.get(item.marker_id);
+        if (old && old.lat === item.lat && old.lon === item.lon && old.hasCargo === item.has_cargo && old.hint === hint && old.selected === isSelected) continue;
+        if (old) map.geoObjects.remove(old.obj);
+        const placemark = new ymaps.Placemark([item.lat, item.lon], {
+          iconContent: item.has_cargo ? '🚚' : '🚛', hintContent: hint,
+        }, {
+          preset: 'islands#blueCircleIcon',
+          iconColor: item.has_cargo ? (isSelected ? '#0F1319' : CARGO_COLOR) : EMPTY_COLOR,
+          zIndex: isSelected ? 1000 : 100,
+        }) as { events: { add(type: string, cb: (e: { stopPropagation?: () => void }) => void): void } };
         placemark.events.add('click', (event) => { event.stopPropagation?.(); setSelectedId(item.marker_id); });
         map.geoObjects.add(placemark);
+        markers.set(item.marker_id, { obj: placemark, lat: item.lat, lon: item.lon, hasCargo: item.has_cargo, hint, selected: isSelected });
       }
-
-      const sel = items.find((i) => i.marker_id === selectedId);
+      routeObjectsRef.current.forEach((obj) => map.geoObjects.remove(obj));
+      routeObjectsRef.current = [];
+      const sel = items.find((item) => item.marker_id === selectedId);
       if (sel?.has_cargo && sel.pickup_lat != null && sel.pickup_lon != null && sel.delivery_lat != null && sel.delivery_lon != null) {
         const a: [number, number] = [sel.pickup_lat, sel.pickup_lon];
         const b: [number, number] = [sel.delivery_lat, sel.delivery_lon];
-        map.geoObjects.add(
-          new ymaps.Polyline([a, [sel.lat, sel.lon], b], {}, {
-            strokeColor: CARGO_COLOR,
-            strokeWidth: 3,
-            strokeOpacity: 0.7,
-            strokeStyle: 'shortdash',
-          }),
-        );
-        map.geoObjects.add(new ymaps.Placemark(a, { iconContent: 'A' }, { preset: 'islands#greenIcon' }));
-        map.geoObjects.add(new ymaps.Placemark(b, { iconContent: 'B' }, { preset: 'islands#redIcon' }));
+        const route = [
+          new ymaps.Polyline([a, [sel.lat, sel.lon], b], {}, { strokeColor: CARGO_COLOR, strokeWidth: 3, strokeOpacity: 0.7, strokeStyle: 'shortdash' }),
+          new ymaps.Placemark(a, { iconContent: 'A' }, { preset: 'islands#greenIcon' }),
+          new ymaps.Placemark(b, { iconContent: 'B' }, { preset: 'islands#redIcon' }),
+        ];
+        route.forEach((obj) => map.geoObjects.add(obj));
+        routeObjectsRef.current = route;
       }
-
-
     });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mapReady, mapRef, items, selectedId, regionShapes]);
+    return () => { cancelled = true; };
+  }, [mapReady, mapRef, items, selectedId]);
 
   // Mamlakatning barcha chegaralarini birinchi yuklanishda ekranga sig'dirish.
   useEffect(() => {
