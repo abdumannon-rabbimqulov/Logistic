@@ -33,6 +33,9 @@ const MODES: { value: LiveMapMode; label: string }[] = [
 
 const CARGO_COLOR = '#1D4ED8';
 const EMPTY_COLOR = '#16A34A';
+const REGION_COLORS = ['#DCEFE7', '#FCE8D9', '#E4EAFB', '#F4E7F5', '#F9F1D4', '#DCEEF4'];
+type RegionFeature = { geometry: { type: string; coordinates: unknown }; properties: { name: string } };
+
 // O‘zbekistonni qamrab oluvchi taxminiy koordinata chegaralari.
 // Yandex restrictMapArea to‘rtburchak bilan ishlaydi, davlat poligoni emas.
 const UZBEKISTAN_BOUNDS: [[number, number], [number, number]] = [[37.1, 55.9], [45.6, 73.2]];
@@ -84,6 +87,7 @@ export function LiveMapPage({ role }: Props) {
   const [loadError, setLoadError] = useState(false);
   const [regions, setRegions] = useState<RegionItem[]>([]);
   const [truckTypes, setTruckTypes] = useState<TruckType[]>([]);
+  const [regionShapes, setRegionShapes] = useState<RegionFeature[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
@@ -104,6 +108,9 @@ export function LiveMapPage({ role }: Props) {
 
   useEffect(() => {
     listRegions().then(setRegions).catch(() => setRegions([]));
+    fetch('/uz_regions.geojson').then((r) => { if (!r.ok) throw new Error('regions'); return r.json(); })
+      .then((geo: { features?: RegionFeature[] }) => setRegionShapes(geo.features ?? []))
+      .catch(() => setRegionShapes([]));
     listTruckTypes()
       .then((list) => setTruckTypes(list.filter((t) => t.is_active)))
       .catch(() => setTruckTypes([]));
@@ -168,6 +175,19 @@ export function LiveMapPage({ role }: Props) {
     loadYandexMaps().then((ymaps) => {
       if (cancelled) return;
       map.geoObjects.removeAll();
+      // Viloyat chegaralari: yengil, yarim shaffof qatlam; markerlar ustida qoladi.
+      regionShapes.forEach((feature, index) => {
+        const raw = feature.geometry.coordinates as number[][][] | number[][][][];
+        const polygons = feature.geometry.type === 'MultiPolygon' ? raw as number[][][][] : [raw as number[][][]];
+        for (const polygon of polygons) {
+          const rings = polygon.map((ring) => ring.map(([lon, lat]) => [lat, lon] as [number, number]));
+          map.geoObjects.add(new ymaps.Polygon(rings, { hintContent: feature.properties.name }, {
+            fillColor: REGION_COLORS[index % REGION_COLORS.length], fillOpacity: 0.28,
+            strokeColor: '#64748B', strokeWidth: 1.5, strokeOpacity: 0.85,
+            interactivityModel: 'default#transparent',
+          }));
+        }
+      });
 
       const points: [number, number][] = [];
       for (const item of items) {
@@ -177,13 +197,13 @@ export function LiveMapPage({ role }: Props) {
         const placemark = new ymaps.Placemark(
           point,
           {
-            iconContent: item.has_cargo ? tons(item.weight) : '',
+            iconContent: item.has_cargo ? '🚚 ' + tons(item.weight) : '🚛',
             hintContent: [item.truck_type_name, item.has_cargo ? tons(item.weight) : "bo'sh"]
               .filter(Boolean)
               .join(' · '),
           },
           {
-            preset: item.has_cargo ? 'islands#blueStretchyIcon' : 'islands#greenCircleDotIcon',
+            preset: 'islands#blueStretchyIcon',
             iconColor: item.has_cargo ? (isSelected ? '#0F1319' : CARGO_COLOR) : EMPTY_COLOR,
             zIndex: isSelected ? 1000 : 100,
           },
@@ -221,7 +241,7 @@ export function LiveMapPage({ role }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [mapReady, mapRef, items, selectedId]);
+  }, [mapReady, mapRef, items, selectedId, regionShapes]);
 
   // Tanlangan yuk to'liq ko'rinsin: A, mashina, B
   useEffect(() => {
@@ -367,7 +387,7 @@ export function LiveMapPage({ role }: Props) {
                   {millions(stats.min_price)} – {millions(stats.max_price)} · {stats.count} ta yuk
                   {stats.avg_price_per_ton != null && ` · 1 t ≈ ${formatPrice(Number(stats.avg_price_per_ton))}`}
                 </span>
-                <span className={styles.mutedSmall}>Yo'ldagi va oxirgi {stats.period_days} kunda yakunlangan yuklar</span>
+
               </div>
             ) : (
               <div className={styles.muted}>Bu yo'nalishda oxirgi {stats.period_days} kunda yuk bo'lmagan</div>
