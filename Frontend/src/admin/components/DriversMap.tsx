@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Feature, Point } from 'geojson';
 import type { GeoJSONFeatureDiff, GeoJSONSource } from 'maplibre-gl';
-import { useMapLibreMap } from '../../hooks/useMapLibreMap';
+import { fitUzbekistanOverview, useMapLibreMap } from '../../hooks/useMapLibreMap';
 import type { DriverMonitorItem } from '../../types/api';
 import { driverStatus, DRIVER_STATUS_COLORS, DRIVER_STATUS_LABELS, type DriverVisualStatus } from './driverMapStatus';
 import styles from './DriversMap.module.css';
 
 const SELECTED_ZOOM = 13;
+const ADMIN_OVERVIEW = { bearing: 0, maxZoom: 7 };
 
 export function DriversMap({ drivers, selectedId, onSelect }: { drivers: DriverMonitorItem[]; selectedId: number | null; onSelect: (id: number | null) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { mapRef, ready, failed } = useMapLibreMap(containerRef);
+  const { mapRef, ready, failed } = useMapLibreMap(containerRef, { overview: ADMIN_OVERVIEW });
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
-  const fittedRef = useRef(false);
   const previousRef = useRef<Map<number, Feature<Point>>>(new Map());
   const [now, setNow] = useState(Date.now());
 
@@ -85,16 +85,7 @@ export function DriversMap({ drivers, selectedId, onSelect }: { drivers: DriverM
     if (add.length || remove.length || update.length) void source.updateData({ add, remove, update });
     previousRef.current = current;
 
-    if (!fittedRef.current && features.length) {
-      fittedRef.current = true;
-      const coordinates = features.map((feature) => feature.geometry.coordinates);
-      const bounds = coordinates.reduce((result, [longitude, latitude]) => ({
-        minLng: Math.min(result.minLng, longitude), minLat: Math.min(result.minLat, latitude),
-        maxLng: Math.max(result.maxLng, longitude), maxLat: Math.max(result.maxLat, latitude),
-      }), { minLng: coordinates[0][0], minLat: coordinates[0][1], maxLng: coordinates[0][0], maxLat: coordinates[0][1] });
-      const map = mapRef.current!;
-      map.fitBounds([[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]], { bearing: map.getBearing(), padding: 60, maxZoom: SELECTED_ZOOM, duration: 250 });
-    }
+
   }, [mapRef, ready, features]);
 
   useEffect(() => {
@@ -105,10 +96,20 @@ export function DriversMap({ drivers, selectedId, onSelect }: { drivers: DriverM
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, selectedId]);
 
+  function resetOverview() {
+    const map = mapRef.current;
+    if (!map) return;
+    onSelect(null);
+    fitUzbekistanOverview(map, undefined, 250, ADMIN_OVERVIEW);
+  }
+
   return <div className={styles.wrap}>
     <div ref={containerRef} className={styles.map} />
     {!ready && !failed && <div className={styles.spinner} aria-label="Xarita yuklanmoqda" />}
     {failed && <div className={styles.error}>Xarita yuklanmadi</div>}
+    <button type="button" className={styles.overviewButton} disabled={!ready} onClick={resetOverview} aria-label="O‘zbekiston xaritasiga qaytish">
+      O‘zbekiston
+    </button>
     <div className={styles.legend} aria-label="Haydovchi holatlari">
       {(['in_transit', 'empty', 'waiting', 'busy', 'stale'] as DriverVisualStatus[]).map((status) => <span className={styles.legendItem} key={status}>
         <i className={styles.legendDot} style={{ background: DRIVER_STATUS_COLORS[status] }} /> {DRIVER_STATUS_LABELS[status]}

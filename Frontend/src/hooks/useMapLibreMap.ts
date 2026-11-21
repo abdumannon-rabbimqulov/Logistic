@@ -7,13 +7,24 @@ const OVERVIEW_BEARING = -90;
 const MAP_BOUNDS: [[number, number], [number, number]] = [[30, 10], [100, 68]];
 export const MAP_STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty';
 
-export function fitUzbekistanOverview(map: MapLibreMapInstance, bounds: LngLatBoundsLike = UZ_BOUNDS, duration = 0) {
-  const camera = map.cameraForBounds(bounds, { bearing: OVERVIEW_BEARING, padding: 32, maxZoom: 4 });
+interface OverviewOptions {
+  bearing?: number;
+  maxZoom?: number;
+}
+
+export function fitUzbekistanOverview(
+  map: MapLibreMapInstance,
+  bounds: LngLatBoundsLike = UZ_BOUNDS,
+  duration = 0,
+  { bearing = OVERVIEW_BEARING, maxZoom = 4 }: OverviewOptions = {},
+) {
+  const camera = map.cameraForBounds(bounds, { bearing, padding: 32, maxZoom });
   if (camera) map.easeTo({ ...camera, duration });
 }
 
 interface Options extends Partial<MapOptions> {
   styleUrl?: string;
+  overview?: OverviewOptions;
 }
 
 export function useMapLibreMap(containerRef: RefObject<HTMLDivElement | null>, options: Options = {}) {
@@ -27,7 +38,7 @@ export function useMapLibreMap(containerRef: RefObject<HTMLDivElement | null>, o
     let cancelled = false;
     let loaded = false;
     let map: MapLibreMapInstance | null = null;
-    const { styleUrl, ...mapOptions } = options;
+    const { styleUrl, overview, ...mapOptions } = options;
     void Promise.all([import('../maps/mapLibreRuntime'), import('maplibre-gl/dist/maplibre-gl.css')]).then(([module]) => {
       if (cancelled || !containerRef.current) return;
       try {
@@ -37,7 +48,7 @@ export function useMapLibreMap(containerRef: RefObject<HTMLDivElement | null>, o
           container: containerRef.current,
           style: styleUrl ?? MAP_STYLE_URL,
           center: UZ_CENTER,
-          bearing: OVERVIEW_BEARING,
+          bearing: overview?.bearing ?? OVERVIEW_BEARING,
           zoom: 3,
           minZoom: 2,
           maxZoom: 18,
@@ -50,7 +61,7 @@ export function useMapLibreMap(containerRef: RefObject<HTMLDivElement | null>, o
           ...mapOptions,
         });
         mapRef.current = map;
-        if (!options.center && !options.bounds) fitUzbekistanOverview(map);
+        if (!options.center && !options.bounds) fitUzbekistanOverview(map, UZ_BOUNDS, 0, overview);
         map.once('style.load', () => {
           loaded = true;
           if (!cancelled) {
