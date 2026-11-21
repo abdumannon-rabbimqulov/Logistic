@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { matchPath, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AdminApp } from './admin/AdminApp';
 import styles from './App.module.css';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
@@ -41,6 +41,13 @@ function SenderApp() {
 
 function AuthGate() {
   const { status, errorMessage, retry } = useAuth();
+  const { pathname } = useLocation();
+  const onLoginPage = Boolean(matchPath('/login', pathname));
+
+  if (onLoginPage && status !== 'loading' && status !== 'local-login' && status !== 'error') {
+    const destination = status === 'admin' ? '/admin' : status === 'manager' ? '/manager' : '/';
+    return <Navigate to={destination} replace />;
+  }
 
   switch (status) {
     case 'loading':
@@ -62,7 +69,7 @@ function AuthGate() {
       );
 
     case 'local-login':
-      return <LocalLoginPage />;
+      return <LocalLoginPage showHomeLink={onLoginPage} />;
 
     case 'guest':
       return <RegisterPage />;

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { requestPasswordResetCode, setNewPassword, verifyPasswordResetCode } from '../api/auth';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
@@ -12,7 +13,10 @@ type Step = 'login' | 'request-code' | 'verify-code' | 'set-password' | 'done';
 // akkauntlar Telegram orqali yaratilgani uchun parol hali yo'q — shuning uchun
 // "Parol o'rnatish" (mavjud reset-phone/verify-reset-code/reset-password endpointlari,
 // kod Telegramga yuboriladi) ham shu yerga qo'shilgan.
-export function LocalLoginPage() {
+export function LocalLoginPage({ showHomeLink }: { showHomeLink: boolean }) {
+  useEffect(() => {
+    document.title = 'Kirish · YUK';
+  }, []);
   const { loginWithPhone } = useAuth();
   const [step, setStep] = useState<Step>('login');
 
@@ -28,6 +32,11 @@ export function LocalLoginPage() {
   const [info, setInfo] = useState<string | null>(null);
 
   async function handleLogin() {
+    if (submitting) return;
+    if (!phone.trim() || !password) {
+      setError('Telefon raqami va parolni kiriting');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -96,7 +105,7 @@ export function LocalLoginPage() {
   }
 
   return (
-    <div className={styles.page}>
+    <main className={styles.page}>
       <div className={styles.title}>YUK</div>
       <div className={styles.subtitle}>
         {step === 'login' && "Telegram tashqarisida ochdingiz — telefon raqami va parol bilan kiring."}
@@ -106,24 +115,24 @@ export function LocalLoginPage() {
       </div>
 
       {step === 'login' && (
-        <>
+        <form noValidate onSubmit={(event) => { event.preventDefault(); void handleLogin(); }}>
           <div className={styles.field}>
-            <label className={styles.label}>Telefon raqami</label>
-            <input className={styles.input} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={PHONE_PLACEHOLDER} inputMode="tel" />
+            <label className={styles.label} htmlFor="login-phone">Telefon raqami</label>
+            <input id="login-phone" name="username" type="tel" autoComplete="username" className={styles.input} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={PHONE_PLACEHOLDER} />
           </div>
           <div className={styles.field}>
-            <label className={styles.label}>Parol</label>
-            <input className={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <label className={styles.label} htmlFor="login-password">Parol</label>
+            <input id="login-password" name="password" autoComplete="current-password" className={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
-          {error && <div className={styles.error}>{error}</div>}
+          {error && <div className={styles.error} role="alert">{error}</div>}
           {info && <div className={styles.success}>{info}</div>}
-          <button className={styles.submitBtn} disabled={submitting} onClick={handleLogin}>
+          <button type="submit" className={styles.submitBtn} disabled={submitting}>
             {submitting ? 'Kirilmoqda...' : 'Kirish'}
           </button>
-          <button className={styles.linkBtn} onClick={() => { setStep('request-code'); setError(null); setInfo(null); }}>
+          <button type="button" className={styles.linkBtn} onClick={() => { setStep('request-code'); setError(null); setInfo(null); }}>
             Parolni unutdingizmi yoki birinchi marta kirasizmi?
           </button>
-        </>
+        </form>
       )}
 
       {step === 'request-code' && (
@@ -177,6 +186,7 @@ export function LocalLoginPage() {
         Bu ilova asosan Telegram Mini App sifatida mo'ljallangan — to'liq tajriba uchun botdagi
         "Yuk ilovasi" tugmasidan foydalaning.
       </div>
-    </div>
+      {showHomeLink && <Link className={styles.homeLink} to="/">Bosh sahifaga qaytish</Link>}
+    </main>
   );
 }

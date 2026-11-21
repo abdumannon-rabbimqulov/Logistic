@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import styles from './PublicLandingPage.module.css';
 
 const DEFAULT_TELEGRAM_BOT_URL = 'https://t.me/Logistika_AIbot';
@@ -72,7 +73,10 @@ export function PublicLandingPage() {
           <a href="#how-it-works">Qanday ishlaydi</a>
           <a href="#features">Imkoniyatlar</a>
         </nav>
-        <TelegramAction secondary />
+        <div className={styles.headerActions}>
+          <Link className={styles.secondaryAction} to="/login">Kirish</Link>
+          <TelegramAction secondary />
+        </div>
       </header>
 
       <section className={styles.hero} id="top">

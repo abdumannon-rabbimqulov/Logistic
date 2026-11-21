@@ -82,6 +82,17 @@
   text-decoration: underline;
 }
 
+.homeLink {
+  display: inline-block;
+  padding-block: 12px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-decoration: underline;
+}
+
+.homeLink:hover { color: var(--color-accent-pressed); }
+.homeLink:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+
 .hint {
   font-size: 12px;
   color: var(--color-text-tertiary);

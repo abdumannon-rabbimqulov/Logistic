@@ -31,7 +31,7 @@
 .nav { display: flex; align-items: center; gap: 34px; color: #68717c; font-size: 13px; font-weight: 600; }
 .nav a { transition: color .18s ease; }
 .nav a:hover, .footer a:last-child:hover { color: var(--accent); }
-.header > :last-child { margin-left: auto; }
+.headerActions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
 .primaryAction, .secondaryAction {
   min-height: 50px;
@@ -50,6 +50,7 @@
 .primaryAction { background: var(--accent); color: white !important; box-shadow: 0 7px 17px rgba(199,71,13,.18); }
 .primaryAction:hover { background: #a83a08; box-shadow: 0 9px 21px rgba(199,71,13,.24); transform: translateY(-1px); }
 .secondaryAction { min-height: 42px; padding-inline: 18px; color: var(--ink); background: transparent; border: 1px solid #d9dadd; }
+.secondaryAction:active { transform: translateY(1px); }
 .secondaryAction:hover { border-color: #aeb2b8; background: white; }
 .primaryAction svg, .secondaryAction svg { width: 17px; height: 17px; }
 .primaryAction > span:last-child, .secondaryAction > span:last-child { font-size: 17px; line-height: 1; }
@@ -161,7 +162,7 @@
   .nav { display: none; }
   .header .secondaryAction { min-height: 38px; padding-inline: 13px; font-size: 11px; }
   .header .secondaryAction svg { display: none; }
-  .header .secondaryAction > span:last-child { display: none; }
+  .headerActions .secondaryAction > span:last-child { display: none; }
   .hero { min-height: unset; padding: 55px 21px 47px; display: flex; flex-direction: column; align-items: stretch; gap: 34px; }
   .heroCopy { max-width: none; padding: 0; }
   .eyebrow { margin-bottom: 20px; font-size: 9px; }

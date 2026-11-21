@@ -37,6 +37,8 @@ type RegionFeature = Feature & { properties: { name: string; color?: string } };
 
 // MapLibre view cheklovi: O'zbekiston to'rtburchagi davlat poligoni emas.
 const MAP_BEARING = -90;
+const OVERVIEW_PADDING = 32;
+const REGIONAL_MAP_BOUNDS: [[number, number], [number, number]] = [[30, 10], [100, 68]];
 
 function readStoredFilter(): LiveMapFilter {
   try {
@@ -87,7 +89,8 @@ export function LiveMapPage({ role }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, moduleRef, ready: mapReady, failed: mapFailed } = useMapLibreMap(containerRef, {
-    center: UZ_CENTER, zoom: 4, minZoom: 4, maxBounds: UZ_BOUNDS,
+    center: UZ_CENTER, bearing: MAP_BEARING, zoom: 3, minZoom: 2,
+    maxBounds: REGIONAL_MAP_BOUNDS,
   });
   const fittedRef = useRef(false);
   const overviewBoundsRef = useRef<[[number, number], [number, number]]>(UZ_BOUNDS);
@@ -234,11 +237,12 @@ export function LiveMapPage({ role }: Props) {
     (mapRef.current?.getSource('selected-route') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: coords.length ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } }] : [] });
   }, [mapReady, mapRef, markerFeatures, visibleItems, selectedId]);
 
-  const fitUzbekistan = useCallback((duration = 250, padding: number | [number, number, number, number] = 24) => {
+  const fitUzbekistan = useCallback((duration = 250) => {
     const map = mapRef.current;
     if (!map) return;
-    const pad = typeof padding === 'number' ? { top: padding, right: padding, bottom: padding, left: padding } : { top: padding[0], right: padding[1], bottom: padding[2], left: padding[3] };
-    const camera = map.cameraForBounds(overviewBoundsRef.current, { bearing: MAP_BEARING, padding: pad, maxZoom: 6 });
+    const camera = map.cameraForBounds(overviewBoundsRef.current, {
+      bearing: MAP_BEARING, padding: OVERVIEW_PADDING, maxZoom: 4,
+    });
     if (camera) map.easeTo({ ...camera, duration });
   }, [mapRef]);
 
@@ -260,7 +264,7 @@ export function LiveMapPage({ role }: Props) {
     }
     overviewBoundsRef.current = [[minLon, minLat], [maxLon, maxLat]];
     fittedRef.current = true;
-    fitUzbekistan(0, [24, 24, 24, 24]);
+    fitUzbekistan(0);
   }, [mapReady, mapRef, regionShapes, fitUzbekistan]);
 
   // Tanlangan yuk to'liq ko'rinsin: A, mashina, B
@@ -283,7 +287,7 @@ export function LiveMapPage({ role }: Props) {
     const map = mapRef.current;
     if (!map) return;
     map.resize();
-    fitUzbekistan(250, [12, 12, 12, 12]);
+    fitUzbekistan();
   }
 
   useEffect(() => {
