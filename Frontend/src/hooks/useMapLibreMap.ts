@@ -40,7 +40,13 @@ export function useMapLibreMap(containerRef: RefObject<HTMLDivElement | null>, o
           ...mapOptions,
         });
         mapRef.current = map;
-        map.once('load', () => { loaded = true; if (!cancelled) setReady(true); });
+        map.once('style.load', () => {
+          loaded = true;
+          if (!cancelled) {
+            setFailed(false);
+            setReady(true);
+          }
+        });
         map.on('error', (event) => {
           if (event.error && !loaded) setFailed(true);
         });
