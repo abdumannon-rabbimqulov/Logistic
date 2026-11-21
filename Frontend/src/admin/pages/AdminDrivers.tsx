@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useVisiblePolling } from '../../hooks/useVisiblePolling';
+import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { driverLocationsWsUrl, listDriverMonitor } from '../../api/admin';
 import type { DriverLocationItem, DriverMonitorItem } from '../../types/api';
@@ -25,31 +26,29 @@ export function AdminDrivers() {
   const [wsStatus, setWsStatus] = useState<WsStatus>('connecting');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const pollRef = useRef<number | null>(null);
-
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal: AbortSignal) => {
     try {
-      // Koordinatasi yo'q haydovchilar xaritada ko'rsatilmaydi (only_with_location=true).
-      const items = await listDriverMonitor(true);
-      setDrivers(items);
+      const items = await listDriverMonitor(true, signal);
+      if (signal.aborted) return;
+      setDrivers((previous) => {
+        const current = new Map(previous.map((item) => [item.driver_id, item]));
+        return items.map((item) => {
+          const latest = current.get(item.driver_id);
+          if (!latest?.location_at || (item.location_at && Date.parse(item.location_at) >= Date.parse(latest.location_at))) return item;
+          return {
+            ...item, latitude: latest.latitude, longitude: latest.longitude,
+            location_at: latest.location_at, location_source: latest.location_source, online: latest.online,
+          };
+        });
+      });
       setError(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Haydovchilar yuklanmadi');
+      if (!signal.aborted) setError(err instanceof ApiError ? err.message : 'Haydovchilar yuklanmadi');
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, []);
-
-  // 1) Polling — status va yuk holati uchun (WS faqat koordinata beradi).
-  useEffect(() => {
-    if (tab !== 'map') return;
-    void load();
-    pollRef.current = window.setInterval(() => void load(), POLL_MS);
-    return () => {
-      if (pollRef.current != null) window.clearInterval(pollRef.current);
-      pollRef.current = null;
-    };
-  }, [tab, load]);
+  useVisiblePolling(load, POLL_MS, tab === 'map');
 
   // 2) WebSocket — markerlar pollingni kutmasdan siljiydi.
   useEffect(() => {

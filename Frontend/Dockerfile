@@ -15,14 +15,10 @@ ARG VITE_API_BASE_URL=http://localhost:8000/api
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ARG VITE_TELEGRAM_BOT_URL=
 ENV VITE_TELEGRAM_BOT_URL=$VITE_TELEGRAM_BOT_URL
-# Yandex Maps kaliti — ixtiyoriy (CI'da GitHub secret'dan). `.env` image'ga kirmaydi
-# (Frontend/.dockerignore), shuning uchun kalit faqat shu yo'l bilan beriladi.
-ARG VITE_YANDEX_MAPS_API_KEY=
-ENV VITE_YANDEX_MAPS_API_KEY=$VITE_YANDEX_MAPS_API_KEY
 ARG VITE_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty
 ENV VITE_MAP_STYLE_URL=$VITE_MAP_STYLE_URL
 
-RUN npm run build
+RUN npm run build && find dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.geojson' \) -exec gzip -9 -k {} +
 
 # ── Serve bosqichi ──────────────────────────────────────────────────────────
 FROM nginx:1.27-alpine

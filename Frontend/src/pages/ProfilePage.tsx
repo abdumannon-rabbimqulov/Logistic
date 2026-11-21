@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getMe, updateMe } from '../api/auth';
 import { ApiError } from '../api/client';
 import { listMyOrders } from '../api/orders';
-import { useAuth } from '../auth/AuthProvider';
+import { LogoutButton } from '../components/LogoutButton';
 import { AccountSettingsSection } from '../components/AccountSettingsSection';
 import { BottomNav } from '../components/BottomNav';
 import { ChevronRightIcon, MessagesNavIcon, PhoneIcon, UserLineIcon, WalletIcon } from '../components/icons';
@@ -13,7 +13,6 @@ import { PHONE_PLACEHOLDER } from '../utils/phone';
 import styles from './ProfilePage.module.css';
 
 export function ProfilePage() {
-  const { logout } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [orders, setOrders] = useState<OrderListItem[] | null>(null);
@@ -23,7 +22,6 @@ export function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     getMe()
@@ -66,15 +64,6 @@ export function ProfilePage() {
       setError(err instanceof ApiError ? err.message : 'Saqlanmadi');
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleLogout() {
-    setLoggingOut(true);
-    try {
-      await logout();
-    } finally {
-      setLoggingOut(false);
     }
   }
 
@@ -179,9 +168,7 @@ export function ProfilePage() {
 
         <AccountSettingsSection />
 
-        <button className={styles.logoutBtn} onClick={handleLogout} disabled={loggingOut}>
-          {loggingOut ? 'Chiqilmoqda...' : 'Chiqish'}
-        </button>
+        <LogoutButton />
       </div>
 
       <BottomNav />

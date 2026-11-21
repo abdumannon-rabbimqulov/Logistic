@@ -1,3 +1,4 @@
+import { LogoutButton } from '../components/LogoutButton';
 import { useState } from 'react';
 import { selectRole, updateMe } from '../api/auth';
 import { ApiError } from '../api/client';
@@ -117,6 +118,7 @@ export function RegisterPage() {
       <button className={styles.submitBtn} disabled={submitting} onClick={handleSubmit}>
         {submitting ? 'Yuborilmoqda...' : 'Davom etish'}
       </button>
+      <LogoutButton />
     </div>
   );
 }

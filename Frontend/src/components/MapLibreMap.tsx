@@ -30,7 +30,7 @@ function markerElement(color: string, glyph?: string) {
 
 export const MapLibreMap = forwardRef<MapLibreMapHandle, Props>(function MapLibreMap(props, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { mapRef, moduleRef, ready, failed } = useMapLibreMap(containerRef, { center: [64.585262, 41.377491], zoom: 6, minZoom: 4 });
+  const { mapRef, moduleRef, ready, failed } = useMapLibreMap(containerRef);
   const markersRef = useRef<Map<string, { marker: import('maplibre-gl').Marker; lat: number; lon: number; appearance: string }>>(new Map());
   const centeredOnUserRef = useRef(false);
   const mapInstanceRef = useRef<import('maplibre-gl').Map | null>(null);
@@ -103,7 +103,7 @@ export const MapLibreMap = forwardRef<MapLibreMapHandle, Props>(function MapLibr
     const cameraSignature = JSON.stringify({ route: props.route, origin: props.origin, destination: props.destination });
     if (cameraSignature !== cameraSignatureRef.current && coords.length > 1) {
       const bounds = coords.reduce((b, [lat, lon]) => b.extend([lon, lat]), new LngLatBounds([coords[0][1], coords[0][0]], [coords[0][1], coords[0][0]]));
-      map.fitBounds(bounds, { padding: 48, maxZoom: 14, duration: 250 });
+      map.fitBounds(bounds, { bearing: map.getBearing(), padding: 48, maxZoom: 14, duration: 250 });
       cameraSignatureRef.current = cameraSignature;
     } else if (cameraSignature !== cameraSignatureRef.current && coords.length === 1 && !props.followUser) {
       map.easeTo({ center: [coords[0][1], coords[0][0]], zoom: 15, duration: 250 });

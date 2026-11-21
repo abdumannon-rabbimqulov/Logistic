@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { clearTokens } from '../api/client';
+import { LogoutButton } from '../components/LogoutButton';
 import {
   DashboardIcon,
   DriversIcon,
@@ -26,11 +26,6 @@ const NAV = [
   { to: '/admin/profile', label: 'Profil', Icon: ProfileIconAdmin, end: false },
 ];
 
-function handleLogout() {
-  clearTokens();
-  window.location.reload();
-}
-
 export function AdminLayout() {
   return (
     <div className={styles.shell}>
@@ -54,10 +49,7 @@ export function AdminLayout() {
           ))}
         </nav>
 
-        <button className={styles.logout} onClick={handleLogout}>
-          <LogoutIcon />
-          <span>Chiqish</span>
-        </button>
+        <LogoutButton className={styles.logout} icon={<LogoutIcon />} />
       </aside>
 
       <main className={styles.content}>

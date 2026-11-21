@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, getRefreshToken } from './client';
 import type { LoginResponse, UserProfile, UserRole } from '../types/api';
 
 export function loginWithInitData(initData: string): Promise<LoginResponse> {
@@ -82,6 +82,17 @@ export function deleteAccount(): Promise<{ detail: string }> {
   return api.delete<{ detail: string }>('/auth/me');
 }
 
-export function logout(): Promise<void> {
-  return api.post<void>('/auth/logout');
+export async function logout(): Promise<void> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return;
+
+  try {
+    await api.post('/auth/logout', { refresh_token: refreshToken });
+  } finally {
+    // The access token may have expired and the API client may have rotated the refresh token.
+    const rotatedToken = getRefreshToken();
+    if (rotatedToken && rotatedToken !== refreshToken) {
+      await api.post('/auth/logout', { refresh_token: rotatedToken });
+    }
+  }
 }

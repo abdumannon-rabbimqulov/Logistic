@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { clearTokens } from '../api/client';
+import { LogoutButton } from '../components/LogoutButton';
 import { LogoutIcon, OrdersIcon, ProfileIconAdmin, TicketsIcon } from '../admin/icons';
 // Qobiq uslublari admin panel bilan aynan bir xil — nusxa ko'chirmasdan qayta ishlatamiz.
 import styles from '../admin/AdminLayout.module.css';
@@ -9,11 +9,6 @@ const NAV = [
   { to: '/manager/tickets', label: 'Yordam chatlari', Icon: TicketsIcon, end: false },
   { to: '/manager/profile', label: 'Profil', Icon: ProfileIconAdmin, end: false },
 ];
-
-function handleLogout() {
-  clearTokens();
-  window.location.reload();
-}
 
 export function ManagerLayout() {
   return (
@@ -38,10 +33,7 @@ export function ManagerLayout() {
           ))}
         </nav>
 
-        <button className={styles.logout} onClick={handleLogout}>
-          <LogoutIcon />
-          <span>Chiqish</span>
-        </button>
+        <LogoutButton className={styles.logout} icon={<LogoutIcon />} />
       </aside>
 
       <main className={styles.content}>

@@ -6,7 +6,7 @@
   background: var(--color-gray-50);
 }
 
-/* ===== Xarita qatlami — YandexMap komponenti shu ichida to'liq bo'yalib chiqadi ===== */
+/* ===== Xarita qatlami — MapLibreMap komponenti shu ichida to'liq bo'yalib chiqadi ===== */
 .mapLayer {
   position: absolute;
   inset: 0;

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getMe, loginWithInitData, loginWithPassword, logout as logoutRequest } from '../api/auth';
 import {
   clearTokens,
@@ -23,6 +23,7 @@ import type { UserRole } from '../types/api';
 type AuthStatus =
   | 'loading'
   | 'local-login'
+  | 'signed-out'
   | 'guest'
   | 'sender'
   | 'driver'
@@ -42,6 +43,8 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
+const SIGNED_OUT_KEY = 'yuk_telegram_signed_out';
+
 const AuthContext = createContext<AuthState | null>(null);
 
 function statusForRole(role: UserRole): AuthStatus {
@@ -59,9 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userId, setUserId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const signingOut = useRef(false);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      if (signingOut.current) return;
       // Refresh ham ishlamadi — tozalab, qayta kirishga urinamiz (init_data yoki local-login).
       setStatus('loading');
       setAttempt((n) => n + 1);
@@ -77,6 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const initData = getInitData();
         const telegramUserId = getTelegramUser()?.id ?? null;
+        if (initData && !getAccessToken() && sessionStorage.getItem(SIGNED_OUT_KEY) === String(telegramUserId)) {
+          setStatus('signed-out');
+          return;
+        }
         // Telegram ichida ochilgan, lekin saqlangan tokenlar boshqa Telegram akkauntiga
         // (yoki telefon+parol sessiyasiga) tegishli — ularni tashlab, joriy akkaunt bilan
         // qayta kiramiz. Aks holda bitta telefonda akkaunt almashtirilganda eski
@@ -124,7 +133,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [attempt]);
 
-  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const retry = useCallback(() => {
+    sessionStorage.removeItem(SIGNED_OUT_KEY);
+    setAttempt((n) => n + 1);
+  }, []);
 
   // Register/rol tanlashdan keyin qayta so'ramasdan holatni yangilash uchun.
   const refreshRole = useCallback(async () => {
@@ -145,20 +157,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus(statusForRole(login.role));
   }, []);
 
-  // Profildan "Chiqish" tugmasi chaqiradi — backendga logout so'rovi (refresh token bekor
-  // qilinadi) yuboriladi, natijasidan qat'iy nazar tokenlar tozalanadi va qayta autentifikatsiya
-  // effekti ishga tushadi (init_data yoki local-login oqimiga tushadi).
   const logout = useCallback(async () => {
+    if (signingOut.current) return;
+    signingOut.current = true;
     try {
       await logoutRequest();
     } catch {
-      // token allaqachon yaroqsiz bo'lishi mumkin — baribir lokal holatni tozalaymiz
+      // An expired token or a network failure must still end the local session.
+    } finally {
+      clearTokens();
+      if (getInitData()) {
+        sessionStorage.setItem(SIGNED_OUT_KEY, String(getTelegramUser()?.id ?? null));
+      }
+      setRole(null);
+      setUserId(null);
+      setStatus('signed-out');
+      signingOut.current = false;
     }
-    clearTokens();
-    setRole(null);
-    setUserId(null);
-    setStatus('loading');
-    setAttempt((n) => n + 1);
   }, []);
 
   const value = useMemo<AuthState>(

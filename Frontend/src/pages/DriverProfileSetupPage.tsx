@@ -1,3 +1,4 @@
+import { LogoutButton } from '../components/LogoutButton';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../api/client';
 import { createDriverProfile } from '../api/drivers';
@@ -94,6 +95,7 @@ export function DriverProfileSetupPage({ onCreated }: Props) {
       <button className={styles.submitBtn} disabled={submitting} onClick={handleSubmit}>
         {submitting ? 'Yuborilmoqda...' : 'Profilni yaratish'}
       </button>
+      <LogoutButton />
     </div>
   );
 }

@@ -10,7 +10,7 @@ const SELECTED_ZOOM = 13;
 
 export function DriversMap({ drivers, selectedId, onSelect }: { drivers: DriverMonitorItem[]; selectedId: number | null; onSelect: (id: number | null) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { mapRef, ready, failed } = useMapLibreMap(containerRef, { minZoom: 4 });
+  const { mapRef, ready, failed } = useMapLibreMap(containerRef);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
   const fittedRef = useRef(false);
@@ -92,7 +92,8 @@ export function DriversMap({ drivers, selectedId, onSelect }: { drivers: DriverM
         minLng: Math.min(result.minLng, longitude), minLat: Math.min(result.minLat, latitude),
         maxLng: Math.max(result.maxLng, longitude), maxLat: Math.max(result.maxLat, latitude),
       }), { minLng: coordinates[0][0], minLat: coordinates[0][1], maxLng: coordinates[0][0], maxLat: coordinates[0][1] });
-      mapRef.current!.fitBounds([[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]], { padding: 60, maxZoom: SELECTED_ZOOM, duration: 250 });
+      const map = mapRef.current!;
+      map.fitBounds([[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]], { bearing: map.getBearing(), padding: 60, maxZoom: SELECTED_ZOOM, duration: 250 });
     }
   }, [mapRef, ready, features]);
 

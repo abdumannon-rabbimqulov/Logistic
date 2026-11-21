@@ -1,14 +1,12 @@
+import { lazy, Suspense } from 'react';
 import { matchPath, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { AdminApp } from './admin/AdminApp';
 import styles from './App.module.css';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { getAccessToken } from './api/client';
 import { useChatDeepLink } from './components/chat/useChatDeepLink';
-import { DriverGate } from './pages/DriverGate';
 import { HomePage } from './pages/HomePage';
 import { LiveMapPage } from './pages/LiveMapPage';
 import { LocalLoginPage } from './pages/LocalLoginPage';
-import { ManagerApp } from './manager/ManagerApp';
 import { OrderChatPage } from './pages/OrderChatPage';
 import { OrderPage } from './pages/OrderPage';
 import { SupportChatPage } from './pages/SupportChatPage';
@@ -18,6 +16,15 @@ import { ProfilePage } from './pages/ProfilePage';
 import { RegisterPage } from './pages/RegisterPage';
 import { PublicLandingPage } from './pages/PublicLandingPage';
 import { getInitData } from './telegram';
+import { LogoutButton } from './components/LogoutButton';
+
+const AdminApp = lazy(() => import('./admin/AdminApp').then(({ AdminApp }) => ({ default: AdminApp })));
+const ManagerApp = lazy(() => import('./manager/ManagerApp').then(({ ManagerApp }) => ({ default: ManagerApp })));
+const DriverGate = lazy(() => import('./pages/DriverGate').then(({ DriverGate }) => ({ default: DriverGate })));
+
+function LoadingScreen() {
+  return <div className={styles.centerScreen}><div className={styles.spinner} role="status" aria-label="Yuklanmoqda" /></div>;
+}
 
 function SenderApp() {
   // Telegram'dagi "Chatni ochish" (`startapp=chat_<id>`) — chat sahifasiga o'tish.
@@ -44,16 +51,21 @@ function AuthGate() {
   const { pathname } = useLocation();
   const onLoginPage = Boolean(matchPath('/login', pathname));
 
-  if (onLoginPage && status !== 'loading' && status !== 'local-login' && status !== 'error') {
+  if (onLoginPage && status !== 'loading' && status !== 'local-login' && status !== 'signed-out' && status !== 'error') {
     const destination = status === 'admin' ? '/admin' : status === 'manager' ? '/manager' : '/';
     return <Navigate to={destination} replace />;
   }
 
   switch (status) {
     case 'loading':
+      return <LoadingScreen />;
+
+    case 'signed-out':
+      if (!getInitData()) return onLoginPage ? <LocalLoginPage showHomeLink /> : <Navigate to="/login" replace />;
       return (
         <div className={styles.centerScreen}>
-          <div className={styles.spinner} />
+          <div className={styles.message} role="status">Hisobdan chiqdingiz.</div>
+          <button type="button" className={styles.retryBtn} onClick={retry}>Telegram orqali kirish</button>
         </div>
       );
 
@@ -91,6 +103,7 @@ function AuthGate() {
         <div className={styles.centerScreen}>
           <div className={styles.wordmark}>YUK</div>
           <div className={styles.message}>Bu ilova sender/haydovchi uchun. Sizning rolingiz uchun mo'ljallanmagan.</div>
+          <LogoutButton />
         </div>
       );
   }
@@ -106,7 +119,9 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <AuthGate />
+      <Suspense fallback={<LoadingScreen />}>
+        <AuthGate />
+      </Suspense>
     </AuthProvider>
   );
 }

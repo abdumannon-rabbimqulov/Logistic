@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 Mode = Literal["in_transit", "empty", "all"]
 
 CACHE_TTL_SEC = 5
+STATS_CACHE_TTL_SEC = 30
 STATS_PERIOD_DAYS = 30
 # Jonli translyatsiya bo'lmasa, yo'ldagi mashina uchun DB'dagi oxirgi nuqta shuncha
 # eskirmagan bo'lsa ko'rsatiladi (aks holda marker noto'g'ri joyda "qotib" turadi).
@@ -304,6 +305,23 @@ def _cache_key(mode: str, from_region, to_region, truck_type_id) -> str:
     return f"live_map:v1:{mode}:{from_region or '-'}:{to_region or '-'}:{truck_type_id or '-'}"
 
 
+async def _cached_stats(db: AsyncSession, *, from_region, to_region, truck_type_id) -> LiveMapStats:
+    key = _cache_key("stats", from_region, to_region, truck_type_id)
+    try:
+        cached = await live_location.get_redis().get(key)
+        if cached:
+            return LiveMapStats.model_validate_json(cached)
+    except Exception:
+        logger.debug("live-map statistics cache read failed", exc_info=True)
+
+    stats = await _stats(db, from_region=from_region, to_region=to_region, truck_type_id=truck_type_id)
+    try:
+        await live_location.get_redis().set(key, stats.model_dump_json(), ex=STATS_CACHE_TTL_SEC)
+    except Exception:
+        logger.debug("live-map statistics cache write failed", exc_info=True)
+    return stats
+
+
 async def build_live_map(
     db: AsyncSession,
     *,
@@ -329,7 +347,7 @@ async def build_live_map(
     if mode in ("empty", "all"):
         items += await _empty_items(db, live, from_region=from_region, truck_type_id=truck_type_id)
 
-    stats = await _stats(db, from_region=from_region, to_region=to_region, truck_type_id=truck_type_id)
+    stats = await _cached_stats(db, from_region=from_region, to_region=to_region, truck_type_id=truck_type_id)
     response = LiveMapResponse(items=items, stats=stats, generated_at=datetime.now(timezone.utc))
 
     try:

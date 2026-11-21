@@ -214,6 +214,7 @@ async function tryRefresh(): Promise<boolean> {
       });
       if (!res.ok) return false;
       const body = (await res.json()) as { access_token: string; refresh_token: string };
+      if (getRefreshToken() !== refreshToken) return false;
       setTokens(body.access_token, body.refresh_token);
       return true;
     } catch {
@@ -238,6 +239,7 @@ interface RequestOptions {
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined>;
   skipAuth?: boolean;
+  signal?: AbortSignal;
   /** Boshqa xizmat bazasi (masalan support). Berilmasa asosiy `BASE_URL` ishlatiladi. */
   baseUrl?: string;
 }
@@ -263,15 +265,19 @@ async function request<T>(path: string, options: RequestOptions = {}, allowRetry
 
   const res = await fetch(buildUrl(path, options.query, options.baseUrl), {
     method: options.method ?? 'GET',
+    signal: options.signal,
     headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 
   if (res.status === 401 && allowRetry && !options.skipAuth && getRefreshToken()) {
     const refreshed = await tryRefresh();
+    if (options.signal?.aborted) throw options.signal.reason;
     if (refreshed) return request<T>(path, options, false);
-    clearTokens();
-    unauthorizedHandler?.();
+    if (getAccessToken() === token) {
+      clearTokens();
+      unauthorizedHandler?.();
+    }
   }
 
   if (!res.ok) {
@@ -289,8 +295,8 @@ async function request<T>(path: string, options: RequestOptions = {}, allowRetry
 }
 
 export const api = {
-  get: <T>(path: string, query?: RequestOptions['query'], skipAuth?: boolean) =>
-    request<T>(path, { method: 'GET', query, skipAuth }),
+  get: <T>(path: string, query?: RequestOptions['query'], skipAuth?: boolean, signal?: AbortSignal) =>
+    request<T>(path, { method: 'GET', query, skipAuth, signal }),
   post: <T>(path: string, body?: unknown, skipAuth?: boolean) =>
     request<T>(path, { method: 'POST', body, skipAuth }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),

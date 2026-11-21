@@ -149,10 +149,10 @@ export function listBalanceTransactions(
 }
 
 /** GET /system/drivers/monitor — xarita uchun: joylashuv + onlayn/yukli holat + joriy buyurtma. */
-export function listDriverMonitor(onlyWithLocation = true): Promise<DriverMonitorItem[]> {
+export function listDriverMonitor(onlyWithLocation = true, signal?: AbortSignal): Promise<DriverMonitorItem[]> {
   return api.get<DriverMonitorItem[]>('/system/drivers/monitor', {
     only_with_location: onlyWithLocation,
-  });
+  }, false, signal);
 }
 
 // ── Haydovchi jonli lokatsiyalari ────────────────────────────────────────────────

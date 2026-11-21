@@ -1,7 +1,8 @@
+import { useVisiblePolling } from '../hooks/useVisiblePolling';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Feature, FeatureCollection, Point } from 'geojson';
 import type { GeoJSONFeatureDiff, GeoJSONSource } from 'maplibre-gl';
-import { useMapLibreMap, UZ_BOUNDS, UZ_CENTER } from '../hooks/useMapLibreMap';
+import { fitUzbekistanOverview, useMapLibreMap, UZ_BOUNDS } from '../hooks/useMapLibreMap';
 import { getLiveMap } from '../api/orders';
 import { staticFileUrl } from '../api/truckTypes';
 import { BottomNav } from '../components/BottomNav';
@@ -34,11 +35,6 @@ const CARGO_COLOR = '#1D4ED8';
 const EMPTY_COLOR = '#16A34A';
 const REGION_COLORS = ['#DCEFE7', '#FCE8D9', '#E4EAFB', '#F4E7F5', '#F9F1D4', '#DCEEF4'];
 type RegionFeature = Feature & { properties: { name: string; color?: string } };
-
-// MapLibre view cheklovi: O'zbekiston to'rtburchagi davlat poligoni emas.
-const MAP_BEARING = -90;
-const OVERVIEW_PADDING = 32;
-const REGIONAL_MAP_BOUNDS: [[number, number], [number, number]] = [[30, 10], [100, 68]];
 
 function readStoredFilter(): LiveMapFilter {
   try {
@@ -88,10 +84,7 @@ export function LiveMapPage({ role }: Props) {
   const [now, setNow] = useState(Date.now());
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const { mapRef, moduleRef, ready: mapReady, failed: mapFailed } = useMapLibreMap(containerRef, {
-    center: UZ_CENTER, bearing: MAP_BEARING, zoom: 3, minZoom: 2,
-    maxBounds: REGIONAL_MAP_BOUNDS,
-  });
+  const { mapRef, moduleRef, ready: mapReady, failed: mapFailed } = useMapLibreMap(containerRef);
   const fittedRef = useRef(false);
   const overviewBoundsRef = useRef<[[number, number], [number, number]]>(UZ_BOUNDS);
 
@@ -119,42 +112,17 @@ export function LiveMapPage({ role }: Props) {
     setSelectedId(null);
   }, []);
 
-  // Ma'lumot: filter o'zgarganda darhol, keyin har 10 s (sahifa ko'rinib turganda).
-  useEffect(() => {
-    let cancelled = false;
-    let timer: number | undefined;
-
-    async function load() {
-      try {
-        const res = await getLiveMap(filter);
-        if (cancelled) return;
-        setData(res);
-        setLoadError(false);
-      } catch {
-        if (!cancelled) setLoadError(true);
-      }
+  const load = useCallback(async (signal: AbortSignal) => {
+    try {
+      const response = await getLiveMap(filter, signal);
+      if (signal.aborted) return;
+      setData(response);
+      setLoadError(false);
+    } catch {
+      if (!signal.aborted) setLoadError(true);
     }
-
-    function schedule() {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(async () => {
-        if (!document.hidden) await load();
-        if (!cancelled) schedule();
-      }, POLL_MS);
-    }
-
-    function onVisible() {
-      if (!document.hidden) load();
-    }
-
-    load().then(() => !cancelled && schedule());
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
   }, [filter]);
+  useVisiblePolling(load, POLL_MS);
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const visibleItems = useMemo(() => {
@@ -240,10 +208,7 @@ export function LiveMapPage({ role }: Props) {
   const fitUzbekistan = useCallback((duration = 250) => {
     const map = mapRef.current;
     if (!map) return;
-    const camera = map.cameraForBounds(overviewBoundsRef.current, {
-      bearing: MAP_BEARING, padding: OVERVIEW_PADDING, maxZoom: 4,
-    });
-    if (camera) map.easeTo({ ...camera, duration });
+    fitUzbekistanOverview(map, overviewBoundsRef.current, duration);
   }, [mapRef]);
 
   // Mamlakatning barcha chegaralarini telefon ekraniga aylantirilgan kamera bilan sig'dirish.
@@ -276,7 +241,7 @@ export function LiveMapPage({ role }: Props) {
     if (selected.delivery_lat != null && selected.delivery_lon != null) pts.push([selected.delivery_lon, selected.delivery_lat]);
     if (pts.length > 1) {
       const bounds = pts.slice(1).reduce((result, point) => result.extend(point), new (moduleRef.current!.LngLatBounds)(pts[0], pts[0]));
-      const camera = map.cameraForBounds(bounds, { bearing: MAP_BEARING, padding: { top: 80, right: 40, bottom: 300, left: 40 }, maxZoom: 12 });
+      const camera = map.cameraForBounds(bounds, { bearing: map.getBearing(), padding: { top: 80, right: 40, bottom: 300, left: 40 }, maxZoom: 12 });
       if (camera) map.easeTo({ ...camera, duration: 300 });
     } else map.easeTo({ center: pts[0], zoom: 11, duration: 300 });
     // Faqat tanlov o'zgarganda — pollingda xarita sakramasin

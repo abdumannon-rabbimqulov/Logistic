@@ -1,3 +1,4 @@
+import { LogoutButton } from '../components/LogoutButton';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRightIcon,
@@ -106,6 +107,7 @@ export function DriverProfilePage() {
         <div className={styles.note}>Hujjatlar va shaxsiy ma'lumotlarni tahrirlash tez orada qo'shiladi.</div>
 
         <AccountSettingsSection />
+        <LogoutButton />
       </div>
 
       <DriverBottomNav />

@@ -160,11 +160,11 @@ export function listRegions(): Promise<RegionItem[]> {
   return api.get<RegionItem[]>('/orders/regions');
 }
 
-export function getLiveMap(filter: LiveMapFilter): Promise<LiveMapResponse> {
+export function getLiveMap(filter: LiveMapFilter, signal?: AbortSignal): Promise<LiveMapResponse> {
   return api.get<LiveMapResponse>('/orders/live-map', {
     mode: filter.mode,
     from_region: filter.fromRegion ?? undefined,
     to_region: filter.toRegion ?? undefined,
     truck_type_id: filter.truckTypeId ?? undefined,
-  });
+  }, false, signal);
 }

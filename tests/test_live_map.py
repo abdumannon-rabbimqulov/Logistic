@@ -179,3 +179,56 @@ def test_empty_items_filter_by_current_region():
 
     andijon = asyncio.run(public_map._empty_items(db, live, from_region=1, truck_type_id=None))
     assert [i.current_region for i in andijon] == ["Andijon viloyati"]
+
+
+def test_live_map_stats_cache_is_shared_by_mode_and_scoped_to_filters(monkeypatch):
+    values = {}
+    queries = []
+
+    class Cache:
+        async def get(self, key):
+            return values.get(key)
+
+        async def set(self, key, value, *, ex):
+            values[key] = value
+            assert ex == (30 if ":stats:" in key else 5)
+
+    async def stats(_db, **filters):
+        queries.append(filters)
+        return public_map.LiveMapStats(period_days=30, count=len(queries))
+
+    async def points():
+        return {}
+
+    async def items(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr(public_map.live_location, "get_redis", Cache)
+    monkeypatch.setattr(public_map, "_stats", stats)
+    monkeypatch.setattr(public_map, "_live_points", points)
+    monkeypatch.setattr(public_map, "_in_transit_items", items)
+
+    async def run():
+        first = await public_map.build_live_map(None, from_region=1)
+        other_mode = await public_map.build_live_map(None, mode="empty", from_region=1)
+        other_region = await public_map.build_live_map(None, mode="empty", from_region=2)
+        assert first.stats.count == other_mode.stats.count == 1
+        assert other_region.stats.count == 2
+        assert len(queries) == 2
+
+    asyncio.run(run())
+
+
+def test_live_map_stats_fall_back_when_redis_is_unavailable(monkeypatch):
+    def unavailable():
+        raise OSError("Redis unavailable")
+
+    async def stats(_db, **_filters):
+        return public_map.LiveMapStats(period_days=30, count=7)
+
+    monkeypatch.setattr(public_map.live_location, "get_redis", unavailable)
+    monkeypatch.setattr(public_map, "_stats", stats)
+    result = asyncio.run(
+        public_map._cached_stats(None, from_region=None, to_region=None, truck_type_id=None)
+    )
+    assert result.count == 7

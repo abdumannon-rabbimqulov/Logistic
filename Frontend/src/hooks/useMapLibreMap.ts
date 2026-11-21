@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import type { Map as MapLibreMapInstance, MapOptions } from 'maplibre-gl';
+import type { LngLatBoundsLike, Map as MapLibreMapInstance, MapOptions } from 'maplibre-gl';
 
 export const UZ_CENTER: [number, number] = [64.585262, 41.377491];
 export const UZ_BOUNDS: [[number, number], [number, number]] = [[55.9, 37.1], [73.2, 45.6]];
+const OVERVIEW_BEARING = -90;
+const MAP_BOUNDS: [[number, number], [number, number]] = [[30, 10], [100, 68]];
 export const MAP_STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty';
+
+export function fitUzbekistanOverview(map: MapLibreMapInstance, bounds: LngLatBoundsLike = UZ_BOUNDS, duration = 0) {
+  const camera = map.cameraForBounds(bounds, { bearing: OVERVIEW_BEARING, padding: 32, maxZoom: 4 });
+  if (camera) map.easeTo({ ...camera, duration });
+}
 
 interface Options extends Partial<MapOptions> {
   styleUrl?: string;
@@ -29,17 +36,21 @@ export function useMapLibreMap(containerRef: RefObject<HTMLDivElement | null>, o
         map = new Map({
           container: containerRef.current,
           style: styleUrl ?? MAP_STYLE_URL,
-          center: options.center ?? UZ_CENTER,
-          zoom: options.zoom ?? 5,
-          minZoom: options.minZoom ?? 4,
-          maxZoom: options.maxZoom ?? 18,
-          maxBounds: options.maxBounds ?? UZ_BOUNDS,
+          center: UZ_CENTER,
+          bearing: OVERVIEW_BEARING,
+          zoom: 3,
+          minZoom: 2,
+          maxZoom: 18,
+          maxBounds: MAP_BOUNDS,
           attributionControl: { compact: true },
           pitchWithRotate: false,
-          dragRotate: false,
+          dragRotate: true,
+          touchZoomRotate: true,
+          touchPitch: false,
           ...mapOptions,
         });
         mapRef.current = map;
+        if (!options.center && !options.bounds) fitUzbekistanOverview(map);
         map.once('style.load', () => {
           loaded = true;
           if (!cancelled) {
@@ -48,7 +59,7 @@ export function useMapLibreMap(containerRef: RefObject<HTMLDivElement | null>, o
           }
         });
         map.on('error', (event) => {
-          if (event.error && !loaded) setFailed(true);
+          if (event.error && !loaded && !cancelled) setFailed(true);
         });
       } catch {
         setFailed(true);

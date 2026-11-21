@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { reverseGeocode } from '../api/orders';
 import { getTelegramWebApp } from '../telegram';
-import { UZ_BOUNDS, UZ_CENTER, useMapLibreMap } from '../hooks/useMapLibreMap';
+import { useMapLibreMap } from '../hooks/useMapLibreMap';
 import { BackIcon, LocationIcon, SearchIcon } from './icons';
 import styles from './MapPointPicker.module.css';
 
@@ -63,12 +63,9 @@ export function MapPointPicker({ title, initial, myLocation, tone = 'origin', on
 
   // 1) Xarita: bir marta yaratiladi; MapLibre kutubxonasi shu yerda lazy-load bo'ladi.
   const start = initial ?? myLocation;
-  const { mapRef: liveMapRef, ready: mapReady, failed: mapFailed } = useMapLibreMap(containerRef, {
-    center: start ? [start.longitude, start.latitude] : UZ_CENTER,
-    zoom: start ? POINT_ZOOM : 5,
-    minZoom: 4,
-    maxBounds: UZ_BOUNDS,
-  });
+  const { mapRef: liveMapRef, ready: mapReady, failed: mapFailed } = useMapLibreMap(containerRef, start
+    ? { center: [start.longitude, start.latitude], zoom: POINT_ZOOM }
+    : undefined);
   useEffect(() => {
     const map = liveMapRef.current;
     if (!mapReady || !map) return;
