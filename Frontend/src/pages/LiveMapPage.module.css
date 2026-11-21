@@ -6,7 +6,8 @@
   background: var(--color-bg-sunken);
 }
 
-.map {
+.map,
+.map:global(.maplibregl-map) {
   position: absolute;
   inset: 0 0 var(--bottom-nav-height) 0;
 }

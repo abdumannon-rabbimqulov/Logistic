@@ -9,7 +9,8 @@
   background: var(--color-gray-50);
 }
 
-.map {
+.map,
+.map:global(.maplibregl-map) {
   position: absolute;
   inset: 0;
 }
