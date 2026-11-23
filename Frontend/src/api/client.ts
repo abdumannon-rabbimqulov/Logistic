@@ -300,6 +300,7 @@ export const api = {
   post: <T>(path: string, body?: unknown, skipAuth?: boolean) =>
     request<T>(path, { method: 'POST', body, skipAuth }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
+  put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 

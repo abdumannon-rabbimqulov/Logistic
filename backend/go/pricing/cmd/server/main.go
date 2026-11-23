@@ -29,6 +29,9 @@ func main() {
 		}
 		return
 	}
+	if os.Getenv("PRICING_SERVICE_TOKEN") == "" {
+		log.Fatal("PRICING_SERVICE_TOKEN must be configured before starting pricing server")
+	}
 	var ready atomic.Bool
 	ready.Store(true)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

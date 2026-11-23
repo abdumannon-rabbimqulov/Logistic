@@ -203,6 +203,14 @@ services:
         condition: service_healthy
     restart: always
 
+  # Optional Go Pricing V2. Disabled unless COMPOSE_PROFILES=pricing-v2.
+  # Entirely private to Docker network: no host port or public nginx route.
+  pricing-go:
+    mem_limit: 96m
+    container_name: logistika_pricing_go_prod
+    ports: !reset null
+    restart: unless-stopped
+
   # Port ochilmaydi (bazaviy faylda ham yo'q) — faqat frontend nginx `/support/` orqali.
   support:
     mem_limit: 256m

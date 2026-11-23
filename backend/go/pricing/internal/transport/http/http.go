@@ -33,7 +33,7 @@ func Router(pricing application.Pricing, options Options) http.Handler {
 		live(w, r)
 	})
 	mux.HandleFunc("POST /internal/v1/pricing/calculate", func(w http.ResponseWriter, r *http.Request) {
-		if options.ServiceToken != "" && subtle.ConstantTimeCompare(
+		if options.ServiceToken == "" || subtle.ConstantTimeCompare(
 			[]byte(r.Header.Get("Authorization")), []byte("Bearer "+options.ServiceToken),
 		) != 1 {
 			writeError(w, http.StatusUnauthorized, "unauthorized", "service credential required")

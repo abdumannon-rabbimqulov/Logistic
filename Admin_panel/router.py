@@ -567,3 +567,7 @@ async def _ws_pump_updates(websocket: WebSocket) -> None:
         return
     except Exception as exc:
         logger.warning("ws pump error: %s", exc)
+
+# Admin-only versioned V2 tariff API; kept separate from legacy transport CRUD.
+from services.pricing_v2_admin import router as pricing_v2_admin_router
+router.include_router(pricing_v2_admin_router)
