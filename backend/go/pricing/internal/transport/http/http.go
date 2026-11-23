@@ -61,6 +61,13 @@ func Router(pricing application.Pricing, options Options) http.Handler {
 		}
 	})
 	mux.HandleFunc("POST /internal/v2/calculate", func(w http.ResponseWriter, r *http.Request) {
+		// V2 must never bypass the same internal service credential used by V1.
+		if options.ServiceToken == "" || subtle.ConstantTimeCompare(
+			[]byte(r.Header.Get("Authorization")), []byte("Bearer "+options.ServiceToken),
+		) != 1 {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "service credential required")
+			return
+		}
 		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
 		decoder.DisallowUnknownFields()
 		var input domain.Request
