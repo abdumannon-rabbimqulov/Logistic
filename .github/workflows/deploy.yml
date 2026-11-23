@@ -65,6 +65,9 @@ jobs:
           - name: frontend
             context: Frontend
             dockerfile: Frontend/Dockerfile
+          - name: pricing-go
+            context: backend/go/pricing
+            dockerfile: backend/go/pricing/Dockerfile
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
