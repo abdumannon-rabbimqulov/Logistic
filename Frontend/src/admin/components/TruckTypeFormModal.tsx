@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { previewLegacyPricing } from '../../api/pricingV2';
 import { ApiError } from '../../api/client';
 import {
   createTruckType,
@@ -68,12 +69,33 @@ export function TruckTypeFormModal({ editing, onClose, onSaved }: Props) {
   // to'liq og'irligi (backenddagi TruckType.calculate_price bilan bir xil formula).
   const exampleKm = 100;
   const exampleWeight = toNumOrNull(form.max_weight) ?? 1;
-  const examplePrice = Math.max(
-    (toNumOrNull(form.base_price) ?? 0) +
-      (toNumOrNull(form.price_per_km) ?? 0) * exampleKm +
-      (toNumOrNull(form.price_per_ton_km) ?? 0) * exampleWeight * exampleKm,
-    toNumOrNull(form.min_price) ?? 0,
-  );
+  const [examplePrice, setExamplePrice] = useState<number | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const base = form.base_price.trim() || '0';
+    const perKm = form.price_per_km.trim() || '0';
+    const perTon = form.price_per_ton_km.trim() || '0';
+    const minimum = form.min_price.trim() || null;
+    const timer = window.setTimeout(() => {
+      previewLegacyPricing({
+        base_price: base,
+        price_per_km: perKm,
+        price_per_ton_km: perTon,
+        min_price: minimum,
+        distance_km: String(exampleKm),
+        weight_t: String(exampleWeight),
+      }).then(response => {
+        if (!cancelled) { setExamplePrice(Number(response.price)); setPreviewError(null); }
+      }).catch(err => {
+        if (!cancelled) {
+          setExamplePrice(null);
+          setPreviewError(err instanceof ApiError ? err.message : 'Narx preview ishlamadi');
+        }
+      });
+    }, 350);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [form.base_price, form.price_per_km, form.price_per_ton_km, form.min_price, exampleWeight]);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
@@ -197,7 +219,7 @@ export function TruckTypeFormModal({ editing, onClose, onSaved }: Props) {
           </div>
           <div className={styles.field}>
             <label className={styles.label}>Misol: 100 km, {exampleWeight} t</label>
-            <div className={styles.input} aria-live="polite">{formatPrice(examplePrice)}</div>
+            <div className={styles.input} aria-live="polite">{examplePrice === null ? (previewError ?? "Hisoblanmoqda…") : formatPrice(examplePrice)}</div>
           </div>
         </div>
         <div className={styles.priceHint}>
