@@ -1,0 +1,104 @@
+openapi: 3.1.0
+info:
+  title: Internal V1-compatible Pricing
+  version: 1.0.0
+paths:
+  /internal/v1/pricing/calculate:
+    post:
+      description: Stateless V1 calculation for a trusted caller. Request body limit is 4096 bytes.
+      security:
+        - serviceToken: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Calculation'
+      responses:
+        '200':
+          description: Price in UZS
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [billable_distance_km, price]
+                properties:
+                  billable_distance_km: {type: integer, format: int64, minimum: 0, multipleOf: 5}
+                  price: {type: string, pattern: '^[0-9]{1,10}\.[0-9]{2}$'}
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '504':
+          $ref: '#/components/responses/Error'
+  /health/live:
+    get:
+      responses:
+        '200':
+          $ref: '#/components/responses/Health'
+  /health/ready:
+    get:
+      responses:
+        '200':
+          $ref: '#/components/responses/Health'
+        '503':
+          $ref: '#/components/responses/Health'
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: Required when PRICING_SERVICE_TOKEN is configured.
+  responses:
+    Health:
+      description: Liveness or readiness status
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            properties:
+              status: {type: string, enum: [ok, draining]}
+    Error:
+      description: Pricing request or processing error
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message]
+            properties:
+              code:
+                type: string
+                enum: [invalid_request, unauthorized, invalid_pricing_input, price_overflow, calculation_timeout]
+              message: {type: string}
+  schemas:
+    Decimal:
+      type: string
+      pattern: '^[0-9]{1,10}(\.[0-9]{1,12})?$'
+      description: Decimal string without sign or exponent. Distance is bounded to 9999999999.99 and weight to 9999.99.
+    Tariff:
+      type: string
+      pattern: '^[0-9]{1,10}(\.[0-9]{1,2}0{0,10})?$'
+      description: Non-negative Numeric(12,2) tariff. Insignificant trailing zeroes are permitted.
+    OptionalDecimal:
+      anyOf:
+        - $ref: '#/components/schemas/Decimal'
+        - type: 'null'
+    OptionalTariff:
+      anyOf:
+        - $ref: '#/components/schemas/Tariff'
+        - type: 'null'
+    Calculation:
+      type: object
+      additionalProperties: false
+      required: [distance_km, base_price, price_per_km]
+      properties:
+        distance_km: {$ref: '#/components/schemas/Decimal'}
+        base_price: {$ref: '#/components/schemas/Tariff'}
+        price_per_km: {$ref: '#/components/schemas/Tariff'}
+        price_per_ton_km: {$ref: '#/components/schemas/OptionalTariff'}
+        weight_t: {$ref: '#/components/schemas/OptionalDecimal'}
+        min_price: {$ref: '#/components/schemas/OptionalTariff'}

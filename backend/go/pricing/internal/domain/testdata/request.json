@@ -1,0 +1,34 @@
+{
+  "profile": {
+    "truck_type_id": 7,
+    "tariff_version_id": 12,
+    "max_weight_t": "10",
+    "max_volume_m3": "24",
+    "costs": {
+      "fuel_uzs_per_liter": "10",
+      "loaded_liters_per_100_km": "20",
+      "empty_liters_per_100_km": "10",
+      "operation_uzs_per_km": "1",
+      "driving_uzs_per_hour": "60",
+      "loading_uzs_per_hour": "120",
+      "unloading_uzs_per_hour": "90",
+      "waiting_uzs_per_hour": "30",
+      "handling_uzs_per_ton": "2",
+      "handling_uzs_per_m3": "3"
+    },
+    "rules": {
+      "minimum_price_uzs": "50",
+      "target_margin_uzs": "100",
+      "minimum_net_margin_uzs": "25",
+      "commission_rate": "0.1",
+      "route_bounds": {"minimum": "0.8", "maximum": "1.2"},
+      "demand_bounds": {"minimum": "0.9", "maximum": "1.1"}
+    }
+  },
+  "route": {"distance_km": "12.5", "duration_min": "30", "source": "osrm"},
+  "work": {
+    "weight_t": "2", "volume_m3": "3",
+    "loading_min": "10", "unloading_min": "10", "waiting_min": "20",
+    "additional_services_uzs": ["5", "2"]
+  }
+}
