@@ -126,6 +126,8 @@ services:
       # max_connections=100 chegarasiga sig'adi. Overflow ataylab 0 (sababi config'da).
       - DB_POOL_SIZE=16
       - DB_MAX_OVERFLOW=0
+      # Go V2 is optional; preview returns 503 until the pricing-v2 profile is enabled.
+      - PRICING_GO_URL=${PRICING_GO_URL:-http://pricing-go:8080}
     command:
       - uvicorn
       - config.main:app
@@ -435,6 +437,20 @@ services:
         condition: service_healthy
       logistika-redis:
         condition: service_started
+
+  # Opt-in Go V2 pricing. No host port; only other containers can reach it.
+  # Enable with COMPOSE_PROFILES=pricing-v2 and a non-empty PRICING_SERVICE_TOKEN.
+  pricing-go:
+    profiles: ["pricing-v2"]
+    build:
+      context: ./backend/go/pricing
+      dockerfile: Dockerfile
+    image: ghcr.io/abdumannon-rabbimqulov/logistika-pricing-go:${IMAGE_TAG:-latest}
+    environment:
+      PRICING_SERVICE_TOKEN: ${PRICING_SERVICE_TOKEN:-}
+    expose:
+      - "8080"
+    restart: unless-stopped
 
 # Barcha volume'lar bitta joyda jamlandi
 volumes:
