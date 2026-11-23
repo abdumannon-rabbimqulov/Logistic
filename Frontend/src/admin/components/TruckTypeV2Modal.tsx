@@ -161,7 +161,13 @@ export function TruckTypeV2Modal({ truck, onClose }: { truck: TruckType; onClose
       {loading && <p>Tariflar yuklanmoqda…</p>}
       {error && <div role="alert" className={styles.error}>{error}</div>}
       {info && <p role="status">{info}</p>}
-      {versions.length > 0 && <p>Oxirgi: v{versions[0].version} ({versions[0].status}). Jami versiyalar: {versions.length}</p>}
+      {versions.length > 0 && <details>
+        <summary>Tariflar tarixi — {versions.length} ta versiya (oxirgisi v{versions[0].version})</summary>
+        <ul>{versions.map(v => <li key={v.id}>
+          v{v.version} · {v.status === 'published' ? 'E’lon qilingan' : 'Draft'} ·
+          {' '}{new Date(v.created_at).toLocaleString('uz-UZ')}
+        </li>)}</ul>
+      </details>}
       <h4>1. Xarajatlar</h4>
       <div className={styles.grid2}>
         {COST_LABELS.map(({ key, label, hint }) => numberInput(label, draft.costs[key], value =>
