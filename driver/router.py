@@ -20,6 +20,7 @@ from fastapi import (
     status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from Admin_panel.validation import is_admin
 from config.config import (
@@ -135,6 +136,23 @@ async def delete_truck_type(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(is_admin),
 ):
+    # Referential integrity: avoid deleting an existing tariff/driver/order history.
+    from driver.models import TruckType
+    from order.models import Order
+    from services.pricing_v2_admin import PricingV2Tariff
+    if await db.get(TruckType, pk) is None:
+        raise HTTPException(status_code=404, detail="Transport turi topilmadi")
+    references = (
+        select(Driver.id).where(Driver.truck_type_id == pk).limit(1),
+        select(Order.id).where(Order.required_truck_type_id == pk).limit(1),
+        select(PricingV2Tariff.id).where(PricingV2Tariff.truck_type_id == pk).limit(1),
+    )
+    for query in references:
+        if (await db.execute(query)).first() is not None:
+            raise HTTPException(status_code=409, detail=(
+                "Transport turi haydovchi, buyurtma yoki tarif tarixida ishlatilgan. "
+                "O'chirish o'rniga uni nofaol (is_active=false) qiling."
+            ))
     await crud.delete_truck_type(db, pk)
     return None
 
