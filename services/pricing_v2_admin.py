@@ -126,6 +126,32 @@ def _profile_values(data: DraftInput) -> dict:
     return data.model_dump(mode="json")
 
 
+class LegacyPreviewInput(BaseModel):
+    """Admin's unsaved V1 tariff preview, calculated by the actual Python engine."""
+    model_config = ConfigDict(extra="forbid")
+    base_price: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    price_per_km: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    price_per_ton_km: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    min_price: Decimal | None = Field(default=None, ge=0, le=Decimal("9999999999.99"))
+    distance_km: Decimal = Field(gt=0, le=Decimal("9999999999.99"))
+    weight_t: Decimal = Field(ge=0, le=Decimal("9999.99"))
+
+
+@router.post("/legacy-preview")
+async def legacy_preview(data: LegacyPreviewInput):
+    from services.pricing import PriceValidationError, round_distance_km
+    truck = TruckType(base_price=data.base_price, price_per_km=data.price_per_km,
+                      price_per_ton_km=data.price_per_ton_km, min_price=data.min_price)
+    try:
+        price = truck.calculate_price(data.distance_km, data.weight_t)
+        billable = round_distance_km(data.distance_km)
+    except (PriceValidationError, ArithmeticError) as exc:
+        raise HTTPException(status_code=422, detail="Narxni hisoblash uchun qiymatlar noto'g'ri") from exc
+    if price > Decimal("9999999999.99"):
+        raise HTTPException(status_code=422, detail="Narx ma'lumotlar bazasi chegarasidan oshdi")
+    return {"price": str(price), "billable_distance_km": billable}
+
+
 @router.get("/truck-types/{truck_type_id}")
 async def versions(truck_type_id: int, db: AsyncSession = Depends(get_db)):
     await _truck(db, truck_type_id)
