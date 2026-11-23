@@ -13,7 +13,7 @@ from typing import Literal
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ConfigDict, model_validator
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, UniqueConstraint, select, func
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, UniqueConstraint, CheckConstraint, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,7 +26,10 @@ from users.models import User
 
 class PricingV2Tariff(Base):
     __tablename__ = "pricing_v2_tariffs"
-    __table_args__ = (UniqueConstraint("truck_type_id", "version", name="uq_pricing_v2_truck_version"),)
+    __table_args__ = (
+        UniqueConstraint("truck_type_id", "version", name="uq_pricing_v2_truck_version"),
+        CheckConstraint("status in ('draft', 'published')", name="ck_pricing_v2_tariffs_status"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     truck_type_id: Mapped[int] = mapped_column(ForeignKey("truck_types.id", ondelete="RESTRICT"), nullable=False, index=True)
@@ -40,7 +43,6 @@ class PricingV2Tariff(Base):
 
 # Go domain accepts nonnegative decimal strings (max 10 integer, 12 fractional digits).
 # Narrower monetary limit matches SQL Numeric(12,2) in the current Python backend.
-NonNegative = Decimal
 class Rates(BaseModel):
     model_config = ConfigDict(extra="forbid")
     fuel_uzs_per_liter: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
