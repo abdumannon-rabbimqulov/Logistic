@@ -52,3 +52,24 @@ jobs:
         run: npm run lint
       - name: Typecheck + build
         run: npm run build
+
+  go-pricing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend/go/pricing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go/pricing/go.mod
+          cache-dependency-path: backend/go/pricing/go.mod
+      - name: Go unit tests
+        run: go test ./...
+      - name: Go race tests
+        run: go test -race ./...
+      - name: Go vet
+        run: go vet ./...
+      - name: Go build
+        run: go build ./cmd/server
