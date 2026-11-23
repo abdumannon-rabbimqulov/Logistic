@@ -1,0 +1,320 @@
+openapi: 3.1.0
+info:
+  title: Internal Hybrid Pricing V2
+  version: 2.0.0
+  description: Only trusted callers may supply published tariff versions and verified
+    OSRM routing data. Calculates a price without creating quotes or billing.
+paths:
+  /health:
+    get:
+      responses:
+        '200':
+          description: Service is running
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - status
+                properties:
+                  status:
+                    const: ok
+  /internal/v2/calculate:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Request'
+      responses:
+        '200':
+          description: Calculated price in UZS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+        '400':
+          description: Invalid JSON or request shape
+          content:
+            application/json:
+              schema: &id001
+                type: object
+                required:
+                - error
+                properties:
+                  error:
+                    type: string
+        '422':
+          description: Input failed pricing validation
+          content:
+            application/json:
+              schema: *id001
+components:
+  schemas:
+    DecimalInput:
+      type: string
+      pattern: ^[0-9]{1,10}(\.[0-9]{1,12})?$
+    DecimalOutput:
+      type: string
+      pattern: ^-?[0-9]+(\.[0-9]+)?$
+    Route:
+      type: object
+      additionalProperties: false
+      required:
+      - distance_km
+      - duration_min
+      - source
+      properties:
+        distance_km:
+          $ref: '#/components/schemas/DecimalInput'
+        duration_min:
+          $ref: '#/components/schemas/DecimalInput'
+        source:
+          type: string
+          enum:
+          - osrm
+          - osrm_cache
+    Work:
+      type: object
+      additionalProperties: false
+      required:
+      - weight_t
+      - loading_min
+      - unloading_min
+      - waiting_min
+      properties:
+        weight_t:
+          $ref: '#/components/schemas/DecimalInput'
+        volume_m3:
+          anyOf:
+          - $ref: '#/components/schemas/DecimalInput'
+          - type: 'null'
+        loading_min:
+          $ref: '#/components/schemas/DecimalInput'
+        unloading_min:
+          $ref: '#/components/schemas/DecimalInput'
+        waiting_min:
+          $ref: '#/components/schemas/DecimalInput'
+        additional_services_uzs:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecimalInput'
+    EmptyRun:
+      type: object
+      additionalProperties: false
+      required:
+      - distance_km
+      - duration_min
+      properties:
+        distance_km:
+          $ref: '#/components/schemas/DecimalInput'
+        duration_min:
+          $ref: '#/components/schemas/DecimalInput'
+    Rates:
+      type: object
+      additionalProperties: false
+      required:
+      - fuel_uzs_per_liter
+      - loaded_liters_per_100_km
+      - empty_liters_per_100_km
+      - operation_uzs_per_km
+      - driving_uzs_per_hour
+      - loading_uzs_per_hour
+      - unloading_uzs_per_hour
+      - waiting_uzs_per_hour
+      - handling_uzs_per_ton
+      - handling_uzs_per_m3
+      properties:
+        fuel_uzs_per_liter:
+          $ref: '#/components/schemas/DecimalInput'
+        loaded_liters_per_100_km:
+          $ref: '#/components/schemas/DecimalInput'
+        empty_liters_per_100_km:
+          $ref: '#/components/schemas/DecimalInput'
+        operation_uzs_per_km:
+          $ref: '#/components/schemas/DecimalInput'
+        driving_uzs_per_hour:
+          $ref: '#/components/schemas/DecimalInput'
+        loading_uzs_per_hour:
+          $ref: '#/components/schemas/DecimalInput'
+        unloading_uzs_per_hour:
+          $ref: '#/components/schemas/DecimalInput'
+        waiting_uzs_per_hour:
+          $ref: '#/components/schemas/DecimalInput'
+        handling_uzs_per_ton:
+          $ref: '#/components/schemas/DecimalInput'
+        handling_uzs_per_m3:
+          $ref: '#/components/schemas/DecimalInput'
+    Bounds:
+      type: object
+      additionalProperties: false
+      required:
+      - minimum
+      - maximum
+      properties:
+        minimum:
+          $ref: '#/components/schemas/DecimalInput'
+        maximum:
+          $ref: '#/components/schemas/DecimalInput'
+    Rules:
+      type: object
+      additionalProperties: false
+      required:
+      - minimum_price_uzs
+      - target_margin_uzs
+      - minimum_net_margin_uzs
+      - commission_rate
+      - route_bounds
+      - demand_bounds
+      properties:
+        minimum_price_uzs:
+          $ref: '#/components/schemas/DecimalInput'
+        target_margin_uzs:
+          $ref: '#/components/schemas/DecimalInput'
+        minimum_net_margin_uzs:
+          $ref: '#/components/schemas/DecimalInput'
+        commission_rate:
+          $ref: '#/components/schemas/DecimalInput'
+        route_bounds:
+          $ref: '#/components/schemas/Bounds'
+        demand_bounds:
+          $ref: '#/components/schemas/Bounds'
+    Profile:
+      type: object
+      additionalProperties: false
+      required:
+      - truck_type_id
+      - tariff_version_id
+      - max_weight_t
+      - max_volume_m3
+      - costs
+      - rules
+      properties:
+        truck_type_id:
+          type: integer
+          format: int64
+          minimum: 1
+        tariff_version_id:
+          type: integer
+          format: int64
+          minimum: 1
+        max_weight_t:
+          $ref: '#/components/schemas/DecimalInput'
+        max_volume_m3:
+          $ref: '#/components/schemas/DecimalInput'
+        costs:
+          $ref: '#/components/schemas/Rates'
+        rules:
+          $ref: '#/components/schemas/Rules'
+        configured_empty_run:
+          anyOf:
+          - $ref: '#/components/schemas/EmptyRun'
+          - type: 'null'
+    Request:
+      type: object
+      additionalProperties: false
+      required:
+      - profile
+      - route
+      - work
+      properties:
+        profile:
+          $ref: '#/components/schemas/Profile'
+        route:
+          $ref: '#/components/schemas/Route'
+        work:
+          $ref: '#/components/schemas/Work'
+        regional_factor:
+          anyOf:
+          - $ref: '#/components/schemas/DecimalInput'
+          - type: 'null'
+        demand_signal:
+          anyOf:
+          - $ref: '#/components/schemas/DecimalInput'
+          - type: 'null'
+        observed_empty_run:
+          anyOf:
+          - $ref: '#/components/schemas/EmptyRun'
+          - type: 'null'
+    Costs:
+      type: object
+      additionalProperties: false
+      required:
+      - fuel
+      - operation
+      - driver_time
+      - loading
+      - unloading
+      - waiting
+      - empty_run
+      - additional_services
+      - total
+      properties:
+        fuel:
+          $ref: '#/components/schemas/DecimalOutput'
+        operation:
+          $ref: '#/components/schemas/DecimalOutput'
+        driver_time:
+          $ref: '#/components/schemas/DecimalOutput'
+        loading:
+          $ref: '#/components/schemas/DecimalOutput'
+        unloading:
+          $ref: '#/components/schemas/DecimalOutput'
+        waiting:
+          $ref: '#/components/schemas/DecimalOutput'
+        empty_run:
+          $ref: '#/components/schemas/DecimalOutput'
+        additional_services:
+          $ref: '#/components/schemas/DecimalOutput'
+        total:
+          $ref: '#/components/schemas/DecimalOutput'
+    Result:
+      type: object
+      additionalProperties: false
+      required:
+      - truck_type_id
+      - tariff_version_id
+      - costs
+      - route_factor
+      - demand_factor
+      - empty_run_source
+      - price_before_guardrails
+      - minimum_price
+      - margin_floor
+      - recommended_price
+      - expected_commission
+      - expected_net_margin
+      properties:
+        truck_type_id:
+          type: integer
+          format: int64
+          minimum: 1
+        tariff_version_id:
+          type: integer
+          format: int64
+          minimum: 1
+        costs:
+          $ref: '#/components/schemas/Costs'
+        route_factor:
+          $ref: '#/components/schemas/DecimalOutput'
+        demand_factor:
+          $ref: '#/components/schemas/DecimalOutput'
+        empty_run_source:
+          type: string
+          enum:
+          - observed
+          - configured
+          - disabled
+        price_before_guardrails:
+          $ref: '#/components/schemas/DecimalOutput'
+        minimum_price:
+          $ref: '#/components/schemas/DecimalOutput'
+        margin_floor:
+          $ref: '#/components/schemas/DecimalOutput'
+        recommended_price:
+          $ref: '#/components/schemas/DecimalOutput'
+        expected_commission:
+          $ref: '#/components/schemas/DecimalOutput'
+        expected_net_margin:
+          $ref: '#/components/schemas/DecimalOutput'

@@ -1,0 +1,12 @@
+[
+  {"name":"below first boundary","input":{"distance_km":"2.4999","base_price":"10","price_per_km":"2"},"expected":{"billable_distance_km":0,"price":"10.00"}},
+  {"name":"first boundary and weight","input":{"distance_km":"2.50","base_price":"10","price_per_km":"2","price_per_ton_km":"1","weight_t":"1.6","min_price":"20"},"expected":{"billable_distance_km":5,"price":"28.00"}},
+  {"name":"below later boundary","input":{"distance_km":"112.4999","base_price":"1","price_per_km":"1"},"expected":{"billable_distance_km":110,"price":"111.00"}},
+  {"name":"later boundary","input":{"distance_km":"112.5","base_price":"1","price_per_km":"1"},"expected":{"billable_distance_km":115,"price":"116.00"}},
+  {"name":"tariff floor","input":{"distance_km":"0","base_price":"1","price_per_km":"5","min_price":"20.00"},"expected":{"billable_distance_km":0,"price":"20.00"}},
+  {"name":"half cent down to even","input":{"distance_km":"5","base_price":"10.00","price_per_km":"0","price_per_ton_km":"0.01","weight_t":"0.1"},"expected":{"billable_distance_km":5,"price":"10.00"}},
+  {"name":"half cent up to even","input":{"distance_km":"5","base_price":"10.00","price_per_km":"0","price_per_ton_km":"0.03","weight_t":"0.1"},"expected":{"billable_distance_km":5,"price":"10.02"}},
+  {"name":"zero weight rate","input":{"distance_km":"10","base_price":"10","price_per_km":"2","price_per_ton_km":"0","weight_t":"3"},"expected":{"billable_distance_km":10,"price":"30.00"}},
+  {"name":"null weight","input":{"distance_km":"10","base_price":"10","price_per_km":"2","price_per_ton_km":"3","weight_t":null,"min_price":null},"expected":{"billable_distance_km":10,"price":"30.00"}},
+  {"name":"maximum stored price","input":{"distance_km":"0","base_price":"9999999999.99","price_per_km":"0"},"expected":{"billable_distance_km":0,"price":"9999999999.99"}}
+]
