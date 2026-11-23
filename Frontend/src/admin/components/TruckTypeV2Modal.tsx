@@ -151,12 +151,12 @@ export function TruckTypeV2Modal({ truck, onClose }: { truck: TruckType; onClose
 
   return (
     <Modal title={truck.name + ' — Go Pricing V2 tarifi'} onClose={onClose}
-      footer={<>
+      footer={<div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8 }}>
         <button className={styles.cancelBtn} onClick={onClose} disabled={busy}>Yopish</button>
         <button className={styles.cancelBtn} disabled={busy || loading} onClick={doPreview}>Narxni hisoblash</button>
         <button className={styles.saveBtn} disabled={busy || loading} onClick={doSave}>Draft saqlash</button>
         <button className={styles.saveBtn} disabled={busy || !saved || !previewed} onClick={doPublish}>E’lon qilish</button>
-      </>}>
+      </div>}>
       <p>Transport sig‘imi: <b>{truck.max_weight} t / {truck.max_volume} m³</b>. Tarif versiyalari V1 narxini o‘zgartirmaydi.</p>
       {loading && <p>Tariflar yuklanmoqda…</p>}
       {error && <div role="alert" className={styles.error}>{error}</div>}
