@@ -90,3 +90,14 @@ def test_zero_or_positive_empty_run_pair():
         DraftInput.model_validate(payload)
     payload["configured_empty_run"]["duration_min"] = "15"
     assert DraftInput.model_validate(payload).configured_empty_run.duration_min == 15
+
+@pytest.mark.asyncio
+async def test_legacy_preview_matches_python_truck_price():
+    from services.pricing_v2_admin import LegacyPreviewInput, legacy_preview
+    request = LegacyPreviewInput(
+        base_price=Decimal("50000"), price_per_km=Decimal("1000"),
+        price_per_ton_km=Decimal("100"), min_price=Decimal("0"),
+        distance_km=Decimal("112.5"), weight_t=Decimal("5"),
+    )
+    answer = await legacy_preview(request)
+    assert answer == {"price": "222500.00", "billable_distance_km": 115}
