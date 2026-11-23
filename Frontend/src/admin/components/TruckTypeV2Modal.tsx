@@ -203,6 +203,12 @@ export function TruckTypeV2Modal({ truck, onClose }: { truck: TruckType; onClose
           ['weight_t', 'Yuk, tonna'], ['loading_min', 'Yuklash, daqiqa'],
           ['unloading_min', 'Tushirish, daqiqa'], ['waiting_min', 'Kutish, daqiqa'],
         ] as const).map(([key, label]) => numberInput(label, example[key], value => changeExample({ ...example, [key]: value })))}
+        {numberInput('Yuk hajmi, m³ (ixtiyoriy)', example.volume_m3 ?? '', value =>
+          changeExample({ ...example, volume_m3: value.trim() ? value : null }))}
+        {numberInput('Hududiy koeffitsiyent', example.regional_factor, value =>
+          changeExample({ ...example, regional_factor: value }))}
+        {numberInput('Talab koeffitsiyenti', example.demand_signal, value =>
+          changeExample({ ...example, demand_signal: value }))}
       </div>
       {result && <div role="status" className={styles.priceBox}>
         <b>Go V2 tavsiya qilgan narx: {result.recommended_price} so‘m</b>
