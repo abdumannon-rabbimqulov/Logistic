@@ -69,3 +69,14 @@ export const previewPricingV2 = (id: number, preview: PricingV2PreviewRequest) =
   api.post<PricingV2Result>(root(id) + '/preview', preview);
 export const publishPricingV2 = (id: number) =>
   api.post<{ id: number; version: number; status: string; active_in_orders: boolean }>(root(id) + '/publish');
+
+export interface LegacyPricingPreviewInput {
+  base_price: string;
+  price_per_km: string;
+  price_per_ton_km: string;
+  min_price: string | null;
+  distance_km: string;
+  weight_t: string;
+}
+export const previewLegacyPricing = (input: LegacyPricingPreviewInput) =>
+  api.post<{ price: string; billable_distance_km: number }>('/system/pricing-v2/legacy-preview', input);
