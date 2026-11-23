@@ -6,6 +6,7 @@ import { formatPrice } from '../../utils/format';
 import { DataTable, type Column } from '../components/DataTable';
 import { Modal } from '../components/Modal';
 import { TruckTypeFormModal } from '../components/TruckTypeFormModal';
+import { TruckTypeV2Modal } from '../components/TruckTypeV2Modal';
 import { EditIcon, PlusIconAdmin, TrashIcon } from '../icons';
 import shared from '../shared.module.css';
 import styles from './AdminTruckTypes.module.css';
@@ -23,6 +24,7 @@ export function AdminTruckTypes() {
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<TruckType | null>(null);
+  const [pricingV2, setPricingV2] = useState<TruckType | null>(null);
   const [deleting, setDeleting] = useState<TruckType | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
@@ -104,9 +106,10 @@ export function AdminTruckTypes() {
       key: 'actions',
       header: '',
       align: 'right',
-      width: '110px',
+      width: '205px',
       render: (t) => (
         <div className={styles.actions}>
+          <button className={styles.v2Btn} onClick={() => setPricingV2(t)} title="Go Pricing V2 tariflarini sozlash">V2 tarif</button>
           <button className={styles.iconBtn} onClick={() => openEdit(t)} aria-label="Tahrirlash">
             <EditIcon />
           </button>
@@ -150,6 +153,8 @@ export function AdminTruckTypes() {
           }}
         />
       )}
+
+      {pricingV2 && <TruckTypeV2Modal truck={pricingV2} onClose={() => setPricingV2(null)} />}
 
       {deleting && (
         <Modal
