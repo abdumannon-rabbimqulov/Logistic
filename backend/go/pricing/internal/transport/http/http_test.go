@@ -17,7 +17,7 @@ func TestHTTPContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	router := Router(application.Pricing{}, Options{})
+	router := Router(application.Pricing{}, Options{ServiceToken: "test"})
 	cases := []struct {
 		name, method, path, body string
 		status                   int
@@ -34,7 +34,11 @@ func TestHTTPContract(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			response := httptest.NewRecorder()
-			router.ServeHTTP(response, httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body)))
+			request := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			if tc.path == "/internal/v2/calculate" {
+				request.Header.Set("Authorization", "Bearer test")
+			}
+			router.ServeHTTP(response, request)
 			if response.Code != tc.status {
 				t.Fatalf("status %d: %s", response.Code, response.Body)
 			}
@@ -81,4 +85,26 @@ func TestLegacyHTTPAndReadiness(t *testing.T) {
 	ready = false
 	check("GET", "/health/ready", "", "", 503, "draining")
 	check("GET", "/health/live", "", "", 200, "ok")
+}
+
+func TestV2Authentication(t *testing.T) {
+	const path = "/internal/v2/calculate"
+	for _, tc := range []struct { name, token string; expected int }{
+		{"missing token", "", 401},
+		{"wrong token", "wrong", 401},
+		{"valid token", "test", 422},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := Router(application.Pricing{}, Options{ServiceToken: "test"})
+			req := httptest.NewRequest("POST", path, strings.NewReader("{}"))
+			if tc.token != "" { req.Header.Set("Authorization", "Bearer "+tc.token) }
+			resp := httptest.NewRecorder()
+			handler.ServeHTTP(resp, req)
+			if resp.Code != tc.expected { t.Fatalf("got %d, want %d", resp.Code, tc.expected) }
+		})
+	}
+	unconfigured := Router(application.Pricing{}, Options{})
+	resp := httptest.NewRecorder()
+	unconfigured.ServeHTTP(resp, httptest.NewRequest("POST", path, strings.NewReader("{}")))
+	if resp.Code != 401 { t.Fatalf("unconfigured V2 endpoint returned %d, want 401", resp.Code) }
 }
