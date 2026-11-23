@@ -6,6 +6,7 @@ from order.models import Order, OrderWaypoint, OrderRoutePostGIS, OrderStatus, W
 from order.dispatch_models import DispatchAttempt, DispatchAttemptStatus, DispatchMatchType
 from Admin_panel.models import PlatformSettings
 from services.outbox import OutboxEvent
+from services.pricing_v2_admin import PricingV2Tariff
 
 # Barcha modellarni SQLAlchemy ro'yxatidan o'tkazish (Registry) kafolati
 __all__ = [
@@ -15,5 +16,5 @@ __all__ = [
     "Order", "OrderWaypoint", "OrderRoutePostGIS", "OrderStatus", "WaypointType", "WaypointStatus",
     "DispatchAttempt", "DispatchAttemptStatus", "DispatchMatchType",
     "PlatformSettings",
-    "OutboxEvent",
+    "OutboxEvent", "PricingV2Tariff",
 ]
